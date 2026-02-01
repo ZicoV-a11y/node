@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Node from './components/Node';
+import SuperNode from './components/SuperNode';
 
 // Paper size constants (96 DPI)
 const PAPER_SIZES = {
@@ -132,6 +133,63 @@ const createLaptopNode = (id) => ({
   }
 });
 
+// Create SuperNode (unified drag-based layout with columns)
+const createSuperNode = (id) => ({
+  id,
+  title: 'SUPERNODE',
+  version: 2, // Flag to use SuperNode component
+  signalColor: 'violet',
+  position: { x: 100, y: 100 },
+  scale: 1,
+  layout: {
+    // Unified row-based layout (no more stacked/columns toggle)
+    // Each row is an array of section IDs
+    // Single item = spans full width, two items = side-by-side columns
+    rows: [
+      ['system'],           // System spans full width at top
+      ['input', 'output'],  // Input and Output side-by-side
+    ],
+    // Anchor side preferences (used when section is in spanning row)
+    inputAnchorSide: 'left',
+    outputAnchorSide: 'right',
+    systemAnchorSide: 'left',
+    systemCollapsed: false
+  },
+  system: {
+    platform: 'MacBook Pro',
+    software: 'none',
+    captureCard: 'none',
+    settings: [],
+    cards: []
+  },
+  inputSection: {
+    columnName: 'INPUTS',
+    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    ports: [
+      {
+        id: 'in-1',
+        number: 1,
+        connector: 'HDMI',
+        resolution: '1920x1080',
+        refreshRate: '59.94'
+      }
+    ]
+  },
+  outputSection: {
+    columnName: 'OUTPUTS',
+    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    ports: [
+      {
+        id: 'out-1',
+        number: 1,
+        connector: 'HDMI',
+        resolution: '1920x1080',
+        refreshRate: '60'
+      }
+    ]
+  }
+});
+
 export default function App() {
   // Paper and zoom state
   const [paperSize, setPaperSize] = useState('ANSI_B');
@@ -196,7 +254,14 @@ export default function App() {
   // Node management
   const addNode = (type = 'generic') => {
     const nodeId = `node-${Date.now()}`;
-    const newNode = type === 'laptop' ? createLaptopNode(nodeId) : createNode(nodeId);
+    let newNode;
+    if (type === 'laptop') {
+      newNode = createLaptopNode(nodeId);
+    } else if (type === 'supernode') {
+      newNode = createSuperNode(nodeId);
+    } else {
+      newNode = createNode(nodeId);
+    }
 
     // Position new node in visible area
     newNode.position = {
@@ -617,6 +682,13 @@ export default function App() {
             >
               + Laptop
             </button>
+            <button
+              onClick={() => addNode('supernode')}
+              className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded text-xs font-mono text-white"
+              title="Add SuperNode with drag-based column layout"
+            >
+              + SuperNode
+            </button>
           </div>
         </div>
 
@@ -834,19 +906,22 @@ export default function App() {
             })}
           </svg>
 
-          {/* Nodes */}
-          {Object.values(currentPage.nodes).map(node => (
-            <Node
-              key={node.id}
-              node={node}
-              zoom={zoom}
-              onUpdate={(updates) => updateNode(node.id, updates)}
-              onDelete={() => deleteNode(node.id)}
-              onAnchorClick={handleAnchorClick}
-              registerAnchor={registerAnchor}
-              activeWire={activeWire}
-            />
-          ))}
+          {/* Nodes - conditionally render SuperNode for version 2 nodes */}
+          {Object.values(currentPage.nodes).map(node => {
+            const NodeComponent = node.version === 2 ? SuperNode : Node;
+            return (
+              <NodeComponent
+                key={node.id}
+                node={node}
+                zoom={zoom}
+                onUpdate={(updates) => updateNode(node.id, updates)}
+                onDelete={() => deleteNode(node.id)}
+                onAnchorClick={handleAnchorClick}
+                registerAnchor={registerAnchor}
+                activeWire={activeWire}
+              />
+            );
+          })}
         </div>
         </div>
       </main>
