@@ -193,6 +193,35 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
 );
 
 // ============================================
+// ROW DROP ZONE COMPONENT
+// Appears above/below rows when dragging SYSTEM to indicate new row placement
+// ============================================
+
+const RowDropZone = ({ position, onDrop }) => (
+  <div
+    onDragOver={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDragEnter={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDrop={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDrop();
+    }}
+    className="w-full h-6 border-2 border-dashed border-purple-400 bg-purple-400/20
+      flex items-center justify-center hover:bg-purple-400/40 transition-all cursor-pointer"
+  >
+    <span className="text-purple-300 text-[9px] font-bold">
+      {position === 'top' ? '▲ DROP SYS HERE ▲' : '▼ DROP SYS HERE ▼'}
+    </span>
+  </div>
+);
+
+// ============================================
 // BOTTOM DROP ZONE COMPONENT
 // Appears at bottom when dragging to add new row
 // ============================================
@@ -1145,6 +1174,17 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
 
     e.preventDefault();
     e.stopPropagation();
+
+    // Don't highlight sections in multi-section rows when dragging SYSTEM
+    // The RowDropZone provides the visual feedback instead
+    if (draggedSection === 'system') {
+      const targetRow = layoutRows.find(row => row.includes(sectionId));
+      if (targetRow && targetRow.length > 1) {
+        setDragOverSection(null);
+        return;
+      }
+    }
+
     if (draggedSection !== sectionId) {
       setDragOverSection(sectionId);
     }
@@ -1156,7 +1196,7 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
   };
 
   // Drop on section (swap positions in same row or move to different row)
-  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle)
+  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle, never side-by-side)
   const handleSectionDrop = (e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
@@ -1189,7 +1229,61 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
       return;
     }
 
-    // Swap positions
+    const targetRowHasMultipleSections = newRows[targetRowIdx].filter(s => s !== null).length > 1;
+    const draggedRowHasMultipleSections = newRows[draggedRowIdx].filter(s => s !== null).length > 1;
+
+    // SPECIAL CASE: Dragging SYSTEM when target is in a side-by-side row
+    // System can't go into a multi-section row, so just move it to top/bottom
+    if (draggedSection === 'system' && targetRowHasMultipleSections) {
+      // Remove system from current position
+      newRows[draggedRowIdx][draggedColIdx] = null;
+
+      // Clean up
+      let cleanedRows = newRows
+        .map(row => row.filter(s => s !== null))
+        .filter(row => row.length > 0);
+
+      // Add system to top or bottom based on target position
+      if (targetRowIdx <= draggedRowIdx) {
+        cleanedRows.unshift(['system']); // Moving toward top
+      } else {
+        cleanedRows.push(['system']); // Moving toward bottom
+      }
+
+      onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+
+    // SPECIAL CASE: Dropping onto SYSTEM when dragged section is in side-by-side row
+    // Just move the dragged section to its own row near system
+    if (targetSectionId === 'system' && draggedRowHasMultipleSections) {
+      // Remove dragged section from current position
+      newRows[draggedRowIdx][draggedColIdx] = null;
+
+      // Clean up
+      let cleanedRows = newRows
+        .map(row => row.filter(s => s !== null))
+        .filter(row => row.length > 0);
+
+      // Find where system is now and insert the dragged section appropriately
+      const systemIdx = cleanedRows.findIndex(row => row.includes('system'));
+      if (systemIdx === 0) {
+        // System at top, insert dragged section below it
+        cleanedRows.splice(1, 0, [draggedSection]);
+      } else {
+        // System at bottom, insert dragged section above it
+        cleanedRows.splice(systemIdx, 0, [draggedSection]);
+      }
+
+      onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+
+    // Normal swap for single-section rows
     newRows[draggedRowIdx][draggedColIdx] = targetSectionId;
     newRows[targetRowIdx][targetColIdx] = draggedSection;
 
@@ -1208,6 +1302,19 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
       } else {
         cleanedRows.push(systemRow); // Moving down → go to bottom
       }
+    }
+
+    // CONSTRAINT: System should never be side-by-side (extra safety check)
+    const systemRowIdxFinal = cleanedRows.findIndex(row => row.includes('system'));
+    if (systemRowIdxFinal !== -1 && cleanedRows[systemRowIdxFinal].length > 1) {
+      // Extract system to its own row
+      const systemRow = cleanedRows[systemRowIdxFinal];
+      const otherSections = systemRow.filter(s => s !== 'system');
+      cleanedRows[systemRowIdxFinal] = otherSections;
+      // Add system back as its own row at bottom
+      cleanedRows.push(['system']);
+      // Clean up any empty rows
+      cleanedRows = cleanedRows.filter(row => row.length > 0);
     }
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
@@ -1328,6 +1435,31 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
     setDragOverSection(null);
   };
 
+  // Drop to top (create new row at top)
+  const handleDropToTop = () => {
+    if (!draggedSection) return;
+
+    const newRows = layoutRows.map(row => [...row]);
+
+    // Remove dragged section from current position
+    newRows.forEach((row) => {
+      const idx = row.indexOf(draggedSection);
+      if (idx !== -1) row[idx] = null;
+    });
+
+    // Clean up
+    let cleanedRows = newRows
+      .map(row => row.filter(s => s !== null))
+      .filter(row => row.length > 0);
+
+    // Add to top
+    cleanedRows.unshift([draggedSection]);
+
+    onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
+    setDraggedSection(null);
+    setDragOverSection(null);
+  };
+
   // Get anchor side for a section based on its position
   const getAnchorSide = (sectionId, rowIndex, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
@@ -1439,9 +1571,17 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
       <div className="flex flex-col">
         {layoutRows.map((row, rowIndex) => {
           const isSingleSectionRow = row.length === 1;
+          // Show top drop zone above side-by-side rows when dragging SYSTEM
+          const showTopDropZone = draggedSection === 'system' && !isSingleSectionRow;
 
           return (
-            <div key={rowIndex} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
+            <div key={rowIndex}>
+              {/* Top drop zone for SYSTEM above side-by-side rows */}
+              {showTopDropZone && (
+                <RowDropZone position="top" onDrop={handleDropToTop} />
+              )}
+
+              <div className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
               {row.map((sectionId, colIndex) => {
                 if (!sectionId) return null;
 
@@ -1479,6 +1619,7 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
                   </div>
                 );
               })}
+              </div>
             </div>
           );
         })}
