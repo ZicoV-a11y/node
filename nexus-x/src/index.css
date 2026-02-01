@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Wire flow animation for enhanced wires */
+@keyframes wire-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.wire-animated {
+  animation: wire-flow 0.8s linear infinite;
+}

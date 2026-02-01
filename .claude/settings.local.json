@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(start \"\" \"c:\\\\Users\\\\zval\\\\Documents\\\\VEEessEFF3\\\\.tmp\\\\system_router.xlsx\")",
+      "Bash(start \"\" \"c:/Users/zval/Documents/VEEessEFF3/.tmp/av_router.xlsx\")",
+      "Bash(start \"\" \"c:\\\\Users\\\\zval\\\\Documents\\\\VEEessEFF3\\\\.tmp\\\\av_diagram.xlsx\")",
+      "Bash(explorer \"c:\\\\Users\\\\zval\\\\Documents\\\\VEEessEFF3\\\\.tmp\")",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm create:*)",
+      "Bash(timeout:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit - Signal Flow Workspace\n\nReact + Vite application for video signal flow diagrams with:\n- Node components with configurable layouts \\(columns/stacked\\)\n- System, Input, Output sections with dropdowns\n- SVG-based wire connections with fluid movement\n- Multi-page workspace support\n- Anchor side toggle for stacked mode\n- Signal color propagation through wire paths\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
