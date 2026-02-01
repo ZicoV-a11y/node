@@ -584,21 +584,6 @@ const SectionHeader = ({
     .filter(([_, preset]) => preset.category === type)
     .map(([id, preset]) => ({ id, ...preset }));
 
-  // Draggable title component
-  const DraggableTitle = ({ align }) => (
-    <span
-      draggable
-      onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-      onDragEnd={onDragEnd}
-      onMouseDown={(e) => e.stopPropagation()}
-      className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:opacity-80
-        ${align === 'right' ? 'text-right' : 'text-left'}`}
-      title="Drag to reorder section"
-    >
-      {title}
-    </span>
-  );
-
   const handlePresetSelect = (presetId) => {
     const preset = CARD_PRESETS[presetId];
     if (preset && onApplyPreset) {
@@ -613,11 +598,27 @@ const SectionHeader = ({
     >
       {/* Left side - title when anchor is left, spacer when anchor is right */}
       <div className="flex-1 min-w-0">
-        {!isReversed && <DraggableTitle align="left" />}
+        {!isReversed && (
+          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
+            {title}
+          </span>
+        )}
       </div>
 
-      {/* Center - Card preset button and Add button */}
+      {/* Center - Drag handle, Card preset button, and Add button */}
       <div className="flex items-center gap-1 shrink-0 relative">
+        {/* Drag handle */}
+        <span
+          draggable
+          onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
+          onDragEnd={onDragEnd}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none ${colors.text}`}
+          title="Drag to reorder section"
+        >
+          ⋮⋮
+        </span>
+
         {/* Card preset button */}
         <button
           onClick={(e) => {
@@ -676,8 +677,12 @@ const SectionHeader = ({
       </div>
 
       {/* Right side - title when anchor is right, spacer when anchor is left */}
-      <div className="flex-1 min-w-0">
-        {isReversed && <DraggableTitle align="right" />}
+      <div className="flex-1 min-w-0 text-right">
+        {isReversed && (
+          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
+            {title}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -817,25 +822,33 @@ const SystemSection = ({
     <div className="flex flex-col border-t border-zinc-700/50 bg-purple-500/5">
       {/* Header with collapse toggle */}
       <div
-        className="flex items-center justify-between px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50 cursor-pointer hover:bg-purple-500/20"
+        className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50 cursor-pointer hover:bg-purple-500/20"
         onClick={(e) => {
           e.stopPropagation();
           onToggleCollapse && onToggleCollapse();
         }}
       >
+        {/* Left side - title */}
+        <span className="font-mono font-bold text-purple-400 text-[9px] flex-1">
+          SYS
+        </span>
+
+        {/* Center - Drag handle */}
         <span
           draggable
           onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
           onDragEnd={onSectionDragEnd}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          className="font-mono font-bold text-purple-400 text-[9px] cursor-grab select-none hover:opacity-80"
+          className="px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none text-purple-400 mx-1"
           title="Drag to reorder section"
         >
-          SYS
+          ⋮⋮
         </span>
+
+        {/* Right side - Collapse toggle */}
         <span
-          className="text-purple-400 text-[8px]"
+          className="text-purple-400 text-[8px] flex-1 text-right"
           onClick={(e) => {
             e.stopPropagation();
             onToggleCollapse && onToggleCollapse();
