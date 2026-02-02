@@ -1331,31 +1331,14 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
   const layoutRows = getRows();
 
-  // Register anchor positions
+  // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
   useEffect(() => {
-    if (!registerAnchor || !nodeRef.current) return;
-
-    const scale = node.scale || 1;
+    if (!registerAnchor) return;
     const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
-
     allPorts.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current?.querySelector(`[data-anchor-id="${anchorId}"]`);
-
-      if (anchorEl) {
-        const anchorRect = anchorEl.getBoundingClientRect();
-        const nodeRect = nodeRef.current.getBoundingClientRect();
-        const totalScale = zoom * scale;
-        const localX = (anchorRect.left + anchorRect.width / 2 - nodeRect.left) / totalScale;
-        const localY = (anchorRect.top + anchorRect.height / 2 - nodeRect.top) / totalScale;
-
-        registerAnchor(anchorId, {
-          x: node.position.x + localX,
-          y: node.position.y + localY
-        });
-      }
+      registerAnchor(`${node.id}-${port.id}`);
     });
-  }, [node.position, node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
+  }, [node.inputSection, node.outputSection, node.layout, registerAnchor, node.id]);
 
   // Resize handling
   const handleResizeStart = (e) => {
