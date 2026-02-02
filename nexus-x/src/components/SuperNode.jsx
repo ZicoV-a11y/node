@@ -295,27 +295,13 @@ const BottomDropZone = ({ onDrop }) => (
 // ANCHOR COMPONENT
 // ============================================
 
-const Anchor = ({ anchorId, type, isActive, signalColor, onClick }) => {
-  const isInput = type === 'in';
-  const colorHex = signalColor ? SIGNAL_COLORS.find(c => c.id === signalColor)?.hex : null;
-
+// Invisible placeholder for anchor positioning - visual rendered in SVG layer
+const Anchor = ({ anchorId, type }) => {
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick && onClick(anchorId, type);
-      }}
+    <span
       data-anchor-id={anchorId}
-      className={`${SIZES.ANCHOR} border-2 transition-all hover:scale-125 shrink-0
-        ${isInput ? 'rounded-sm' : 'rounded-full'}
-        ${isActive
-          ? 'bg-cyan-500 border-cyan-400 shadow-lg shadow-cyan-500/50'
-          : isInput
-            ? 'bg-zinc-800 border-emerald-500 hover:bg-emerald-500/20'
-            : 'bg-zinc-800 border-amber-500 hover:bg-amber-500/20'
-        }`}
-      style={colorHex && !isInput ? { borderColor: colorHex, boxShadow: `0 0 8px ${colorHex}50` } : {}}
-      title={isInput ? 'Input - click to connect' : 'Output - click to connect'}
+      data-anchor-type={type}
+      className="w-3 h-3 shrink-0"
     />
   );
 };

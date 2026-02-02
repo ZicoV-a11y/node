@@ -760,14 +760,16 @@ export default function App() {
     const canvasRect = canvas.getBoundingClientRect();
     const newPositions = {};
 
-    // For each registered anchor, query its DOM position
+    // For each registered anchor, query its DOM position and type
     Object.keys(anchorPositions).forEach(anchorId => {
       const anchorEl = document.querySelector(`[data-anchor-id="${anchorId}"]`);
       if (anchorEl) {
         const anchorRect = anchorEl.getBoundingClientRect();
+        const anchorType = anchorEl.getAttribute('data-anchor-type') || 'in';
         newPositions[anchorId] = {
           x: (anchorRect.left + anchorRect.width / 2 - canvasRect.left) / zoom,
-          y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom
+          y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom,
+          type: anchorType
         };
       }
     });
@@ -1236,7 +1238,7 @@ export default function App() {
 
           {/* SVG Layer for Wires and Selection Box */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[60]"
             style={{ overflow: 'visible' }}
           >
             {/* Selection Box Rectangle */}
@@ -1252,6 +1254,42 @@ export default function App() {
                 strokeDasharray="4 2"
               />
             )}
+
+            {/* SVG Anchor Points - rendered for all registered anchors */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
+              const isInput = pos.type === 'in';
+              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
+              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+
+              return (
+                <g key={`anchor-${anchorId}`}>
+                  {/* Glow effect for connected/active anchors */}
+                  {(isConnected || isActive) && (
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={5}
+                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                      opacity={0.3}
+                    />
+                  )}
+                  {/* Main anchor dot */}
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={isActive ? 3 : 2.5}
+                    fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                    stroke={isActive ? '#67e8f9' : isInput ? '#34d399' : '#fbbf24'}
+                    strokeWidth={1}
+                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnchorClick(anchorId, pos.type);
+                    }}
+                  />
+                </g>
+              );
+            })}
 
             {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
