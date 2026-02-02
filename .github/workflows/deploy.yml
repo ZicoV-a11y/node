@@ -27,11 +27,9 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        working-directory: ./nexus-x
         run: npm ci
 
       - name: Build
-        working-directory: ./nexus-x
         run: npm run build
 
       - name: Setup Pages
@@ -40,7 +38,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './nexus-x/dist'
+          path: './dist'
 
   deploy:
     environment:
