@@ -206,25 +206,27 @@ const CardWrapper = ({
 };
 
 // Column definitions - ALL row elements as columns for template layout
+// TESTING: All columns set to draggable=true to diagnose drag issues
 const COLUMN_DEFS = {
-  anchor: { id: 'anchor', label: '', width: 'w-[24px]', draggable: false },
-  delete: { id: 'delete', label: '🗑', width: 'w-[24px]', draggable: false },
+  anchor: { id: 'anchor', label: '', width: 'w-[24px]', draggable: true },
+  delete: { id: 'delete', label: '🗑', width: 'w-[24px]', draggable: true },
   port: { id: 'port', label: 'Port', width: 'w-[52px]', draggable: true },
   connector: { id: 'connector', label: 'Connector', width: 'w-[90px]', draggable: true },
   resolution: { id: 'resolution', label: 'Resolution', width: 'w-[100px]', draggable: true },
   rate: { id: 'rate', label: 'Rate', width: 'w-[70px]', draggable: true },
-  flip: { id: 'flip', label: '', width: 'w-[42px]', draggable: false },
+  flip: { id: 'flip', label: '', width: 'w-[42px]', draggable: true },
 };
 
-// Data columns that can be reordered by dragging
-const DATA_COLUMNS = ['port', 'connector', 'resolution', 'rate'];
+// Data columns that can be reordered by dragging (includes delete)
+const DATA_COLUMNS = ['delete', 'port', 'connector', 'resolution', 'rate'];
 
 // Build full column order based on mode
+// dataOrder now includes delete and port, so we just add anchor at start and flip at end
 const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
-  // Base order: anchor, delete, data columns, flip (if stacked)
+  // Base order: anchor, data columns (includes delete, port, etc.), flip (if stacked)
   const baseOrder = canToggleAnchor
-    ? ['anchor', 'delete', ...dataOrder, 'flip']
-    : ['anchor', 'delete', ...dataOrder];
+    ? ['anchor', ...dataOrder, 'flip']
+    : ['anchor', ...dataOrder];
 
   // Reverse entire array if anchor is on right
   return isReversed ? [...baseOrder].reverse() : baseOrder;
@@ -533,6 +535,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
 
   const handleDragStart = (e, colId) => {
+    e.stopPropagation();
     setDraggedColumn(colId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('column-reorder', colId);
@@ -574,7 +577,9 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
   };
 
   return (
-    <div className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
+    <div
+      data-column-zone="true"
+      className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
         text-[9px] font-mono text-zinc-500 uppercase tracking-wide w-full`}
     >
       {fullColumnOrder.map((colId, index) => {
@@ -590,8 +595,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
             className="flex items-center"
             onDragOver={(e) => {
               if (isDraggable) {
-                e.preventDefault();
-                e.stopPropagation();
+                handleDragOver(e);
               }
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
@@ -601,26 +605,33 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
               <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
             )}
             {colId === 'port' ? (
-              // PORT header is clickable for select all, not draggable
-              <button
+              // PORT header is both draggable AND clickable for select all
+              <span
+                data-column-drag="true"
+                draggable="true"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleSelectAll && onToggleSelectAll();
                 }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={`${colDef.width} shrink-0 flex items-center justify-center gap-1 cursor-pointer transition-colors ${
+                onDragStart={(e) => handleDragStart(e, colId)}
+                onDragEnd={handleDragEnd}
+                className={`${colDef.width} shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-                title={selectedCount === totalCount && totalCount > 0 ? 'Deselect all' : 'Select all ports'}
+                } ${isDragging ? 'opacity-50' : ''}`}
+                title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
                 <span>{colDef.label}</span>
-              </button>
+              </span>
             ) : (
               <span
-                draggable={isDraggable}
-                onMouseDown={(e) => isDraggable && e.stopPropagation()}
-                onDragStart={(e) => isDraggable && handleDragStart(e, colId)}
+                data-column-drag={isDraggable ? "true" : undefined}
+                draggable={isDraggable ? "true" : undefined}
+                onMouseDown={(e) => e.stopPropagation()}
+                onDragStart={(e) => {
+                  if (isDraggable) handleDragStart(e, colId);
+                }}
                 onDragEnd={handleDragEnd}
                 className={`${colDef.width} shrink-0 flex items-center justify-center transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
@@ -976,7 +987,19 @@ const IOSection = ({
   };
 
   // Get column order from data or use default
-  const columnOrder = data.columnOrder || DATA_COLUMNS;
+  // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
+  const savedOrder = data.columnOrder || [];
+  const columnOrder = DATA_COLUMNS.map(col => col).sort((a, b) => {
+    const aIdx = savedOrder.indexOf(a);
+    const bIdx = savedOrder.indexOf(b);
+    // If both are in saved order, use that order
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    // If only one is in saved order, it comes first
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+    // Neither in saved order, use DATA_COLUMNS order
+    return DATA_COLUMNS.indexOf(a) - DATA_COLUMNS.indexOf(b);
+  });
 
   // Group ports: by cardId or standalone (null cardId)
   const standalonePorts = data.ports.filter(p => !p.cardId);
@@ -1363,6 +1386,17 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
   // Node drag handling
   const handleMouseDown = (e) => {
+    // Check if click is within a column-drag zone (allows column reordering)
+    // This must be FIRST because closest() only searches ancestors, not descendants
+    // and the draggable span is a child of wrapper divs within the zone
+    if (e.target.closest('[data-column-zone="true"]')) return;
+
+    // Allow any draggable element to initiate its own drag behavior
+    // Check: DOM property, draggable attribute, or custom column-drag marker
+    if (e.target.draggable ||
+        e.target.closest('[draggable="true"]') ||
+        e.target.closest('[data-column-drag="true"]')) return;
+
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
     if (isResizing) return;
 
