@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
+import SidePanel from './components/SidePanel';
 
 // Paper size constants (96 DPI)
 const PAPER_SIZES = {
@@ -41,21 +42,13 @@ const DASH_PATTERNS = [
   { id: 'dashdot', pattern: '12 4 4 4', label: '─·─·' },
 ];
 
-// Create empty page
-const createPage = (id, name) => ({
-  id,
-  name,
-  nodes: {},
-  connections: []
-});
-
 // Create empty node with default config
 const createNode = (id) => ({
   id,
   title: 'New Device',
   signalColor: null,
   position: { x: 100, y: 100 },
-  scale: 1, // Proportional scale factor (0.5 - 2.0)
+  scale: 0.5, // Default 50% scale
   layout: {
     systemPosition: 'top',
     ioArrangement: 'columns',
@@ -87,7 +80,7 @@ const createLaptopNode = (id) => ({
   title: 'LAPTOP',
   signalColor: 'emerald',
   position: { x: 100, y: 100 },
-  scale: 1, // Proportional scale factor (0.5 - 2.0)
+  scale: 0.5, // Default 50% scale
   layout: {
     systemPosition: 'top',
     ioArrangement: 'columns',
@@ -138,9 +131,9 @@ const createSuperNode = (id) => ({
   id,
   title: 'SUPERNODE',
   version: 2, // Flag to use SuperNode component
-  signalColor: 'violet',
+  signalColor: null, // No color by default
   position: { x: 100, y: 100 },
-  scale: 1,
+  scale: 0.5, // Default 50% scale
   layout: {
     // Unified row-based layout (no more stacked/columns toggle)
     // Each row is an array of section IDs
@@ -156,7 +149,7 @@ const createSuperNode = (id) => ({
     systemCollapsed: false
   },
   system: {
-    platform: 'MacBook Pro',
+    platform: 'none',
     software: 'none',
     captureCard: 'none',
     settings: [],
@@ -169,9 +162,9 @@ const createSuperNode = (id) => ({
       {
         id: 'in-1',
         number: 1,
-        connector: 'HDMI',
-        resolution: '1920x1080',
-        refreshRate: '59.94'
+        connector: '',      // Empty = "Type" placeholder
+        resolution: '',     // Empty = "Choose" placeholder
+        refreshRate: ''     // Empty = "Choose" placeholder
       }
     ]
   },
@@ -182,9 +175,9 @@ const createSuperNode = (id) => ({
       {
         id: 'out-1',
         number: 1,
-        connector: 'HDMI',
-        resolution: '1920x1080',
-        refreshRate: '60'
+        connector: '',      // Empty = "Type" placeholder
+        resolution: '',     // Empty = "Choose" placeholder
+        refreshRate: ''     // Empty = "Choose" placeholder
       }
     ]
   }
@@ -193,12 +186,28 @@ const createSuperNode = (id) => ({
 export default function App() {
   // Paper and zoom state
   const [paperSize, setPaperSize] = useState('ANSI_B');
-  const [orientation, setOrientation] = useState('portrait');
+  const [orientation, setOrientation] = useState('landscape');
   const [zoom, setZoom] = useState(1.0);
 
-  // Multi-page state
-  const [pages, setPages] = useState([createPage('page-1', 'Page 1')]);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  // Pan state (middle mouse drag)
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+  // Selection box state (left click drag on canvas)
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionBox, setSelectionBox] = useState(null); // { startX, startY, endX, endY }
+  const [selectedNodes, setSelectedNodes] = useState(new Set());
+
+  // Side panel state
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+
+  // Canvas state (single page)
+  const [nodes, setNodes] = useState({});
+  const [connections, setConnections] = useState([]);
+
+  // User-created presets (saved by dragging nodes to library)
+  const [userPresets, setUserPresets] = useState({});
 
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
@@ -208,9 +217,7 @@ export default function App() {
   const [selectedWires, setSelectedWires] = useState(new Set());
 
   const canvasRef = useRef(null);
-
-  // Get current page
-  const currentPage = pages[currentPageIndex];
+  const containerRef = useRef(null);
 
   // Get canvas dimensions based on paper size and orientation
   const getCanvasDimensions = () => {
@@ -223,41 +230,57 @@ export default function App() {
 
   const canvasDimensions = getCanvasDimensions();
 
-  // Page navigation
-  const goToPrevPage = () => {
-    if (currentPageIndex > 0) {
-      setCurrentPageIndex(currentPageIndex - 1);
-    }
-  };
-
-  const goToNextPage = () => {
-    if (currentPageIndex < pages.length - 1) {
-      setCurrentPageIndex(currentPageIndex + 1);
-    }
-  };
-
-  const addPage = () => {
-    const newPage = createPage(`page-${Date.now()}`, `Page ${pages.length + 1}`);
-    setPages([...pages, newPage]);
-    setCurrentPageIndex(pages.length);
-  };
-
-  const deletePage = () => {
-    if (pages.length <= 1) return;
-    if (!confirm(`Delete "${currentPage.name}"? This cannot be undone.`)) return;
-
-    const newPages = pages.filter((_, i) => i !== currentPageIndex);
-    setPages(newPages);
-    setCurrentPageIndex(Math.min(currentPageIndex, newPages.length - 1));
-  };
-
   // Node management
-  const addNode = (type = 'generic') => {
+  const addNode = (typeOrConfig = 'generic') => {
     const nodeId = `node-${Date.now()}`;
     let newNode;
-    if (type === 'laptop') {
+
+    // Handle object config (from SidePanel)
+    if (typeof typeOrConfig === 'object') {
+      const { type, preset } = typeOrConfig;
+
+      if (type === 'supernode') {
+        newNode = createSuperNode(nodeId);
+
+        // Apply preset overrides if provided
+        if (preset) {
+          if (preset.title) newNode.title = preset.title;
+          if (preset.signalColor) newNode.signalColor = preset.signalColor;
+          if (preset.systemSection) {
+            newNode.system = {
+              ...newNode.system,
+              platform: preset.systemSection.platform || newNode.system.platform,
+              software: preset.systemSection.software || newNode.system.software,
+              captureCard: preset.systemSection.captureCard || newNode.system.captureCard
+            };
+          }
+          if (preset.inputSection?.ports) {
+            newNode.inputSection.ports = preset.inputSection.ports.map((p, i) => ({
+              id: `in-${i + 1}`,
+              number: i + 1,
+              connector: p.connector || 'HDMI',
+              resolution: p.resolution || '1920x1080',
+              refreshRate: p.refreshRate || '60'
+            }));
+          }
+          if (preset.outputSection?.ports) {
+            newNode.outputSection.ports = preset.outputSection.ports.map((p, i) => ({
+              id: `out-${i + 1}`,
+              number: i + 1,
+              connector: p.connector || 'HDMI',
+              resolution: p.resolution || '1920x1080',
+              refreshRate: p.refreshRate || '60'
+            }));
+          }
+        }
+      } else {
+        newNode = createNode(nodeId);
+      }
+    }
+    // Handle string type (legacy)
+    else if (typeOrConfig === 'laptop') {
       newNode = createLaptopNode(nodeId);
-    } else if (type === 'supernode') {
+    } else if (typeOrConfig === 'supernode') {
       newNode = createSuperNode(nodeId);
     } else {
       newNode = createNode(nodeId);
@@ -269,48 +292,76 @@ export default function App() {
       y: PRINT_MARGINS.top + Math.random() * 200
     };
 
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        return {
-          ...page,
-          nodes: { ...page.nodes, [nodeId]: newNode }
-        };
-      }
-      return page;
+    setNodes(prev => ({ ...prev, [nodeId]: newNode }));
+  };
+
+  // Save a node as a preset in a subcategory
+  const savePreset = (nodeId, categoryId, subcategoryId) => {
+    const node = nodes[nodeId];
+    if (!node) return;
+
+    const presetId = `preset-${Date.now()}`;
+    const preset = {
+      id: presetId,
+      label: node.title || 'Untitled',
+      title: node.title,
+      signalColor: node.signalColor,
+      systemSection: node.system ? {
+        platform: node.system.platform,
+        software: node.system.software,
+        captureCard: node.system.captureCard
+      } : null,
+      inputSection: {
+        ports: node.inputSection?.ports?.map(p => ({
+          connector: p.connector,
+          resolution: p.resolution,
+          refreshRate: p.refreshRate
+        })) || []
+      },
+      outputSection: {
+        ports: node.outputSection?.ports?.map(p => ({
+          connector: p.connector,
+          resolution: p.resolution,
+          refreshRate: p.refreshRate
+        })) || []
+      },
+      layout: node.layout
+    };
+
+    const key = `${categoryId}/${subcategoryId}`;
+    setUserPresets(prev => ({
+      ...prev,
+      [key]: [...(prev[key] || []), preset]
+    }));
+  };
+
+  // Delete a preset from a subcategory
+  const deletePreset = (categoryId, subcategoryId, presetId) => {
+    const key = `${categoryId}/${subcategoryId}`;
+    setUserPresets(prev => ({
+      ...prev,
+      [key]: (prev[key] || []).filter(p => p.id !== presetId)
     }));
   };
 
   const updateNode = (nodeId, updates) => {
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex && page.nodes[nodeId]) {
-        return {
-          ...page,
-          nodes: {
-            ...page.nodes,
-            [nodeId]: { ...page.nodes[nodeId], ...updates }
-          }
-        };
+    setNodes(prev => {
+      if (prev[nodeId]) {
+        return { ...prev, [nodeId]: { ...prev[nodeId], ...updates } };
       }
-      return page;
-    }));
+      return prev;
+    });
   };
 
   const deleteNode = (nodeId) => {
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        const { [nodeId]: removed, ...remainingNodes } = page.nodes;
-        // Remove connections involving this node
-        const remainingConnections = page.connections.filter(
-          c => !c.from.startsWith(nodeId) && !c.to.startsWith(nodeId)
-        );
-        return {
-          ...page,
-          nodes: remainingNodes,
-          connections: remainingConnections
-        };
-      }
-      return page;
-    }));
+    setNodes(prev => {
+      const { [nodeId]: removed, ...remainingNodes } = prev;
+      return remainingNodes;
+    });
+    // Remove connections involving this node
+    setConnections(prev => prev.filter(
+      c => !c.from.startsWith(nodeId) && !c.to.startsWith(nodeId)
+    ));
   };
 
   // Get source node for an anchor (finds the originating source of a signal)
@@ -319,7 +370,7 @@ export default function App() {
     visited.add(anchorId);
 
     const nodeId = anchorId.split('-')[0] + '-' + anchorId.split('-')[1];
-    const node = currentPage.nodes[nodeId];
+    const node = nodes[nodeId];
 
     if (!node) return null;
 
@@ -327,19 +378,19 @@ export default function App() {
     if (node.signalColor) return node;
 
     // Otherwise, trace back through input connections
-    const inputConn = currentPage.connections.find(c => c.to === anchorId);
+    const inputConn = connections.find(c => c.to === anchorId);
     if (inputConn) {
       return getSourceNode(inputConn.from, visited);
     }
 
     return null;
-  }, [currentPage.nodes, currentPage.connections]);
+  }, [nodes, connections]);
 
   // Get signal color for a connection
   const getConnectionColor = useCallback((conn) => {
     const sourceAnchorId = conn.from;
     const nodeId = sourceAnchorId.split('-').slice(0, 2).join('-');
-    const node = currentPage.nodes[nodeId];
+    const node = nodes[nodeId];
 
     if (node?.signalColor) {
       return SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex || '#22d3ee';
@@ -352,7 +403,7 @@ export default function App() {
     }
 
     return '#22d3ee'; // Default cyan
-  }, [currentPage.nodes, getSourceNode]);
+  }, [nodes, getSourceNode]);
 
   // Connection management
   const handleAnchorClick = (anchorId, direction) => {
@@ -370,20 +421,12 @@ export default function App() {
         };
 
         // Check if connection already exists
-        const exists = currentPage.connections.some(
+        const exists = connections.some(
           c => c.from === newConnection.from && c.to === newConnection.to
         );
 
         if (!exists) {
-          setPages(pages.map((page, i) => {
-            if (i === currentPageIndex) {
-              return {
-                ...page,
-                connections: [...page.connections, newConnection]
-              };
-            }
-            return page;
-          }));
+          setConnections(prev => [...prev, newConnection]);
         }
       }
       setActiveWire(null);
@@ -391,15 +434,7 @@ export default function App() {
   };
 
   const deleteConnection = (connId) => {
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        return {
-          ...page,
-          connections: page.connections.filter(c => c.id !== connId)
-        };
-      }
-      return page;
-    }));
+    setConnections(prev => prev.filter(c => c.id !== connId));
     // Also remove from selection
     setSelectedWires(prev => {
       const next = new Set(prev);
@@ -443,23 +478,112 @@ export default function App() {
     }
   };
 
+  // Mouse wheel zoom
+  const handleWheel = (event) => {
+    // Prevent default scroll
+    event.preventDefault();
+
+    // Zoom with scroll wheel
+    const delta = event.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(prevZoom => {
+      const newZoom = Math.max(0.25, Math.min(2.0, prevZoom + delta));
+      return Math.round(newZoom * 100) / 100; // Round to 2 decimals
+    });
+  };
+
+  // Middle mouse pan - start
+  const handleMouseDown = (event) => {
+    // Middle mouse button (button === 1) - pan
+    if (event.button === 1) {
+      event.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: event.clientX - pan.x, y: event.clientY - pan.y });
+    }
+    // Left mouse button (button === 0) - start selection on canvas only
+    else if (event.button === 0 && event.target.getAttribute('data-canvas') === 'true') {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / zoom;
+      const y = (event.clientY - rect.top) / zoom;
+      setIsSelecting(true);
+      setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
+      // Clear selection unless shift is held
+      if (!event.shiftKey) {
+        setSelectedNodes(new Set());
+      }
+    }
+  };
+
+  // Mouse move - pan or selection box
+  const handleMouseMove = (event) => {
+    if (isPanning) {
+      setPan({
+        x: event.clientX - panStart.x,
+        y: event.clientY - panStart.y
+      });
+    }
+    if (isSelecting && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / zoom;
+      const y = (event.clientY - rect.top) / zoom;
+      setSelectionBox(prev => prev ? { ...prev, endX: x, endY: y } : null);
+    }
+  };
+
+  // Mouse up - end pan or selection
+  const handleMouseUp = (event) => {
+    if (event.button === 1) {
+      setIsPanning(false);
+    }
+    if (event.button === 0 && isSelecting) {
+      // Calculate which nodes are in the selection box
+      if (selectionBox) {
+        const minX = Math.min(selectionBox.startX, selectionBox.endX);
+        const maxX = Math.max(selectionBox.startX, selectionBox.endX);
+        const minY = Math.min(selectionBox.startY, selectionBox.endY);
+        const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+
+        const nodesInBox = new Set();
+        Object.values(nodes).forEach(node => {
+          // Node position is top-left corner, estimate size (200x150 default)
+          const nodeWidth = 200 * (node.scale || 1);
+          const nodeHeight = 150 * (node.scale || 1);
+          const nodeCenterX = node.position.x + nodeWidth / 2;
+          const nodeCenterY = node.position.y + nodeHeight / 2;
+
+          // Check if node center is within selection box
+          if (nodeCenterX >= minX && nodeCenterX <= maxX &&
+              nodeCenterY >= minY && nodeCenterY <= maxY) {
+            nodesInBox.add(node.id);
+          }
+        });
+
+        if (event.shiftKey) {
+          // Add to existing selection
+          setSelectedNodes(prev => new Set([...prev, ...nodesInBox]));
+        } else {
+          setSelectedNodes(nodesInBox);
+        }
+      }
+      setIsSelecting(false);
+      setSelectionBox(null);
+    }
+  };
+
+  // Reset pan and zoom
+  const resetView = () => {
+    setPan({ x: 0, y: 0 });
+    setZoom(1.0);
+  };
+
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
     if (selectedWires.size === 0) return;
 
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        return {
-          ...page,
-          connections: page.connections.map(conn => {
-            if (selectedWires.has(conn.id)) {
-              return { ...conn, enhanced: !conn.enhanced };
-            }
-            return conn;
-          })
-        };
+    setConnections(prev => prev.map(conn => {
+      if (selectedWires.has(conn.id)) {
+        return { ...conn, enhanced: !conn.enhanced };
       }
-      return page;
+      return conn;
     }));
   };
 
@@ -467,37 +591,21 @@ export default function App() {
   const setWireDashPattern = (patternId) => {
     const pattern = DASH_PATTERNS.find(p => p.id === patternId)?.pattern || null;
 
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        return {
-          ...page,
-          connections: page.connections.map(conn => {
-            if (selectedWires.has(conn.id)) {
-              return { ...conn, dashPattern: pattern };
-            }
-            return conn;
-          })
-        };
+    setConnections(prev => prev.map(conn => {
+      if (selectedWires.has(conn.id)) {
+        return { ...conn, dashPattern: pattern };
       }
-      return page;
+      return conn;
     }));
   };
 
   // Set label for a wire
   const setWireLabel = (wireId, label) => {
-    setPages(pages.map((page, i) => {
-      if (i === currentPageIndex) {
-        return {
-          ...page,
-          connections: page.connections.map(conn => {
-            if (conn.id === wireId) {
-              return { ...conn, label };
-            }
-            return conn;
-          })
-        };
+    setConnections(prev => prev.map(conn => {
+      if (conn.id === wireId) {
+        return { ...conn, label };
       }
-      return page;
+      return conn;
     }));
   };
 
@@ -524,11 +632,12 @@ export default function App() {
   // Save/Load functionality
   const saveProject = () => {
     const projectData = {
-      version: '1.0',
+      version: '2.1',
       savedAt: new Date().toISOString(),
       settings: { paperSize, orientation, zoom },
-      pages,
-      currentPageIndex
+      nodes,
+      connections,
+      userPresets
     };
 
     const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
@@ -548,12 +657,21 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const projectData = JSON.parse(e.target.result);
-        if (projectData.version && projectData.pages) {
-          setPaperSize(projectData.settings?.paperSize || 'ANSI_B');
-          setOrientation(projectData.settings?.orientation || 'portrait');
-          setZoom(projectData.settings?.zoom || 1.0);
-          setPages(projectData.pages);
-          setCurrentPageIndex(projectData.currentPageIndex || 0);
+        setPaperSize(projectData.settings?.paperSize || 'ANSI_B');
+        setOrientation(projectData.settings?.orientation || 'landscape');
+        setZoom(projectData.settings?.zoom || 1.0);
+
+        // Support both old (pages) and new (nodes/connections) format
+        if (projectData.nodes) {
+          setNodes(projectData.nodes);
+          setConnections(projectData.connections || []);
+          setUserPresets(projectData.userPresets || {});
+        } else if (projectData.pages) {
+          // Legacy format - load first page
+          const firstPage = projectData.pages[0];
+          setNodes(firstPage?.nodes || {});
+          setConnections(firstPage?.connections || []);
+          setUserPresets({});
         }
       } catch (err) {
         alert('Failed to load project file');
@@ -577,13 +695,24 @@ export default function App() {
                 SIGNAL FLOW WORKSPACE
               </h1>
               <p className="font-mono text-xs text-zinc-600">
-                {currentPage.name} • {Object.keys(currentPage.nodes).length} nodes • {currentPage.connections.length} wires
+                {Object.keys(nodes).length} nodes • {connections.length} wires
               </p>
             </div>
           </div>
 
-          {/* Save/Load */}
+          {/* Library Toggle & Save/Load */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidePanelOpen(prev => !prev)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                sidePanelOpen
+                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="Toggle library panel"
+            >
+              ☰ Library
+            </button>
             <button
               onClick={saveProject}
               className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
@@ -619,7 +748,7 @@ export default function App() {
             </button>
           </div>
 
-          {/* Zoom */}
+          {/* Zoom + Pan */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">Zoom:</span>
             <select
@@ -631,57 +760,17 @@ export default function App() {
                 <option key={z} value={z}>{Math.round(z * 100)}%</option>
               ))}
             </select>
-          </div>
-
-          {/* Page Navigation */}
-          <div className="flex items-center gap-2">
             <button
-              onClick={goToPrevPage}
-              disabled={currentPageIndex === 0}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={resetView}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200"
+              title="Reset zoom and pan (scroll to zoom, middle-click to pan)"
             >
-              ◄
-            </button>
-            <span className="text-xs font-mono text-zinc-300">
-              Page {currentPageIndex + 1} of {pages.length}
-            </span>
-            <button
-              onClick={goToNextPage}
-              disabled={currentPageIndex === pages.length - 1}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ►
-            </button>
-            <button
-              onClick={addPage}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-emerald-400 hover:bg-emerald-500/10"
-            >
-              + Add Page
-            </button>
-            <button
-              onClick={deletePage}
-              disabled={pages.length <= 1}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-red-400 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              - Delete Page
+              ⟲
             </button>
           </div>
 
           {/* Add Node */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => addNode('generic')}
-              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-mono text-white"
-            >
-              + Node
-            </button>
-            <button
-              onClick={() => addNode('laptop')}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-mono text-white"
-              title="Add Laptop node with capture card"
-            >
-              + Laptop
-            </button>
             <button
               onClick={() => addNode('supernode')}
               className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded text-xs font-mono text-white"
@@ -745,15 +834,74 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {/* Node Selection Toolbar */}
+        {selectedNodes.size > 0 && (
+          <div className="mt-2 flex items-center gap-3 py-2 px-3 bg-violet-500/10 border border-violet-500/30 rounded">
+            <span className="text-xs font-mono text-violet-400">
+              {selectedNodes.size} node{selectedNodes.size > 1 ? 's' : ''} selected
+            </span>
+
+            <div className="h-4 border-l border-zinc-700" />
+
+            <button
+              onClick={() => {
+                // Delete all selected nodes
+                selectedNodes.forEach(nodeId => deleteNode(nodeId));
+                setSelectedNodes(new Set());
+              }}
+              className="px-2 py-1 border border-red-600 rounded text-xs font-mono text-red-400 hover:bg-red-500/10"
+            >
+              Delete Selected
+            </button>
+
+            <div className="h-4 border-l border-zinc-700" />
+
+            <button
+              onClick={() => setSelectedNodes(new Set())}
+              className="text-xs font-mono text-zinc-500 hover:text-zinc-300 underline"
+            >
+              Deselect
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Main Canvas Area */}
-      <main className="flex-1 overflow-auto p-4 flex items-start justify-center bg-zinc-900/50">
-        {/* Zoom container - scales everything uniformly */}
+      {/* Main Content Area with Side Panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Side Panel */}
+        <SidePanel
+          isOpen={sidePanelOpen}
+          onClose={() => setSidePanelOpen(false)}
+          onAddNode={addNode}
+          userPresets={userPresets}
+          nodes={nodes}
+          onSavePreset={savePreset}
+          onDeletePreset={deletePreset}
+        />
+
+        {/* Canvas Area */}
+        <main
+          ref={containerRef}
+          className={`flex-1 overflow-hidden p-4 flex items-start justify-center bg-zinc-900/50 ${isPanning ? 'cursor-grabbing' : ''}`}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => {
+            setIsPanning(false);
+            if (isSelecting) {
+              setIsSelecting(false);
+              setSelectionBox(null);
+            }
+          }}
+        >
+        {/* Pan + Zoom container */}
         <div
           style={{
-            transform: `scale(${zoom})`,
-            transformOrigin: 'top center'
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'top center',
+            transition: isPanning ? 'none' : 'transform 0.1s ease-out'
           }}
         >
           <div
@@ -782,12 +930,26 @@ export default function App() {
             }}
           />
 
-          {/* SVG Layer for Wires */}
+          {/* SVG Layer for Wires and Selection Box */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none z-10"
             style={{ overflow: 'visible' }}
           >
-            {currentPage.connections.map(conn => {
+            {/* Selection Box Rectangle */}
+            {isSelecting && selectionBox && (
+              <rect
+                x={Math.min(selectionBox.startX, selectionBox.endX)}
+                y={Math.min(selectionBox.startY, selectionBox.endY)}
+                width={Math.abs(selectionBox.endX - selectionBox.startX)}
+                height={Math.abs(selectionBox.endY - selectionBox.startY)}
+                fill="rgba(34, 211, 238, 0.1)"
+                stroke="#22d3ee"
+                strokeWidth={1}
+                strokeDasharray="4 2"
+              />
+            )}
+
+            {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
               const wirePath = getWirePath(conn.from, conn.to);
               const fromPos = anchorPositions[conn.from];
@@ -907,24 +1069,39 @@ export default function App() {
           </svg>
 
           {/* Nodes - conditionally render SuperNode for version 2 nodes */}
-          {Object.values(currentPage.nodes).map(node => {
+          {Object.values(nodes).map(node => {
             const NodeComponent = node.version === 2 ? SuperNode : Node;
+            const isSelected = selectedNodes.has(node.id);
             return (
               <NodeComponent
                 key={node.id}
                 node={node}
                 zoom={zoom}
+                isSelected={isSelected}
                 onUpdate={(updates) => updateNode(node.id, updates)}
                 onDelete={() => deleteNode(node.id)}
                 onAnchorClick={handleAnchorClick}
                 registerAnchor={registerAnchor}
                 activeWire={activeWire}
+                onSelect={(nodeId, addToSelection) => {
+                  if (addToSelection) {
+                    setSelectedNodes(prev => {
+                      const next = new Set(prev);
+                      if (next.has(nodeId)) next.delete(nodeId);
+                      else next.add(nodeId);
+                      return next;
+                    });
+                  } else {
+                    setSelectedNodes(new Set([nodeId]));
+                  }
+                }}
               />
             );
           })}
         </div>
         </div>
       </main>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-zinc-800 bg-zinc-900/95 px-4 py-2">

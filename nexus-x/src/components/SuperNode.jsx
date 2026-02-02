@@ -7,8 +7,6 @@ import { useState, useRef, useEffect } from 'react';
 const SIZES = {
   ANCHOR: 'w-3 h-3',        // 12px
   DELETE: 'w-4',            // 16px
-  HANDLE: 'w-5',            // 20px
-  GAP: 'gap-2',             // 8px
   PADDING_X: 'px-2',
   PADDING_Y: 'py-1.5',
 };
@@ -20,21 +18,18 @@ const SECTION_COLORS = {
     bg: 'bg-emerald-500/10',
     text: 'text-emerald-400',
     border: 'border-emerald-500',
-    hoverBg: 'hover:bg-emerald-500/20',
   },
   output: {
     accent: 'amber',
     bg: 'bg-amber-500/10',
     text: 'text-amber-400',
     border: 'border-amber-500',
-    hoverBg: 'hover:bg-amber-500/20',
   },
   system: {
     accent: 'purple',
     bg: 'bg-purple-500/10',
     text: 'text-purple-400',
     border: 'border-purple-500',
-    hoverBg: 'hover:bg-purple-500/20',
   },
 };
 
@@ -52,7 +47,7 @@ const REFRESH_RATES = [
 ];
 
 const CONNECTOR_TYPES = [
-  'HDMI', 'SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
+  'HDMI', 'SDI', '12G SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
 ];
 
 const SIGNAL_COLORS = [
@@ -67,6 +62,7 @@ const SIGNAL_COLORS = [
 ];
 
 const PLATFORMS = [
+  'none',
   'MacBook Pro', 'MacBook Air', 'Mac Mini', 'Mac Studio', 'Mac Pro',
   'Windows PC', 'Windows Laptop', 'Linux PC', 'Custom...'
 ];
@@ -107,32 +103,106 @@ const CAPTURE_CARDS = [
   { id: 'custom', label: 'Custom...' },
 ];
 
-// Card presets for Barco Tri-Combo cards
+// Barco Tri-Combo Cards (DP, HDMI, 4x 12G SDI)
 const CARD_PRESETS = {
   'tri-combo-in': {
     label: 'Tri-Combo Input',
+    shortLabel: 'TRI-COMBO',
     category: 'input',
     ports: [
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
       { connector: 'DisplayPort', resolution: '3840x2160', refreshRate: '60' },
+      { connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
     ]
   },
   'tri-combo-out': {
     label: 'Tri-Combo Output',
+    shortLabel: 'TRI-COMBO',
     category: 'output',
     ports: [
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'SDI', resolution: '1920x1080', refreshRate: '59.94' },
-      { connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
       { connector: 'DisplayPort', resolution: '3840x2160', refreshRate: '60' },
+      { connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
+      { connector: '12G SDI', resolution: '3840x2160', refreshRate: '60' },
     ]
   },
+};
+
+// ============================================
+// CARD WRAPPER COMPONENT
+// Symmetrical visual wrapper - colored stripe on anchor side
+// Minimal header that doesn't break column alignment
+// ============================================
+
+const CardWrapper = ({
+  card,
+  children,
+  type,
+  onToggleCollapse,
+  onRemoveCard,
+  anchorSide
+}) => {
+  const colors = SECTION_COLORS[type];
+  const isReversed = anchorSide === 'right';
+
+  return (
+    <div className="relative">
+      {/* Colored stripe indicator on anchor side */}
+      <div
+        className={`absolute top-0 bottom-0 w-1 ${colors.bg.replace('/10', '/40')} ${
+          isReversed ? 'right-0' : 'left-0'
+        }`}
+        style={{
+          backgroundColor: type === 'input' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'
+        }}
+      />
+
+      {/* Card label bar - minimal, symmetric */}
+      <div
+        className={`
+          flex items-center justify-between
+          py-0.5 text-[8px] font-mono
+          ${colors.bg}
+          cursor-pointer select-none
+          ${isReversed ? 'flex-row-reverse pl-2 pr-1' : 'pl-1 pr-2'}
+        `}
+        onClick={() => onToggleCollapse && onToggleCollapse(card.id)}
+      >
+        {/* Left/anchor side: collapse + name */}
+        <div className={`flex items-center gap-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
+          <span className={`${colors.text} transition-transform ${card.collapsed ? '' : 'rotate-90'}`}>
+            ▶
+          </span>
+          <span className={`${colors.text} font-bold tracking-wider`}>
+            {card.name}
+          </span>
+          <span className="text-zinc-500 bg-zinc-700/50 px-1 rounded">
+            {card.portCount}p
+          </span>
+        </div>
+
+        {/* Right side: remove button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemoveCard && onRemoveCard(card.id);
+          }}
+          className="text-zinc-500 hover:text-red-400 px-1"
+          title="Remove card"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Card ports */}
+      {!card.collapsed && children}
+    </div>
+  );
 };
 
 // Column definitions - ALL row elements as columns for template layout
@@ -283,6 +353,9 @@ const PortRow = ({
   canToggleAnchor,
   onToggleAnchor,
   columnOrder,
+  isSelected,
+  onToggleSelection,
+  onBulkUpdate,
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -328,18 +401,38 @@ const PortRow = ({
         );
       case 'port':
         return (
-          <span className="font-mono text-zinc-400 text-center w-full">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelection && onToggleSelection();
+            }}
+            className={`font-mono text-center w-full cursor-pointer transition-colors rounded px-1 ${
+              isSelected
+                ? 'text-cyan-300 bg-cyan-500/20'
+                : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-700/50'
+            }`}
+            title={isSelected ? 'Click to deselect' : 'Click to select for bulk edit'}
+          >
             {isInput ? 'IN' : 'OUT'} {port.number}
-          </span>
+          </button>
         );
       case 'connector':
         return (
           <select
-            value={port.connector || 'HDMI'}
-            onChange={(e) => onUpdate({ connector: e.target.value })}
+            value={port.connector || ''}
+            onChange={(e) => {
+              if (isSelected && onBulkUpdate) {
+                onBulkUpdate('connector', e.target.value);
+              } else {
+                onUpdate({ connector: e.target.value });
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 font-mono text-zinc-300 text-[10px] w-full"
+            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+            } ${port.connector ? 'text-zinc-300' : 'text-zinc-500'}`}
           >
+            <option value="">Type</option>
             {CONNECTOR_TYPES.map(conn => (
               <option key={conn} value={conn}>{conn}</option>
             ))}
@@ -348,11 +441,20 @@ const PortRow = ({
       case 'resolution':
         return (
           <select
-            value={port.resolution}
-            onChange={(e) => onUpdate({ resolution: e.target.value })}
+            value={port.resolution || ''}
+            onChange={(e) => {
+              if (isSelected && onBulkUpdate) {
+                onBulkUpdate('resolution', e.target.value);
+              } else {
+                onUpdate({ resolution: e.target.value });
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 font-mono text-zinc-300 text-[10px] w-full"
+            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+            } ${port.resolution ? 'text-zinc-300' : 'text-zinc-500'}`}
           >
+            <option value="">Choose</option>
             {RESOLUTIONS.map(res => (
               <option key={res} value={res}>{res}</option>
             ))}
@@ -361,11 +463,20 @@ const PortRow = ({
       case 'rate':
         return (
           <select
-            value={port.refreshRate}
-            onChange={(e) => onUpdate({ refreshRate: e.target.value })}
+            value={port.refreshRate || ''}
+            onChange={(e) => {
+              if (isSelected && onBulkUpdate) {
+                onBulkUpdate('refreshRate', e.target.value);
+              } else {
+                onUpdate({ refreshRate: e.target.value });
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 font-mono text-zinc-300 text-[10px] w-full"
+            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+            } ${port.refreshRate ? 'text-zinc-300' : 'text-zinc-500'}`}
           >
+            <option value="">Choose</option>
             {REFRESH_RATES.map(rate => (
               <option key={rate} value={rate}>{rate}</option>
             ))}
@@ -403,12 +514,20 @@ const PortRow = ({
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns }) => {
+const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
+
+  // Selection state indicator
+  const getSelectionIndicator = () => {
+    if (totalCount === 0) return '☐';
+    if (selectedCount === 0) return '☐';
+    if (selectedCount === totalCount) return '☑';
+    return '▣'; // Partial selection
+  };
 
   // Get full column order (anchor, delete, data, flip) with proper reversal
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
@@ -416,7 +535,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
   const handleDragStart = (e, colId) => {
     setDraggedColumn(colId);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', colId);
+    e.dataTransfer.setData('column-reorder', colId);
   };
 
   const handleDragOver = (e) => {
@@ -481,18 +600,36 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
             {index > 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
             )}
-            <span
-              draggable={isDraggable}
-              onMouseDown={(e) => isDraggable && e.stopPropagation()}
-              onDragStart={(e) => isDraggable && handleDragStart(e, colId)}
-              onDragEnd={handleDragEnd}
-              className={`${colDef.width} shrink-0 flex items-center justify-center transition-opacity
-                ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
-                ${isDragging ? 'opacity-50' : ''}`}
-              title={isDraggable ? "Drag to reorder" : undefined}
-            >
-              {colDef.label}
-            </span>
+            {colId === 'port' ? (
+              // PORT header is clickable for select all, not draggable
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelectAll && onToggleSelectAll();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`${colDef.width} shrink-0 flex items-center justify-center gap-1 cursor-pointer transition-colors ${
+                  selectedCount > 0 ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title={selectedCount === totalCount && totalCount > 0 ? 'Deselect all' : 'Select all ports'}
+              >
+                <span>{getSelectionIndicator()}</span>
+                <span>{colDef.label}</span>
+              </button>
+            ) : (
+              <span
+                draggable={isDraggable}
+                onMouseDown={(e) => isDraggable && e.stopPropagation()}
+                onDragStart={(e) => isDraggable && handleDragStart(e, colId)}
+                onDragEnd={handleDragEnd}
+                className={`${colDef.width} shrink-0 flex items-center justify-center transition-opacity
+                  ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
+                  ${isDragging ? 'opacity-50' : ''}`}
+                title={isDraggable ? "Drag to reorder" : undefined}
+              >
+                {colDef.label}
+              </span>
+            )}
           </div>
         );
       })}
@@ -519,9 +656,6 @@ const DraggableSection = ({
   showSideDropZones,
   isSingleSectionRow,
 }) => {
-  // Drag handle goes on OPPOSITE side of anchor
-  const handleOnRight = anchorSide !== 'right';
-
   // System sections never show side drop zones (system always in own row)
   const isSystemSection = sectionId === 'system';
   const canShowSideZones = showSideDropZones && !isSystemSection;
@@ -587,7 +721,7 @@ const SectionHeader = ({
   const handlePresetSelect = (presetId) => {
     const preset = CARD_PRESETS[presetId];
     if (preset && onApplyPreset) {
-      onApplyPreset(preset.ports);
+      onApplyPreset(preset.ports, presetId);
     }
     setShowPresetMenu(false);
   };
@@ -605,7 +739,7 @@ const SectionHeader = ({
         )}
       </div>
 
-      {/* Center - Drag handle, Card preset button, and Add button */}
+      {/* Center - Drag handle, Select All, Card preset button, and Add button */}
       <div className="flex items-center gap-1 shrink-0 relative">
         {/* Drag handle */}
         <span
@@ -710,14 +844,43 @@ const IOSection = ({
   const sectionId = type === 'input' ? 'input' : 'output';
   const portType = type === 'input' ? 'in' : 'out';
 
+  // Multi-select state for bulk editing (Set of port IDs)
+  const [selectedPorts, setSelectedPorts] = useState(new Set());
+
+  // Get cards from data (or empty array)
+  const cards = data.cards || [];
+
+  // Toggle individual port selection
+  const togglePortSelection = (portId) => {
+    setSelectedPorts(prev => {
+      const next = new Set(prev);
+      if (next.has(portId)) {
+        next.delete(portId);
+      } else {
+        next.add(portId);
+      }
+      return next;
+    });
+  };
+
+  // Select all / deselect all
+  const toggleSelectAll = () => {
+    if (selectedPorts.size === data.ports.length && data.ports.length > 0) {
+      setSelectedPorts(new Set()); // Deselect all
+    } else {
+      setSelectedPorts(new Set(data.ports.map(p => p.id))); // Select all
+    }
+  };
+
   const addPort = () => {
     const prefix = type === 'input' ? 'in' : 'out';
     const newPort = {
       id: `${prefix}-${Date.now()}`,
       number: data.ports.length + 1,
-      connector: 'HDMI',
-      resolution: '1920x1080',
-      refreshRate: '59.94'
+      connector: '',       // Empty = "Type" placeholder
+      resolution: '',      // Empty = "Choose" placeholder
+      refreshRate: '',     // Empty = "Choose" placeholder
+      cardId: null // No card - standalone port
     };
     onUpdate({ ports: [...data.ports, newPort] });
   };
@@ -728,31 +891,123 @@ const IOSection = ({
     });
   };
 
-  const deletePort = (portId) => {
+  // Bulk update ONLY selected ports with a specific field value
+  const bulkUpdatePorts = (field, value) => {
+    if (selectedPorts.size === 0) return;
     onUpdate({
-      ports: data.ports.filter(p => p.id !== portId).map((p, i) => ({ ...p, number: i + 1 }))
+      ports: data.ports.map(p =>
+        selectedPorts.has(p.id) ? { ...p, [field]: value } : p
+      )
     });
+  };
+
+  const deletePort = (portId) => {
+    const port = data.ports.find(p => p.id === portId);
+    const remainingPorts = data.ports.filter(p => p.id !== portId);
+
+    // If port belonged to a card, check if card is now empty
+    let updatedCards = cards;
+    if (port?.cardId) {
+      const cardPorts = remainingPorts.filter(p => p.cardId === port.cardId);
+      if (cardPorts.length === 0) {
+        // Remove empty card
+        updatedCards = cards.filter(c => c.id !== port.cardId);
+      }
+    }
+
+    // Renumber remaining ports
+    const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
+
+    onUpdate({ ports: renumberedPorts, cards: updatedCards });
   };
 
   const reorderColumns = (newOrder) => {
     onUpdate({ columnOrder: newOrder });
   };
 
-  // Apply a preset (replaces all ports with preset configuration)
-  const applyPreset = (presetPorts) => {
+  // Apply a preset - creates a card with grouped ports
+  const applyPreset = (presetPorts, presetId) => {
     const prefix = type === 'input' ? 'in' : 'out';
+    const preset = CARD_PRESETS[presetId];
+    const cardId = `card-${Date.now()}`;
+
+    // Create new card entry
+    const newCard = {
+      id: cardId,
+      name: preset?.shortLabel || preset?.label || 'CARD',
+      presetId: presetId,
+      collapsed: false,
+      portCount: presetPorts.length
+    };
+
+    // Create ports with cardId reference
+    const startNumber = data.ports.length + 1;
     const newPorts = presetPorts.map((p, i) => ({
       id: `${prefix}-${Date.now()}-${i}`,
-      number: i + 1,
+      number: startNumber + i,
       connector: p.connector,
       resolution: p.resolution,
       refreshRate: p.refreshRate,
+      cardId: cardId // Link to card
     }));
-    onUpdate({ ports: newPorts });
+
+    // Add to existing ports and cards (don't replace)
+    onUpdate({
+      ports: [...data.ports, ...newPorts],
+      cards: [...cards, newCard]
+    });
+  };
+
+  // Toggle card collapse
+  const toggleCardCollapse = (cardId) => {
+    onUpdate({
+      cards: cards.map(c => c.id === cardId ? { ...c, collapsed: !c.collapsed } : c)
+    });
+  };
+
+  // Remove entire card and its ports
+  const removeCard = (cardId) => {
+    const remainingPorts = data.ports.filter(p => p.cardId !== cardId);
+    const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
+    onUpdate({
+      ports: renumberedPorts,
+      cards: cards.filter(c => c.id !== cardId)
+    });
   };
 
   // Get column order from data or use default
   const columnOrder = data.columnOrder || DATA_COLUMNS;
+
+  // Group ports: by cardId or standalone (null cardId)
+  const standalonePorts = data.ports.filter(p => !p.cardId);
+  const portsByCard = cards.map(card => ({
+    card,
+    ports: data.ports.filter(p => p.cardId === card.id)
+  }));
+
+  // Helper to render port rows
+  const renderPortRows = (ports) => (
+    ports.map(port => (
+      <PortRow
+        key={port.id}
+        port={port}
+        type={portType}
+        anchorSide={anchorSide}
+        onUpdate={(updates) => updatePort(port.id, updates)}
+        onDelete={() => deletePort(port.id)}
+        anchorId={`${nodeId}-${port.id}`}
+        isActive={activeWire?.from === `${nodeId}-${port.id}`}
+        onAnchorClick={onAnchorClick}
+        signalColor={type === 'output' ? signalColor : null}
+        canToggleAnchor={canToggleAnchor}
+        onToggleAnchor={onToggleAnchorSide}
+        columnOrder={columnOrder}
+        isSelected={selectedPorts.has(port.id)}
+        onToggleSelection={() => togglePortSelection(port.id)}
+        onBulkUpdate={bulkUpdatePorts}
+      />
+    ))
+  );
 
   return (
     <div className="flex flex-col w-full border-t border-zinc-700/50">
@@ -774,6 +1029,9 @@ const IOSection = ({
           canToggleAnchor={canToggleAnchor}
           columnOrder={columnOrder}
           onReorderColumns={reorderColumns}
+          selectedCount={selectedPorts.size}
+          totalCount={data.ports.length}
+          onToggleSelectAll={toggleSelectAll}
         />
       )}
 
@@ -783,23 +1041,24 @@ const IOSection = ({
             No {type}s
           </div>
         ) : (
-          data.ports.map(port => (
-            <PortRow
-              key={port.id}
-              port={port}
-              type={portType}
-              anchorSide={anchorSide}
-              onUpdate={(updates) => updatePort(port.id, updates)}
-              onDelete={() => deletePort(port.id)}
-              anchorId={`${nodeId}-${port.id}`}
-              isActive={activeWire?.from === `${nodeId}-${port.id}`}
-              onAnchorClick={onAnchorClick}
-              signalColor={type === 'output' ? signalColor : null}
-              canToggleAnchor={canToggleAnchor}
-              onToggleAnchor={onToggleAnchorSide}
-              columnOrder={columnOrder}
-            />
-          ))
+          <>
+            {/* Render card-grouped ports */}
+            {portsByCard.map(({ card, ports }) => (
+              <CardWrapper
+                key={card.id}
+                card={card}
+                type={sectionType}
+                anchorSide={anchorSide}
+                onToggleCollapse={toggleCardCollapse}
+                onRemoveCard={removeCard}
+              >
+                {renderPortRows(ports)}
+              </CardWrapper>
+            ))}
+
+            {/* Render standalone ports (not in any card) */}
+            {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
+          </>
         )}
       </div>
     </div>
@@ -863,7 +1122,7 @@ const SystemSection = ({
           <div className="flex items-center gap-2">
             <span className="text-zinc-500 font-mono w-24 shrink-0">Platform</span>
             <select
-              value={data.platform || 'MacBook Pro'}
+              value={data.platform || 'none'}
               onChange={(e) => onUpdate({ platform: e.target.value })}
               onClick={(e) => e.stopPropagation()}
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 font-mono text-zinc-300"
@@ -934,6 +1193,20 @@ const TitleBar = ({ node, onUpdate, onDelete }) => {
       className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700 rounded-t-lg"
       style={{ borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined }}
     >
+      {/* Library drag handle - LEFT side for preset saving */}
+      <div
+        draggable
+        onDragStart={(e) => {
+          e.stopPropagation();
+          e.dataTransfer.setData('nodeId', node.id);
+          e.dataTransfer.effectAllowed = 'copy';
+        }}
+        className="cursor-grab text-zinc-500 hover:text-cyan-400 px-1 text-sm shrink-0"
+        title="Drag to Library to save as preset"
+      >
+        ⊞
+      </div>
+
       <span className="font-mono font-bold text-zinc-100 text-sm">{displayTitle()}</span>
       <input
         type="text"
@@ -1010,7 +1283,7 @@ const ResizeHandle = ({ onResizeStart }) => (
 // SUPERNODE COMPONENT
 // ============================================
 
-export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire }) {
+export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -1136,7 +1409,7 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
     e.stopPropagation();
     setDraggedSection(sectionId);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', sectionId);
+    e.dataTransfer.setData('section-reorder', sectionId);
   };
 
   const handleSectionDragOver = (e, sectionId) => {
@@ -1416,10 +1689,20 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
     }
   };
 
+  // Handle click to select (shift+click to add to selection)
+  const handleClick = (e) => {
+    if (onSelect && !isDragging) {
+      e.stopPropagation();
+      onSelect(node.id, e.shiftKey);
+    }
+  };
+
   return (
     <div
       ref={nodeRef}
-      className={`absolute bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl select-none ${
+      className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
+        isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
+      } ${
         isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
       }`}
       style={{
@@ -1427,11 +1710,12 @@ export default function SuperNode({ node, zoom, onUpdate, onDelete, onAnchorClic
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDragging || isResizing ? 100 : 10,
+        zIndex: isDragging || isResizing ? 100 : isSelected ? 50 : 10,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
       }}
       onMouseDown={handleMouseDown}
+      onClick={handleClick}
     >
       <TitleBar node={node} onUpdate={onUpdate} onDelete={onDelete} />
 
