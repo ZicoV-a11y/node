@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
+import CanvasControls from './components/canvas/CanvasControls';
+import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad } from './services/storage';
+import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 
 // Paper size constants (96 DPI)
 const PAPER_SIZES = {
@@ -13,7 +16,7 @@ const PAPER_SIZES = {
   'A3': { width: 1123, height: 1588, label: 'A3' },
 };
 
-const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
 
 const PRINT_MARGINS = {
   top: 48,
@@ -187,7 +190,7 @@ export default function App() {
   // Paper and zoom state
   const [paperSize, setPaperSize] = useState('ANSI_B');
   const [orientation, setOrientation] = useState('landscape');
-  const [zoom, setZoom] = useState(1.0);
+  const [zoom, setZoom] = useState(0.75);
 
   // Pan state (middle mouse drag)
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -212,13 +215,27 @@ export default function App() {
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
   const [anchorPositions, setAnchorPositions] = useState({});
-  const [computedAnchorPositions, setComputedAnchorPositions] = useState({});
 
   // Wire selection state
   const [selectedWires, setSelectedWires] = useState(new Set());
 
+  // Project identity
+  const [projectName, setProjectName] = useState('Untitled Project');
+  const [projectId, setProjectId] = useState(() => crypto.randomUUID());
+
+  // Recent files
+  const [recentFiles, setRecentFiles] = useState(() => getRecentFiles());
+  const [showRecents, setShowRecents] = useState(false);
+
+  // Refs for stable access in event handlers (avoids stale closures)
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  zoomRef.current = zoom;
+  panRef.current = pan;
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Get canvas dimensions based on paper size and orientation
   const getCanvasDimensions = () => {
@@ -470,27 +487,51 @@ export default function App() {
     }
   };
 
-  // Deselect all wires (when clicking canvas)
+  // Deselect all wires (when clicking canvas) and close dropdowns
   const handleCanvasClick = (event) => {
     // Only deselect if clicking directly on the canvas (not a node or wire)
     if (event.target.getAttribute('data-canvas') === 'true') {
       setSelectedWires(new Set());
       setActiveWire(null);
     }
+    setShowRecents(false);
   };
 
-  // Mouse wheel zoom
-  const handleWheel = (event) => {
-    // Prevent default scroll
+  // Cursor-centered zoom (zoom toward/away from mouse position)
+  const handleWheel = useCallback((event) => {
     event.preventDefault();
 
-    // Zoom with scroll wheel
-    const delta = event.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(prevZoom => {
-      const newZoom = Math.max(0.25, Math.min(2.0, prevZoom + delta));
-      return Math.round(newZoom * 100) / 100; // Round to 2 decimals
-    });
-  };
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cursorX = event.clientX - rect.left;
+    const cursorY = event.clientY - rect.top;
+
+    const prevZoom = zoomRef.current;
+    const prevPan = panRef.current;
+    const zoomFactor = 1 - event.deltaY * 0.001;
+    const newZoom = Math.max(0.05, Math.min(8, prevZoom * zoomFactor));
+
+    // Adjust pan so the point under the cursor stays fixed
+    const newPan = {
+      x: cursorX - ((cursorX - prevPan.x) / prevZoom) * newZoom,
+      y: cursorY - ((cursorY - prevPan.y) / prevZoom) * newZoom,
+    };
+
+    setZoom(newZoom);
+    setPan(newPan);
+  }, []);
+
+  // Convert screen coordinates to canvas-space coordinates (accounting for pan + zoom)
+  const screenToCanvasPosition = useCallback(({ x, y }) => {
+    const container = containerRef.current;
+    if (!container) return { x: 0, y: 0 };
+    const rect = container.getBoundingClientRect();
+    return {
+      x: (x - rect.left - pan.x) / zoom,
+      y: (y - rect.top - pan.y) / zoom,
+    };
+  }, [pan, zoom]);
 
   // Middle mouse pan - start
   const handleMouseDown = (event) => {
@@ -502,11 +543,9 @@ export default function App() {
     }
     // Left mouse button (button === 0) - start selection on canvas only
     else if (event.button === 0 && event.target.getAttribute('data-canvas') === 'true') {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (event.clientX - rect.left) / zoom;
-      const y = (event.clientY - rect.top) / zoom;
+      const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
       setIsSelecting(true);
-      setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
+      setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y });
       // Clear selection unless shift is held
       if (!event.shiftKey) {
         setSelectedNodes(new Set());
@@ -522,11 +561,9 @@ export default function App() {
         y: event.clientY - panStart.y
       });
     }
-    if (isSelecting && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (event.clientX - rect.left) / zoom;
-      const y = (event.clientY - rect.top) / zoom;
-      setSelectionBox(prev => prev ? { ...prev, endX: x, endY: y } : null);
+    if (isSelecting) {
+      const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
+      setSelectionBox(prev => prev ? { ...prev, endX: pos.x, endY: pos.y } : null);
     }
   };
 
@@ -570,11 +607,105 @@ export default function App() {
     }
   };
 
-  // Reset pan and zoom
+  // Center the paper in the viewport at default zoom
+  const centerPage = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const defaultZoom = 0.75;
+    const rect = container.getBoundingClientRect();
+    const newPanX = (rect.width - canvasDimensions.width * defaultZoom) / 2;
+    const newPanY = (rect.height - canvasDimensions.height * defaultZoom) / 2;
+    setZoom(defaultZoom);
+    setPan({ x: newPanX, y: newPanY });
+  }, [canvasDimensions]);
+
+  // Fit all nodes into view with padding
+  const fitView = useCallback((padding = 0.1) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const nodeArray = Object.values(nodes);
+    if (nodeArray.length === 0) {
+      centerPage();
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodeArray.forEach(node => {
+      const w = 200 * (node.scale || 1);
+      const h = 150 * (node.scale || 1);
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + w);
+      maxY = Math.max(maxY, node.position.y + h);
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const rect = container.getBoundingClientRect();
+
+    const scaleX = rect.width / (contentWidth * (1 + padding * 2));
+    const scaleY = rect.height / (contentHeight * (1 + padding * 2));
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.05), 8);
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setZoom(newZoom);
+    setPan({
+      x: rect.width / 2 - centerX * newZoom,
+      y: rect.height / 2 - centerY * newZoom,
+    });
+  }, [nodes, centerPage]);
+
+  // Reset view = center page
   const resetView = () => {
-    setPan({ x: 0, y: 0 });
-    setZoom(1.0);
+    centerPage();
   };
+
+  // Zoom in/out from center of viewport
+  const zoomIn = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const prev = zoomRef.current;
+    const prevPan = panRef.current;
+    const newZoom = Math.min(prev * 1.2, 8);
+    setZoom(newZoom);
+    setPan({
+      x: cx - ((cx - prevPan.x) / prev) * newZoom,
+      y: cy - ((cy - prevPan.y) / prev) * newZoom,
+    });
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const prev = zoomRef.current;
+    const prevPan = panRef.current;
+    const newZoom = Math.max(prev * 0.8, 0.05);
+    setZoom(newZoom);
+    setPan({
+      x: cx - ((cx - prevPan.x) / prev) * newZoom,
+      y: cy - ((cy - prevPan.y) / prev) * newZoom,
+    });
+  }, []);
+
+  // Center page on initial mount
+  useEffect(() => {
+    centerPage();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Attach wheel listener with { passive: false } so preventDefault works
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
@@ -610,7 +741,9 @@ export default function App() {
     }));
   };
 
-  // Register anchor position for wire drawing (in paper-space coordinates)
+  // Store computed anchor positions (updated after layout via useLayoutEffect)
+  const [computedAnchorPositions, setComputedAnchorPositions] = useState({});
+
   // Register anchor - track which anchors exist (positions computed via useLayoutEffect)
   const registerAnchor = useCallback((anchorId) => {
     setAnchorPositions(prev => {
@@ -619,7 +752,7 @@ export default function App() {
     });
   }, []);
 
-  // Recalculate ALL anchor positions after DOM has updated
+  // Recalculate ALL anchor positions after DOM has updated (useLayoutEffect runs synchronously after DOM mutations)
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -642,68 +775,170 @@ export default function App() {
     });
 
     setComputedAnchorPositions(newPositions);
-  }, [anchorPositions, zoom, pan, nodes]);
+  }, [anchorPositions, zoom, pan, nodes]); // Recalc when zoom, pan, or nodes change
+
+  // Get anchor position from pre-computed positions
+  const getAnchorPosition = useCallback((anchorId) => {
+    return computedAnchorPositions[anchorId] || null;
+  }, [computedAnchorPositions]);
 
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
-  const getWirePath = (fromId, toId) => {
-    const from = computedAnchorPositions[fromId];
-    const to = computedAnchorPositions[toId];
+  const getWirePath = useCallback((fromId, toId) => {
+    const from = getAnchorPosition(fromId);
+    const to = getAnchorPosition(toId);
     if (!from || !to) return '';
 
     const midX = (from.x + to.x) / 2;
     return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
-  };
+  }, [getAnchorPosition]);
 
-  // Save/Load functionality
-  const saveProject = () => {
-    const projectData = {
-      version: '2.1',
-      savedAt: new Date().toISOString(),
-      settings: { paperSize, orientation, zoom },
-      nodes,
-      connections,
-      userPresets
-    };
+  // Build current project data object
+  const buildProjectData = useCallback(() => ({
+    id: projectId,
+    name: projectName,
+    version: '3.0',
+    savedAt: new Date().toISOString(),
+    settings: { paperSize, orientation, zoom },
+    nodes,
+    connections,
+    userPresets,
+  }), [projectId, projectName, paperSize, orientation, zoom, nodes, connections, userPresets]);
 
-    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+  // Apply loaded project data to all state
+  const applyProject = useCallback((project) => {
+    setPaperSize(project.settings?.paperSize || 'ANSI_B');
+    setOrientation(project.settings?.orientation || 'landscape');
+    setNodes(project.nodes || {});
+    setConnections(project.connections || []);
+    setUserPresets(project.userPresets || {});
+    setProjectName(project.name || 'Untitled Project');
+    setProjectId(project.id);
+    setSelectedNodes(new Set());
+    setSelectedWires(new Set());
+    setActiveWire(null);
+    // Fit view after state settles
+    setTimeout(() => fitView(0.1), 50);
+  }, [fitView]);
+
+  // New project
+  const handleNewProject = useCallback(() => {
+    setNodes({});
+    setConnections([]);
+    setUserPresets({});
+    setProjectName('Untitled Project');
+    setProjectId(crypto.randomUUID());
+    setSelectedNodes(new Set());
+    setSelectedWires(new Set());
+    setActiveWire(null);
+    setTimeout(() => centerPage(), 50);
+  }, [centerPage]);
+
+  // Fallback download for browsers without File System Access API
+  const fallbackDownload = (content, fileName) => {
+    const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'signal-flow-project.sfw.json';
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const loadProject = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  // Save As — native dialog or fallback download + IndexedDB persist
+  const handleSaveAs = useCallback(async () => {
+    const project = buildProjectData();
+    const json = exportProject(project);
+    const fileName = `${projectName.replace(/\s+/g, '_')}.sfw.json`;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    if ('showSaveFilePicker' in window) {
       try {
-        const projectData = JSON.parse(e.target.result);
-        setPaperSize(projectData.settings?.paperSize || 'ANSI_B');
-        setOrientation(projectData.settings?.orientation || 'landscape');
-        setZoom(projectData.settings?.zoom || 1.0);
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'Signal Flow Workspace',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        await dbSave(project);
+        setRecentFiles(addToRecentFiles(projectName, handle.name, projectId));
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          fallbackDownload(json, fileName);
+          await dbSave(project);
+          setRecentFiles(addToRecentFiles(projectName, fileName, projectId));
+        }
+      }
+    } else {
+      fallbackDownload(json, fileName);
+      await dbSave(project);
+      setRecentFiles(addToRecentFiles(projectName, fileName, projectId));
+    }
+  }, [buildProjectData, projectName, projectId]);
 
-        // Support both old (pages) and new (nodes/connections) format
-        if (projectData.nodes) {
-          setNodes(projectData.nodes);
-          setConnections(projectData.connections || []);
-          setUserPresets(projectData.userPresets || {});
-        } else if (projectData.pages) {
-          // Legacy format - load first page
-          const firstPage = projectData.pages[0];
-          setNodes(firstPage?.nodes || {});
-          setConnections(firstPage?.connections || []);
-          setUserPresets({});
+  // Open — native dialog or fallback file input
+  const handleOpenFile = useCallback(async () => {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{
+            description: 'Signal Flow Workspace',
+            accept: { 'application/json': ['.json', '.sfw'] },
+          }],
+          multiple: false,
+        });
+        const file = await handle.getFile();
+        const content = await file.text();
+        try {
+          const project = importProject(content, file.name);
+          applyProject(project);
+          await dbSave(project);
+          setRecentFiles(addToRecentFiles(project.name, file.name, project.id));
+        } catch {
+          alert('Invalid project file');
         }
       } catch (err) {
+        if (err.name !== 'AbortError') {
+          fileInputRef.current?.click();
+        }
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  }, [applyProject]);
+
+  // Fallback file input handler
+  const handleFileChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const project = importProject(e.target.result, file.name);
+        applyProject(project);
+        await dbSave(project);
+        setRecentFiles(addToRecentFiles(project.name, file.name, project.id));
+      } catch {
         alert('Failed to load project file');
       }
     };
     reader.readAsText(file);
-  };
+    event.target.value = '';
+  }, [applyProject]);
+
+  // Load a recent project from IndexedDB
+  const handleLoadRecent = useCallback(async (recentFile) => {
+    const project = await dbLoad(recentFile.projectId);
+    if (project) {
+      applyProject(project);
+      setShowRecents(false);
+    } else {
+      alert('Project not found in browser storage. Use Open to re-import the file.');
+      setShowRecents(false);
+    }
+  }, [applyProject]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col">
@@ -725,7 +960,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Library Toggle & Save/Load */}
+          {/* Library Toggle & File Operations */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSidePanelOpen(prev => !prev)}
@@ -738,16 +973,55 @@ export default function App() {
             >
               ☰ Library
             </button>
+            <div className="h-4 border-l border-zinc-700" />
             <button
-              onClick={saveProject}
+              onClick={handleNewProject}
               className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="New project"
             >
-              Save
+              New
             </button>
-            <label className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 cursor-pointer">
+            <button
+              onClick={handleOpenFile}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="Open project file"
+            >
               Open
-              <input type="file" accept=".json,.sfw" onChange={loadProject} className="hidden" />
-            </label>
+            </button>
+            <button
+              onClick={handleSaveAs}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="Save project to file"
+            >
+              Save As
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowRecents(prev => !prev)}
+                className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+                title="Recent projects"
+              >
+                Recents{recentFiles.length > 0 ? ` (${recentFiles.length})` : ''}
+              </button>
+              {showRecents && (
+                <div className="absolute top-full mt-1 right-0 bg-zinc-800 border border-zinc-700 rounded shadow-xl z-50 w-64">
+                  {recentFiles.length === 0 ? (
+                    <div className="px-3 py-2 text-xs font-mono text-zinc-500">No recent files</div>
+                  ) : (
+                    recentFiles.map((file, i) => (
+                      <button
+                        key={i}
+                        className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:bg-zinc-700 border-b border-zinc-700/50 last:border-0"
+                        onClick={() => handleLoadRecent(file)}
+                      >
+                        <div className="truncate">{file.name}</div>
+                        <div className="text-zinc-500 text-[10px]">{new Date(file.timestamp).toLocaleDateString()}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Paper Size & Orientation */}
@@ -773,25 +1047,34 @@ export default function App() {
             </button>
           </div>
 
-          {/* Zoom + Pan */}
+          {/* Zoom */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">Zoom:</span>
             <select
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              value={ZOOM_LEVELS.reduce((prev, curr) => Math.abs(curr - zoom) < Math.abs(prev - zoom) ? curr : prev)}
+              onChange={(e) => {
+                const newZoom = parseFloat(e.target.value);
+                const container = containerRef.current;
+                if (container) {
+                  const rect = container.getBoundingClientRect();
+                  const cx = rect.width / 2;
+                  const cy = rect.height / 2;
+                  const prev = zoomRef.current;
+                  const prevPan = panRef.current;
+                  setPan({
+                    x: cx - ((cx - prevPan.x) / prev) * newZoom,
+                    y: cy - ((cy - prevPan.y) / prev) * newZoom,
+                  });
+                }
+                setZoom(newZoom);
+              }}
               className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-300"
             >
               {ZOOM_LEVELS.map(z => (
                 <option key={z} value={z}>{Math.round(z * 100)}%</option>
               ))}
             </select>
-            <button
-              onClick={resetView}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200"
-              title="Reset zoom and pan (scroll to zoom, middle-click to pan)"
-            >
-              ⟲
-            </button>
+            <span className="text-xs font-mono text-zinc-500 w-10 text-right">{Math.round(zoom * 100)}%</span>
           </div>
 
           {/* Add Node */}
@@ -908,8 +1191,7 @@ export default function App() {
         {/* Canvas Area */}
         <main
           ref={containerRef}
-          className={`flex-1 overflow-hidden p-4 flex items-start justify-center bg-zinc-900/50 ${isPanning ? 'cursor-grabbing' : ''}`}
-          onWheel={handleWheel}
+          className={`flex-1 overflow-hidden bg-zinc-900/50 relative ${isPanning ? 'cursor-grabbing' : ''}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -925,8 +1207,7 @@ export default function App() {
         <div
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: 'top center',
-            transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+            transformOrigin: '0 0'
           }}
         >
           <div
@@ -957,7 +1238,7 @@ export default function App() {
 
           {/* SVG Layer for Wires and Selection Box */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[60]"
             style={{ overflow: 'visible' }}
           >
             {/* Selection Box Rectangle */}
@@ -974,11 +1255,47 @@ export default function App() {
               />
             )}
 
+            {/* SVG Anchor Points - rendered for all registered anchors */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
+              const isInput = pos.type === 'in';
+              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
+              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+
+              return (
+                <g key={`anchor-${anchorId}`}>
+                  {/* Glow effect for connected/active anchors */}
+                  {(isConnected || isActive) && (
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={5}
+                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                      opacity={0.3}
+                    />
+                  )}
+                  {/* Main anchor dot */}
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={isActive ? 3 : 2.5}
+                    fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                    stroke={isActive ? '#67e8f9' : isInput ? '#34d399' : '#fbbf24'}
+                    strokeWidth={1}
+                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnchorClick(anchorId, pos.type);
+                    }}
+                  />
+                </g>
+              );
+            })}
+
             {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
               const wirePath = getWirePath(conn.from, conn.to);
-              const fromPos = computedAnchorPositions[conn.from];
-              const toPos = computedAnchorPositions[conn.to];
+              const fromPos = getAnchorPosition(conn.from);
+              const toPos = getAnchorPosition(conn.to);
               const isSelected = selectedWires.has(conn.id);
               const isEnhanced = conn.enhanced || false;
 
@@ -1091,42 +1408,6 @@ export default function App() {
                 </g>
               );
             })}
-
-            {/* SVG Anchor Points - rendered for all registered anchors */}
-            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
-              const isInput = pos.type === 'in';
-              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
-              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
-
-              return (
-                <g key={`anchor-${anchorId}`}>
-                  {/* Glow effect for connected/active anchors */}
-                  {(isConnected || isActive) && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={5}
-                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
-                      opacity={0.3}
-                    />
-                  )}
-                  {/* Main anchor dot */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={isActive ? 3 : 2.5}
-                    fill={isActive ? '#22d3ee' : isConnected ? (isInput ? '#10b981' : '#f59e0b') : '#4b5563'}
-                    stroke={isActive ? '#67e8f9' : isConnected ? (isInput ? '#34d399' : '#fbbf24') : '#6b7280'}
-                    strokeWidth={1}
-                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAnchorClick(anchorId, pos.type);
-                    }}
-                  />
-                </g>
-              );
-            })}
           </svg>
 
           {/* Nodes - conditionally render SuperNode for version 2 nodes */}
@@ -1161,6 +1442,14 @@ export default function App() {
           })}
         </div>
         </div>
+        <CanvasControls
+          zoom={zoom}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onFitView={() => fitView(0.1)}
+          onReset={resetView}
+        />
+        <input ref={fileInputRef} type="file" accept=".json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
       </main>
       </div>
 

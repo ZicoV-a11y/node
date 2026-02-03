@@ -295,13 +295,13 @@ const BottomDropZone = ({ onDrop }) => (
 // ANCHOR COMPONENT
 // ============================================
 
-const Anchor = ({ anchorId, type, isActive, signalColor, onClick }) => {
-  // Invisible position marker - the actual visual anchor is rendered in App.jsx as SVG
+// Invisible placeholder for anchor positioning - visual rendered in SVG layer
+const Anchor = ({ anchorId, type }) => {
   return (
     <span
       data-anchor-id={anchorId}
       data-anchor-type={type}
-      className={`${SIZES.ANCHOR} shrink-0 opacity-0 pointer-events-none`}
+      className="w-3 h-3 shrink-0"
     />
   );
 };
@@ -705,8 +705,6 @@ const SectionHeader = ({
   onDragEnd,
   sectionId,
   onApplyPreset,
-  collapsed,
-  onToggleCollapse,
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
@@ -725,123 +723,98 @@ const SectionHeader = ({
     setShowPresetMenu(false);
   };
 
-  // Shared button group JSX
-  const buttonsJSX = (
-    <div className="flex items-center gap-1 shrink-0 relative">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowPresetMenu(!showPresetMenu);
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={`px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-        title="Load card preset"
-      >
-        ⊞
-      </button>
-
-      {showPresetMenu && (
-        <div
-          className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px]"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
-            CARD PRESETS
-          </div>
-          {availablePresets.map((preset) => (
-            <button
-              key={preset.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePresetSelect(preset.id);
-              }}
-              className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
-            >
-              <span className="text-zinc-500">{preset.ports.length}p</span>
-              <span>{preset.label}</span>
-            </button>
-          ))}
-          {availablePresets.length === 0 && (
-            <div className="px-2 py-1.5 text-[10px] font-mono text-zinc-500">
-              No presets available
-            </div>
-          )}
-        </div>
-      )}
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAdd && onAdd();
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-        title="Add port"
-      >
-        +
-      </button>
-    </div>
-  );
-
   return (
     <div
-      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 ${colors.bg} border-b border-zinc-700/50`}
+      className={`flex items-center ${SIZES.PADDING_X} py-1 ${colors.bg} border-b border-zinc-700/50`}
     >
-      {isReversed ? (
-        <>
-          {buttonsJSX}
-          <div className="flex items-center gap-1 flex-row-reverse">
-            <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
-              onMouseDown={(e) => e.stopPropagation()}
-              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
-              title="Drag to reorder section"
-            >
-              {title}
-            </span>
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCollapse && onToggleCollapse();
-              }}
-              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
-              style={{ fontFamily: 'inherit' }}
-              title={collapsed ? 'Expand section' : 'Collapse section'}
-            >
-              ▸
-            </span>
+      {/* Left side - title when anchor is left, spacer when anchor is right */}
+      <div className="flex-1 min-w-0">
+        {!isReversed && (
+          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
+            {title}
+          </span>
+        )}
+      </div>
+
+      {/* Center - Drag handle, Select All, Card preset button, and Add button */}
+      <div className="flex items-center gap-1 shrink-0 relative">
+        {/* Drag handle */}
+        <span
+          draggable
+          onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
+          onDragEnd={onDragEnd}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none ${colors.text}`}
+          title="Drag to reorder section"
+        >
+          ⋮⋮
+        </span>
+
+        {/* Card preset button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPresetMenu(!showPresetMenu);
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
+          title="Load card preset"
+        >
+          ⊞
+        </button>
+
+        {/* Preset dropdown menu */}
+        {showPresetMenu && (
+          <div
+            className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px]"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
+              CARD PRESETS
+            </div>
+            {availablePresets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePresetSelect(preset.id);
+                }}
+                className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+              >
+                <span className="text-zinc-500">{preset.ports.length}p</span>
+                <span>{preset.label}</span>
+              </button>
+            ))}
+            {availablePresets.length === 0 && (
+              <div className="px-2 py-1.5 text-[10px] font-mono text-zinc-500">
+                No presets available
+              </div>
+            )}
           </div>
-        </>
-      ) : (
-        <>
-          <div className="flex items-center gap-1">
-            <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
-              onMouseDown={(e) => e.stopPropagation()}
-              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
-              title="Drag to reorder section"
-            >
-              {title}
-            </span>
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCollapse && onToggleCollapse();
-              }}
-              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
-              style={{ fontFamily: 'inherit' }}
-              title={collapsed ? 'Expand section' : 'Collapse section'}
-            >
-              ▸
-            </span>
-          </div>
-          {buttonsJSX}
-        </>
-      )}
+        )}
+
+        {/* Add button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAdd && onAdd();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
+          title="Add port"
+        >
+          +
+        </button>
+      </div>
+
+      {/* Right side - title when anchor is right, spacer when anchor is left */}
+      <div className="flex-1 min-w-0 text-right">
+        {isReversed && (
+          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
+            {title}
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -863,8 +836,6 @@ const IOSection = ({
   onToggleAnchorSide,
   onSectionDragStart,
   onSectionDragEnd,
-  collapsed,
-  onToggleCollapse,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -1059,52 +1030,46 @@ const IOSection = ({
         onDragEnd={onSectionDragEnd}
         sectionId={sectionId}
         onApplyPreset={applyPreset}
-        collapsed={collapsed}
-        onToggleCollapse={onToggleCollapse}
       />
 
-      {!collapsed && (
-        <>
-          {data.ports.length > 0 && (
-            <ColumnHeaders
-              anchorSide={anchorSide}
-              canToggleAnchor={canToggleAnchor}
-              columnOrder={columnOrder}
-              onReorderColumns={reorderColumns}
-              selectedCount={selectedPorts.size}
-              totalCount={data.ports.length}
-              onToggleSelectAll={toggleSelectAll}
-            />
-          )}
-
-          <div className="flex-1 w-full">
-            {data.ports.length === 0 ? (
-              <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[10px]`}>
-                No {type}s
-              </div>
-            ) : (
-              <>
-                {/* Render card-grouped ports */}
-                {portsByCard.map(({ card, ports }) => (
-                  <CardWrapper
-                    key={card.id}
-                    card={card}
-                    type={sectionType}
-                    anchorSide={anchorSide}
-                    onToggleCollapse={toggleCardCollapse}
-                    onRemoveCard={removeCard}
-                  >
-                    {renderPortRows(ports)}
-                  </CardWrapper>
-                ))}
-
-                {/* Render standalone ports (not in any card) */}
-                {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
-              </>
-            )}
-          </div>
-        </>
+      {data.ports.length > 0 && (
+        <ColumnHeaders
+          anchorSide={anchorSide}
+          canToggleAnchor={canToggleAnchor}
+          columnOrder={columnOrder}
+          onReorderColumns={reorderColumns}
+          selectedCount={selectedPorts.size}
+          totalCount={data.ports.length}
+          onToggleSelectAll={toggleSelectAll}
+        />
       )}
+
+      <div className="flex-1 w-full">
+        {data.ports.length === 0 ? (
+          <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[10px]`}>
+            No {type}s
+          </div>
+        ) : (
+          <>
+            {/* Render card-grouped ports */}
+            {portsByCard.map(({ card, ports }) => (
+              <CardWrapper
+                key={card.id}
+                card={card}
+                type={sectionType}
+                anchorSide={anchorSide}
+                onToggleCollapse={toggleCardCollapse}
+                onRemoveCard={removeCard}
+              >
+                {renderPortRows(ports)}
+              </CardWrapper>
+            ))}
+
+            {/* Render standalone ports (not in any card) */}
+            {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -1124,34 +1089,41 @@ const SystemSection = ({
   return (
     <div className="flex flex-col border-t border-zinc-700/50 bg-purple-500/5">
       {/* Header with collapse toggle */}
-      <div className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50">
-        {/* Left side - draggable title + collapse arrow */}
-        <div className="flex items-center gap-1">
-          <span
-            draggable
-            onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
-            onDragEnd={onSectionDragEnd}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="font-mono font-bold text-purple-400 text-[9px] cursor-grab select-none hover:bg-purple-500/20 px-1 py-0.5 rounded"
-            title="Drag to reorder section"
-          >
-            SYS
-          </span>
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse && onToggleCollapse();
-            }}
-            className={`text-purple-400 text-[9px] cursor-pointer hover:bg-purple-500/20 px-0.5 rounded transition-transform ${collapsed ? '' : 'rotate-90'}`}
-            style={{ fontFamily: 'inherit' }}
-            title={collapsed ? 'Expand section' : 'Collapse section'}
-          >
-            ▸
-          </span>
-        </div>
+      <div
+        className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50 cursor-pointer hover:bg-purple-500/20"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCollapse && onToggleCollapse();
+        }}
+      >
+        {/* Left side - title */}
+        <span className="font-mono font-bold text-purple-400 text-[9px] flex-1">
+          SYS
+        </span>
 
-        {/* Spacer */}
-        <span className="flex-1" />
+        {/* Center - Drag handle */}
+        <span
+          draggable
+          onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
+          onDragEnd={onSectionDragEnd}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none text-purple-400 mx-1"
+          title="Drag to reorder section"
+        >
+          ⋮⋮
+        </span>
+
+        {/* Right side - Collapse toggle */}
+        <span
+          className="text-purple-400 text-[8px] flex-1 text-right"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCollapse && onToggleCollapse();
+          }}
+        >
+          {collapsed ? '▶' : '▼'}
+        </span>
       </div>
 
       {!collapsed && (
@@ -1279,10 +1251,10 @@ const TitleBar = ({ node, onUpdate, onDelete }) => {
             e.stopPropagation();
             onDelete();
           }}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/20 ml-1 px-1.5 py-0.5 rounded text-xs font-bold"
+          className="text-red-400 hover:text-red-300 ml-1 text-sm font-bold"
           title="Delete node"
         >
-          ✕
+          ×
         </button>
       </div>
     </div>
@@ -1345,10 +1317,9 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
   const layoutRows = getRows();
 
-  // Register anchors (positions computed centrally in App.jsx via useLayoutEffect)
+  // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
   useEffect(() => {
     if (!registerAnchor) return;
-
     const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
     allPorts.forEach((port) => {
       registerAnchor(`${node.id}-${port.id}`);
@@ -1697,8 +1668,6 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onToggleAnchorSide={toggleInputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
-            collapsed={node.layout.inputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
           />
         );
       case 'output':
@@ -1716,8 +1685,6 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onToggleAnchorSide={toggleOutputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
-            collapsed={node.layout.outputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
           />
         );
       default:
