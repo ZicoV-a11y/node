@@ -134,6 +134,113 @@ const CARD_PRESETS = {
 };
 
 // ============================================
+// SELECT WITH CUSTOM INPUT COMPONENT
+// Dropdown that switches to text input for custom values
+// ============================================
+
+const SelectWithCustom = ({
+  value,
+  options,
+  onChange,
+  placeholder = 'Choose',
+  className = '',
+  isSelected = false,
+}) => {
+  // Check if current value is custom (not in options list, or is "Custom...")
+  const isCustomValue = value && value !== 'Custom...' && !options.includes(value);
+  const [isCustomMode, setIsCustomMode] = useState(isCustomValue);
+  const [customText, setCustomText] = useState(isCustomValue ? value : '');
+  const inputRef = useRef(null);
+
+  // Focus input when entering custom mode
+  useEffect(() => {
+    if (isCustomMode && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isCustomMode]);
+
+  // Sync custom text when value changes externally
+  useEffect(() => {
+    if (isCustomValue) {
+      setCustomText(value);
+      setIsCustomMode(true);
+    }
+  }, [value, isCustomValue]);
+
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+    isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+  } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
+
+  if (isCustomMode) {
+    return (
+      <div className="flex items-center gap-0.5 w-full">
+        <input
+          ref={inputRef}
+          type="text"
+          value={customText}
+          onChange={(e) => setCustomText(e.target.value)}
+          onBlur={() => {
+            if (customText.trim()) {
+              onChange(customText.trim());
+            } else {
+              setIsCustomMode(false);
+              onChange('');
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            } else if (e.key === 'Escape') {
+              setIsCustomMode(false);
+              setCustomText('');
+              onChange('');
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Type custom..."
+          className={`${baseStyle} flex-1 min-w-0`}
+        />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsCustomMode(false);
+            setCustomText('');
+            onChange('');
+          }}
+          className="text-zinc-500 hover:text-zinc-300 text-[10px] px-0.5 shrink-0"
+          title="Back to dropdown"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value || ''}
+      onChange={(e) => {
+        const newValue = e.target.value;
+        if (newValue === 'Custom...') {
+          setIsCustomMode(true);
+          setCustomText('');
+        } else {
+          onChange(newValue);
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className={`${baseStyle} ${className}`}
+    >
+      <option value="">{placeholder}</option>
+      {options.map(opt => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+  );
+};
+
+// ============================================
 // CARD WRAPPER COMPONENT
 // Symmetrical visual wrapper - colored stripe on anchor side
 // Minimal header that doesn't break column alignment
@@ -406,69 +513,51 @@ const PortRow = ({
         );
       case 'connector':
         return (
-          <select
+          <SelectWithCustom
             value={port.connector || ''}
-            onChange={(e) => {
+            options={CONNECTOR_TYPES}
+            placeholder="Type"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('connector', e.target.value);
+                onBulkUpdate('connector', value);
               } else {
-                onUpdate({ connector: e.target.value });
+                onUpdate({ connector: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.connector ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Type</option>
-            {CONNECTOR_TYPES.map(conn => (
-              <option key={conn} value={conn}>{conn}</option>
-            ))}
-          </select>
+          />
         );
       case 'resolution':
         return (
-          <select
+          <SelectWithCustom
             value={port.resolution || ''}
-            onChange={(e) => {
+            options={RESOLUTIONS}
+            placeholder="Choose"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('resolution', e.target.value);
+                onBulkUpdate('resolution', value);
               } else {
-                onUpdate({ resolution: e.target.value });
+                onUpdate({ resolution: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.resolution ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Choose</option>
-            {RESOLUTIONS.map(res => (
-              <option key={res} value={res}>{res}</option>
-            ))}
-          </select>
+          />
         );
       case 'rate':
         return (
-          <select
+          <SelectWithCustom
             value={port.refreshRate || ''}
-            onChange={(e) => {
+            options={REFRESH_RATES}
+            placeholder="Choose"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('refreshRate', e.target.value);
+                onBulkUpdate('refreshRate', value);
               } else {
-                onUpdate({ refreshRate: e.target.value });
+                onUpdate({ refreshRate: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.refreshRate ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Choose</option>
-            {REFRESH_RATES.map(rate => (
-              <option key={rate} value={rate}>{rate}</option>
-            ))}
-          </select>
+          />
         );
       default:
         return null;
@@ -725,21 +814,57 @@ const SectionHeader = ({
     setShowPresetMenu(false);
   };
 
-  // Preset button (⊞)
-  const presetButton = (
-    <div className="relative">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowPresetMenu(!showPresetMenu);
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={`px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-        title="Load card preset"
-      >
-        ⊞
-      </button>
+  // Shared button style for consistency
+  const buttonStyle = `px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[11px] font-mono ${colors.text}`;
 
+  // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
+  const buttonsJSX = (
+    <div className="flex items-center gap-1.5 shrink-0 relative">
+      {isReversed ? (
+        <>
+          {/* Add button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Add port"
+          >
+            +
+          </button>
+          {/* Preset button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Load card preset"
+          >
+            ⊞
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Preset button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Load card preset"
+          >
+            ⊞
+          </button>
+          {/* Add button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Add port"
+          >
+            +
+          </button>
+        </>
+      )}
+
+      {/* Preset dropdown menu - positioned relative to button container */}
       {showPresetMenu && (
         <div
           className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
@@ -751,10 +876,7 @@ const SectionHeader = ({
           {availablePresets.map((preset) => (
             <button
               key={preset.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePresetSelect(preset.id);
-              }}
+              onClick={(e) => { e.stopPropagation(); handlePresetSelect(preset.id); }}
               className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
             >
               <span className="text-zinc-500">{preset.ports.length}p</span>
@@ -767,38 +889,6 @@ const SectionHeader = ({
             </div>
           )}
         </div>
-      )}
-    </div>
-  );
-
-  // Add button (+)
-  const addButton = (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onAdd && onAdd();
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-      className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-      title="Add port"
-    >
-      +
-    </button>
-  );
-
-  // Buttons - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
-  const buttonsJSX = (
-    <div className="flex items-center gap-1 shrink-0">
-      {isReversed ? (
-        <>
-          {addButton}
-          {presetButton}
-        </>
-      ) : (
-        <>
-          {presetButton}
-          {addButton}
-        </>
       )}
     </div>
   );
