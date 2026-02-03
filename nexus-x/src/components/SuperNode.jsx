@@ -467,6 +467,10 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
       e.stopPropagation();
       onDrop(side);
     }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    onMouseUp={() => {
+      onDrop(side);
+    }}
     className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-10
       border-2 border-dashed transition-all z-20 flex items-center justify-center
       ${isActive
@@ -499,10 +503,47 @@ const BottomDropZone = ({ onDrop }) => (
       e.stopPropagation();
       onDrop();
     }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    // Don't stopPropagation - let window handler do cleanup
+    onMouseUp={() => {
+      onDrop();
+    }}
     className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
       flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer"
   >
-    <span className="text-cyan-300 text-[10px] font-bold">▼ DROP HERE FOR NEW ROW ▼</span>
+    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
+  </div>
+);
+
+// ============================================
+// TOP DROP ZONE COMPONENT
+// Appears at top when dragging System section to move it to top position
+// ============================================
+
+const TopDropZone = ({ onDrop }) => (
+  <div
+    onDragOver={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDragEnter={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDrop={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDrop();
+    }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    // Don't stopPropagation - let window handler do cleanup
+    onMouseUp={() => {
+      onDrop();
+    }}
+    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
+      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer mb-1"
+  >
+    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
   </div>
 );
 
@@ -869,14 +910,15 @@ const DraggableSection = ({
   showSideDropZones,
   isSingleSectionRow,
 }) => {
-  // System sections never show side drop zones (system always in own row)
-  const isSystemSection = sectionId === 'system';
-  const canShowSideZones = showSideDropZones && !isSystemSection;
+  // NO RESTRICTIONS - System can show side drop zones for testing
+  const canShowSideZones = showSideDropZones;
 
   return (
     <div
       onDragOver={(e) => onDragOver(e, sectionId)}
       onDrop={(e) => onDrop(e, sectionId)}
+      // Also support mouse-based drops (for System section which uses mouse events)
+      onMouseUp={() => onDrop(null, sectionId)}
       className={`
         relative w-full
         transition-all duration-150
@@ -1049,9 +1091,16 @@ const SectionHeader = ({
               ▸
             </span>
             <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
+              data-section-drag="true"
+              draggable="true"
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStart && onDragStart(e, sectionId);
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEnd && onDragEnd();
+              }}
               onMouseDown={(e) => e.stopPropagation()}
               className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
@@ -1066,9 +1115,16 @@ const SectionHeader = ({
           {/* INPUTS (anchor left): title + arrow on left, buttons on inner right */}
           <div className="flex items-center gap-1">
             <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
+              data-section-drag="true"
+              draggable="true"
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStart && onDragStart(e, sectionId);
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEnd && onDragEnd();
+              }}
               onMouseDown={(e) => e.stopPropagation()}
               className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
@@ -1384,35 +1440,68 @@ const SystemSection = ({
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
   const colorHexLight = colors?.hexLight || HEX_COLORS.zinc[400];
 
+  // Track drag state for visual feedback
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Use MOUSE EVENTS instead of HTML5 drag API
+  const handleMouseDown = (e) => {
+    // Only left mouse button
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    setIsDragging(true);
+
+    // Manually trigger the drag start
+    onSectionDragStart && onSectionDragStart(e, 'system');
+
+    // Global mouse handlers for drag
+    const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      onSectionDragEnd && onSectionDragEnd();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
     <div
       className="flex flex-col border-t border-zinc-700/50"
-      style={{ backgroundColor: `${colorHex}0d` }} // ~5% opacity
+      style={{ backgroundColor: `${colorHex}0d` }}
     >
-      {/* Header with collapse toggle */}
+      {/* Header row - Using MOUSE EVENTS for drag */}
       <div
-        className="flex items-center px-2 py-0.5 border-b border-zinc-700/50"
-        style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
+        data-section-drag="true"
+        onMouseDown={handleMouseDown}
+        className="flex items-center px-2 py-1.5 border-b border-zinc-700/50 cursor-grab select-none"
+        style={{
+          backgroundColor: isDragging ? `${colorHexLight}40` : `${colorHex}1a`,
+        }}
+        title="Drag to reorder section"
       >
-        {/* Left side - draggable title + collapse arrow */}
         <div className="flex items-center gap-1">
           <span
-            draggable
-            onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
-            onDragEnd={onSectionDragEnd}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="font-mono font-bold text-[9px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded"
+            className="font-mono font-bold text-[11px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
             style={{ color: colorHexLight }}
-            title="Drag to reorder section"
           >
-            SYS
+            SYSTEM
           </span>
+          {/* Collapse toggle */}
           <span
             onClick={(e) => {
               e.stopPropagation();
+              e.preventDefault();
               onToggleCollapse && onToggleCollapse();
             }}
-            className={`text-[9px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform ${collapsed ? '' : 'rotate-90'}`}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
             style={{ fontFamily: 'inherit', color: colorHexLight }}
             title={collapsed ? 'Expand section' : 'Collapse section'}
           >
@@ -1420,8 +1509,7 @@ const SystemSection = ({
           </span>
         </div>
 
-        {/* Spacer */}
-        <span className="flex-1" />
+        <span className="flex-1 pointer-events-none" />
       </div>
 
       {!collapsed && (
@@ -1615,6 +1703,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   const themeColors = getThemeColors(node.signalColor);
 
   // Get rows from layout (default: all sections stacked)
+  // NO RESTRICTIONS - System can go anywhere for testing
   const getRows = () => {
     if (node.layout.rows) {
       return node.layout.rows;
@@ -1625,6 +1714,8 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   };
 
   const layoutRows = getRows();
+
+  // Auto-persist removed - no restrictions for testing
 
   // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
   useEffect(() => {
@@ -1670,9 +1761,11 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     if (e.target.closest('[data-column-zone="true"]')) return;
 
     // Allow any draggable element to initiate its own drag behavior
-    // Check: DOM property, draggable attribute, or custom column-drag marker
+    // Check: DOM property, draggable attribute, section drag handle, or column-drag marker
     if (e.target.draggable ||
+        e.target.getAttribute?.('draggable') === 'true' ||
         e.target.closest('[draggable="true"]') ||
+        e.target.closest('[data-section-drag="true"]') ||
         e.target.closest('[data-column-drag="true"]')) return;
 
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
@@ -1717,11 +1810,15 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   }, [isDragging, dragStart, zoom, onUpdate]);
 
   // Section drag handlers
+  // Supports both HTML5 drag events (Input/Output) and mouse events (System)
   const handleSectionDragStart = (e, sectionId) => {
     e.stopPropagation();
     setDraggedSection(sectionId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('section-reorder', sectionId);
+    // Only set dataTransfer for HTML5 drag events (not mouse events)
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('section-reorder', sectionId);
+    }
   };
 
   const handleSectionDragOver = (e, sectionId) => {
@@ -1730,6 +1827,8 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
     e.preventDefault();
     e.stopPropagation();
+
+    // NO RESTRICTIONS - System can go anywhere for testing
     if (draggedSection !== sectionId) {
       setDragOverSection(sectionId);
     }
@@ -1741,13 +1840,16 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   };
 
   // Drop on section (swap positions in same row or move to different row)
-  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle)
+  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle, never side-by-side)
   const handleSectionDrop = (e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+    // Handle both HTML5 drag events and mouse events (e can be null for mouse-based drops)
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     if (draggedSection === targetSectionId) {
       setDraggedSection(null);
@@ -1755,6 +1857,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       return;
     }
 
+    // NO RESTRICTIONS - System can go anywhere for testing
     const newRows = layoutRows.map(row => [...row]);
 
     // Find positions
@@ -1783,33 +1886,16 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       .map(row => row.filter(s => s !== null))
       .filter(row => row.length > 0);
 
-    // CONSTRAINT: Ensure system is at top or bottom (never middle)
-    const systemRowIdx = cleanedRows.findIndex(row => row.includes('system'));
-    if (systemRowIdx > 0 && systemRowIdx < cleanedRows.length - 1) {
-      // System is in the middle - move it to top or bottom based on drag direction
-      const systemRow = cleanedRows.splice(systemRowIdx, 1)[0];
-      if (targetRowIdx < draggedRowIdx) {
-        cleanedRows.unshift(systemRow); // Moving up → go to top
-      } else {
-        cleanedRows.push(systemRow); // Moving down → go to bottom
-      }
-    }
-
+    // NO RESTRICTIONS - System can go anywhere for testing
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
   };
 
   // Drop to side (create or join column)
-  // CONSTRAINT: System can never be side-by-side (only INPUT/OUTPUT can share a row)
+  // NO RESTRICTIONS - System can go anywhere for testing
   const handleDropToSide = (targetSectionId, side) => {
     if (!draggedSection || draggedSection === targetSectionId) {
-      setDraggedSection(null);
-      return;
-    }
-
-    // Reject: System cannot go side-by-side with anything
-    if (draggedSection === 'system' || targetSectionId === 'system') {
       setDraggedSection(null);
       return;
     }
@@ -1907,6 +1993,36 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
         cleanedRows.push([draggedSection]);
       }
     }
+
+    onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
+    setDraggedSection(null);
+    setDragOverSection(null);
+  };
+
+  // Drop to top (create new row at top)
+  // CONSTRAINT: Only System section can drop to top position
+  const handleDropToTop = () => {
+    if (!draggedSection) return;
+    // Only System section can use the top drop zone
+    if (draggedSection !== 'system') return;
+
+    const newRows = layoutRows.map(row => [...row]);
+
+    // Find and remove dragged section from its current position
+    newRows.forEach((row) => {
+      const idx = row.indexOf(draggedSection);
+      if (idx !== -1) {
+        row[idx] = null;
+      }
+    });
+
+    // Clean up nulls first
+    let cleanedRows = newRows
+      .map(row => row.filter(s => s !== null))
+      .filter(row => row.length > 0);
+
+    // System goes to very top
+    cleanedRows.unshift([draggedSection]);
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
@@ -2029,9 +2145,10 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDragging || isResizing ? 100 : isSelected ? 50 : 10,
+        zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
+        isolation: 'isolate', // Create new stacking context
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -2040,11 +2157,28 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
       {/* Row-based layout */}
       <div className="flex flex-col">
+        {/* Top drop zone - visible when dragging System and System is not already at top */}
+        {(() => {
+          // Only show for System section drag
+          if (draggedSection !== 'system') return null;
+
+          // Check if system is already solo at top
+          const firstRow = layoutRows[0];
+          const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
+
+          if (systemAlreadyAtTop) return null;
+
+          return <TopDropZone onDrop={handleDropToTop} />;
+        })()}
+
         {layoutRows.map((row, rowIndex) => {
           const isSingleSectionRow = row.length === 1;
+          // Use content-based key for stable React reconciliation
+          // This prevents event handler issues when sections move between positions
+          const rowKey = row.join('-');
 
           return (
-            <div key={rowIndex} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
+            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
               {row.map((sectionId, colIndex) => {
                 if (!sectionId) return null;
 
@@ -2054,10 +2188,28 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
                 // 1. Dragging an IO section (not system)
                 // 2. Target is not the dragged section
                 // 3. NOT already side-by-side (if same row, just swap - no zones needed)
+                // NO RESTRICTIONS - System can show side drop zones for testing
                 const showSideDropZones = draggedSection &&
                   draggedSection !== sectionId &&
-                  draggedSection !== 'system' &&
                   !areInSameRow(draggedSection, sectionId);
+
+                // Force React to REMOUNT SystemSection when row position changes
+                // This ensures event handlers are freshly attached
+                if (sectionId === 'system') {
+                  return (
+                    <div
+                      key={`system-row-${rowIndex}`}
+                      className={isSingleSectionRow ? 'w-full' : 'flex-1'}
+                      style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
+                      onDragOver={(e) => handleSectionDragOver(e, 'system')}
+                      onDrop={(e) => handleSectionDrop(e, 'system')}
+                      // Also support mouse-based drops
+                      onMouseUp={() => handleSectionDrop(null, 'system')}
+                    >
+                      {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
+                    </div>
+                  );
+                }
 
                 return (
                   <div
@@ -2086,8 +2238,11 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
           );
         })}
 
-        {/* Bottom drop zone - only visible when dragging */}
+        {/* Bottom drop zone - visible when dragging IO sections, or System if not already solo at bottom */}
         {draggedSection && (
+          draggedSection !== 'system' ||
+          !(layoutRows[layoutRows.length - 1]?.length === 1 && layoutRows[layoutRows.length - 1]?.includes('system'))
+        ) && (
           <BottomDropZone onDrop={handleDropToBottom} />
         )}
       </div>
