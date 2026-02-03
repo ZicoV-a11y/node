@@ -949,6 +949,42 @@ export default function App() {
               />
             )}
 
+            {/* SVG Anchor Points - rendered for all registered anchors */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
+              const isInput = pos.type === 'in';
+              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
+              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+
+              return (
+                <g key={`anchor-${anchorId}`}>
+                  {/* Glow effect for connected/active anchors */}
+                  {(isConnected || isActive) && (
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={5}
+                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                      opacity={0.3}
+                    />
+                  )}
+                  {/* Main anchor dot */}
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={isActive ? 3 : 2.5}
+                    fill={isActive ? '#22d3ee' : isConnected ? (isInput ? '#10b981' : '#f59e0b') : '#4b5563'}
+                    stroke={isActive ? '#67e8f9' : isConnected ? (isInput ? '#34d399' : '#fbbf24') : '#6b7280'}
+                    strokeWidth={1}
+                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnchorClick(anchorId, pos.type);
+                    }}
+                  />
+                </g>
+              );
+            })}
+
             {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
               const wirePath = getWirePath(conn.from, conn.to);
