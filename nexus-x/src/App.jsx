@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
@@ -149,7 +149,9 @@ const createSuperNode = (id) => ({
     inputAnchorSide: 'left',
     outputAnchorSide: 'right',
     systemAnchorSide: 'left',
-    systemCollapsed: false
+    systemCollapsed: false,
+    inputCollapsed: false,
+    outputCollapsed: false
   },
   system: {
     platform: 'none',
@@ -741,25 +743,56 @@ export default function App() {
     }));
   };
 
-  // Register anchor position for wire drawing (in paper-space coordinates)
-  const registerAnchor = useCallback((anchorId, position) => {
+  // Store computed anchor positions (updated after layout via useLayoutEffect)
+  const [computedAnchorPositions, setComputedAnchorPositions] = useState({});
+
+  // Register anchor - track which anchors exist (positions computed via useLayoutEffect)
+  const registerAnchor = useCallback((anchorId) => {
     setAnchorPositions(prev => {
-      if (prev[anchorId]?.x === position.x && prev[anchorId]?.y === position.y) {
-        return prev;
-      }
-      return { ...prev, [anchorId]: position };
+      if (prev[anchorId]) return prev;
+      return { ...prev, [anchorId]: true };
     });
   }, []);
 
+  // Recalculate ALL anchor positions after DOM has updated (useLayoutEffect runs synchronously after DOM mutations)
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const newPositions = {};
+
+    // For each registered anchor, query its DOM position and type
+    Object.keys(anchorPositions).forEach(anchorId => {
+      const anchorEl = document.querySelector(`[data-anchor-id="${anchorId}"]`);
+      if (anchorEl) {
+        const anchorRect = anchorEl.getBoundingClientRect();
+        const anchorType = anchorEl.getAttribute('data-anchor-type') || 'in';
+        newPositions[anchorId] = {
+          x: (anchorRect.left + anchorRect.width / 2 - canvasRect.left) / zoom,
+          y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom,
+          type: anchorType
+        };
+      }
+    });
+
+    setComputedAnchorPositions(newPositions);
+  }, [anchorPositions, zoom, pan, nodes]); // Recalc when zoom, pan, or nodes change
+
+  // Get anchor position from pre-computed positions
+  const getAnchorPosition = useCallback((anchorId) => {
+    return computedAnchorPositions[anchorId] || null;
+  }, [computedAnchorPositions]);
+
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
-  const getWirePath = (fromId, toId) => {
-    const from = anchorPositions[fromId];
-    const to = anchorPositions[toId];
+  const getWirePath = useCallback((fromId, toId) => {
+    const from = getAnchorPosition(fromId);
+    const to = getAnchorPosition(toId);
     if (!from || !to) return '';
 
     const midX = (from.x + to.x) / 2;
     return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
-  };
+  }, [getAnchorPosition]);
 
   // Build current project data object
   const buildProjectData = useCallback(() => ({
@@ -1176,8 +1209,7 @@ export default function App() {
         <div
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: '0 0',
-            transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+            transformOrigin: '0 0'
           }}
         >
           <div
@@ -1208,7 +1240,7 @@ export default function App() {
 
           {/* SVG Layer for Wires and Selection Box */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[60]"
             style={{ overflow: 'visible' }}
           >
             {/* Selection Box Rectangle */}
@@ -1225,11 +1257,47 @@ export default function App() {
               />
             )}
 
+            {/* SVG Anchor Points - rendered for all registered anchors */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
+              const isInput = pos.type === 'in';
+              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
+              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+
+              return (
+                <g key={`anchor-${anchorId}`}>
+                  {/* Glow effect for connected/active anchors */}
+                  {(isConnected || isActive) && (
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={5}
+                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                      opacity={0.3}
+                    />
+                  )}
+                  {/* Main anchor dot */}
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={isActive ? 3 : 2.5}
+                    fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                    stroke={isActive ? '#67e8f9' : isInput ? '#34d399' : '#fbbf24'}
+                    strokeWidth={1}
+                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnchorClick(anchorId, pos.type);
+                    }}
+                  />
+                </g>
+              );
+            })}
+
             {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
               const wirePath = getWirePath(conn.from, conn.to);
-              const fromPos = anchorPositions[conn.from];
-              const toPos = anchorPositions[conn.to];
+              const fromPos = getAnchorPosition(conn.from);
+              const toPos = getAnchorPosition(conn.to);
               const isSelected = selectedWires.has(conn.id);
               const isEnhanced = conn.enhanced || false;
 

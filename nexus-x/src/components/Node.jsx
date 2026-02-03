@@ -834,7 +834,7 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-export default function Node({ node, zoom, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire }) {
+export default function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState(null);
@@ -1192,10 +1192,20 @@ export default function Node({ node, zoom, onUpdate, onDelete, onAnchorClick, re
   // Determine if we're using flex-columns layout
   const isFlexColumns = gridTemplate.type === 'flex-columns';
 
+  // Handle click to select (shift+click to add to selection)
+  const handleClick = (e) => {
+    if (onSelect && !isDragging) {
+      e.stopPropagation();
+      onSelect(node.id, e.shiftKey);
+    }
+  };
+
   return (
     <div
       ref={nodeRef}
-      className={`absolute bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl select-none ${
+      className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
+        isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
+      } ${
         isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
       }`}
       style={{
@@ -1203,7 +1213,7 @@ export default function Node({ node, zoom, onUpdate, onDelete, onAnchorClick, re
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDragging || isResizing ? 100 : 10,
+        zIndex: isDragging || isResizing ? 100 : isSelected ? 50 : 10,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
         // Conditionally apply grid or flex styles
@@ -1219,6 +1229,7 @@ export default function Node({ node, zoom, onUpdate, onDelete, onAnchorClick, re
         })
       }}
       onMouseDown={handleMouseDown}
+      onClick={handleClick}
     >
       {isFlexColumns ? (
         // Flex-columns layout for bottom system positions
