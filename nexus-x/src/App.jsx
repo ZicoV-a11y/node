@@ -149,7 +149,9 @@ const createSuperNode = (id) => ({
     inputAnchorSide: 'left',
     outputAnchorSide: 'right',
     systemAnchorSide: 'left',
-    systemCollapsed: false
+    systemCollapsed: false,
+    inputCollapsed: false,
+    outputCollapsed: false
   },
   system: {
     platform: 'none',

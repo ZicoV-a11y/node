@@ -134,6 +134,119 @@ const CARD_PRESETS = {
 };
 
 // ============================================
+// SELECT WITH CUSTOM INPUT COMPONENT
+// Dropdown that switches to text input for custom values
+// ============================================
+
+const SelectWithCustom = ({
+  value,
+  options,
+  onChange,
+  placeholder = 'Choose',
+  className = '',
+  isSelected = false,
+}) => {
+  // Check if current value is custom (not in options list)
+  const isCustomValue = value && value !== 'Custom...' && !options.includes(value);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customText, setCustomText] = useState(value || '');
+  const inputRef = useRef(null);
+
+  // Focus input when entering custom mode
+  useEffect(() => {
+    if (isCustomMode && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isCustomMode]);
+
+  // Sync custom text when value changes externally
+  useEffect(() => {
+    setCustomText(value || '');
+  }, [value]);
+
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+    isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+  } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
+
+  if (isCustomMode) {
+    return (
+      <div className={`flex items-center w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={customText}
+          onChange={(e) => setCustomText(e.target.value)}
+          onBlur={() => {
+            if (customText.trim()) {
+              onChange(customText.trim());
+              setIsCustomMode(false); // Save and return to dropdown
+            } else {
+              // Empty text = go back to dropdown with no value
+              setIsCustomMode(false);
+              onChange('');
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+            } else if (e.key === 'Escape') {
+              // Escape = go back to dropdown, keep current saved value
+              setIsCustomMode(false);
+              setCustomText(value || '');
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Type custom..."
+          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[10px] text-zinc-300 outline-none"
+        />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            // Save current text and return to dropdown
+            if (customText.trim()) {
+              onChange(customText.trim());
+            }
+            setIsCustomMode(false);
+          }}
+          className="text-zinc-400 hover:text-zinc-200 text-[8px] px-1.5 py-0.5 shrink-0 border-l border-zinc-700"
+          title="Back to dropdown"
+        >
+          ▼
+        </button>
+      </div>
+    );
+  }
+
+  // Dropdown mode - show custom value as an option if it exists
+  return (
+    <select
+      value={value || ''}
+      onChange={(e) => {
+        const newValue = e.target.value;
+        if (newValue === 'Custom...') {
+          setIsCustomMode(true);
+          setCustomText(''); // Start fresh with empty input
+        } else {
+          onChange(newValue);
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className={`${baseStyle} ${className}`}
+    >
+      <option value="">{placeholder}</option>
+      {/* Show custom value as first option if it exists */}
+      {isCustomValue && (
+        <option value={value}>{value} (custom)</option>
+      )}
+      {options.map(opt => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+  );
+};
+
+// ============================================
 // CARD WRAPPER COMPONENT
 // Symmetrical visual wrapper - colored stripe on anchor side
 // Minimal header that doesn't break column alignment
@@ -206,15 +319,57 @@ const CardWrapper = ({
 };
 
 // Column definitions - ALL row elements as columns for template layout
-// TESTING: All columns set to draggable=true to diagnose drag issues
+// minWidth is the minimum, but columns can grow based on content
 const COLUMN_DEFS = {
-  anchor: { id: 'anchor', label: '', width: 'w-[24px]', draggable: true },
-  delete: { id: 'delete', label: '🗑', width: 'w-[24px]', draggable: true },
-  port: { id: 'port', label: 'Port', width: 'w-[52px]', draggable: true },
-  connector: { id: 'connector', label: 'Connector', width: 'w-[90px]', draggable: true },
-  resolution: { id: 'resolution', label: 'Resolution', width: 'w-[100px]', draggable: true },
-  rate: { id: 'rate', label: 'Rate', width: 'w-[70px]', draggable: true },
-  flip: { id: 'flip', label: '', width: 'w-[42px]', draggable: true },
+  anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
+  delete: { id: 'delete', label: '🗑', minWidth: 24, draggable: true },
+  port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
+  connector: { id: 'connector', label: 'Connector', minWidth: 90, draggable: true },
+  resolution: { id: 'resolution', label: 'Resolution', minWidth: 90, draggable: true },
+  rate: { id: 'rate', label: 'Rate', minWidth: 60, draggable: true },
+  flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
+};
+
+// Estimate text width in pixels (monospace font at 10px ≈ 6px per character)
+const CHAR_WIDTH = 6;
+const PADDING = 16; // px padding inside cell
+
+const estimateTextWidth = (text) => {
+  if (!text) return 0;
+  return text.length * CHAR_WIDTH + PADDING;
+};
+
+// Calculate dynamic column widths based on port data
+const calculateColumnWidths = (ports) => {
+  const widths = {
+    anchor: COLUMN_DEFS.anchor.minWidth,
+    delete: COLUMN_DEFS.delete.minWidth,
+    port: COLUMN_DEFS.port.minWidth,
+    connector: COLUMN_DEFS.connector.minWidth,
+    resolution: COLUMN_DEFS.resolution.minWidth,
+    rate: COLUMN_DEFS.rate.minWidth,
+    flip: COLUMN_DEFS.flip.minWidth,
+  };
+
+  // Also consider header labels
+  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector'));
+  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution'));
+  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate'));
+
+  // Scan all ports to find max width needed
+  ports.forEach(port => {
+    if (port.connector) {
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector));
+    }
+    if (port.resolution) {
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution));
+    }
+    if (port.refreshRate) {
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate));
+    }
+  });
+
+  return widths;
 };
 
 // Data columns that can be reordered by dragging (includes delete)
@@ -344,6 +499,7 @@ const PortRow = ({
   isSelected,
   onToggleSelection,
   onBulkUpdate,
+  columnWidths = {}, // Dynamic column widths
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -406,73 +562,60 @@ const PortRow = ({
         );
       case 'connector':
         return (
-          <select
+          <SelectWithCustom
             value={port.connector || ''}
-            onChange={(e) => {
+            options={CONNECTOR_TYPES}
+            placeholder="Type"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('connector', e.target.value);
+                onBulkUpdate('connector', value);
               } else {
-                onUpdate({ connector: e.target.value });
+                onUpdate({ connector: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.connector ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Type</option>
-            {CONNECTOR_TYPES.map(conn => (
-              <option key={conn} value={conn}>{conn}</option>
-            ))}
-          </select>
+          />
         );
       case 'resolution':
         return (
-          <select
+          <SelectWithCustom
             value={port.resolution || ''}
-            onChange={(e) => {
+            options={RESOLUTIONS}
+            placeholder="Choose"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('resolution', e.target.value);
+                onBulkUpdate('resolution', value);
               } else {
-                onUpdate({ resolution: e.target.value });
+                onUpdate({ resolution: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.resolution ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Choose</option>
-            {RESOLUTIONS.map(res => (
-              <option key={res} value={res}>{res}</option>
-            ))}
-          </select>
+          />
         );
       case 'rate':
         return (
-          <select
+          <SelectWithCustom
             value={port.refreshRate || ''}
-            onChange={(e) => {
+            options={REFRESH_RATES}
+            placeholder="Choose"
+            isSelected={isSelected}
+            onChange={(value) => {
               if (isSelected && onBulkUpdate) {
-                onBulkUpdate('refreshRate', e.target.value);
+                onBulkUpdate('refreshRate', value);
               } else {
-                onUpdate({ refreshRate: e.target.value });
+                onUpdate({ refreshRate: value });
               }
             }}
-            onClick={(e) => e.stopPropagation()}
-            className={`bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
-              isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
-            } ${port.refreshRate ? 'text-zinc-300' : 'text-zinc-500'}`}
-          >
-            <option value="">Choose</option>
-            {REFRESH_RATES.map(rate => (
-              <option key={rate} value={rate}>{rate}</option>
-            ))}
-          </select>
+          />
         );
       default:
         return null;
     }
+  };
+
+  // Get width for a column (use dynamic width if available, else minWidth)
+  const getColumnWidth = (colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
   };
 
   return (
@@ -483,11 +626,14 @@ const PortRow = ({
 
         return (
           <div key={colId} className="flex items-center">
-            {/* Marker between ALL columns (except first) - matches ColumnHeaders */}
+            {/* Marker between ALL columns (except first) - with spacing */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
-            <span className={`${colDef.width} shrink-0 flex items-center justify-center`}>
+            <span
+              className="shrink-0 flex items-center justify-center"
+              style={{ width: `${getColumnWidth(colId)}px` }}
+            >
               {renderColumnContent(colId)}
             </span>
           </div>
@@ -502,9 +648,14 @@ const PortRow = ({
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll }) => {
+const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
+
+  // Get width for a column (use dynamic width if available, else minWidth)
+  const getColumnWidth = (colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+  };
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
@@ -586,9 +737,9 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
           >
-            {/* Marker between ALL columns (except first) */}
+            {/* Marker between ALL columns (except first) - with spacing */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
             {colId === 'port' ? (
               // PORT header is both draggable AND clickable for select all
@@ -602,9 +753,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 }}
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
-                className={`${colDef.width} shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
+                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
+                style={{ width: `${getColumnWidth(colId)}px` }}
                 title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
@@ -619,9 +771,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                   if (isDraggable) handleDragStart(e, colId);
                 }}
                 onDragEnd={handleDragEnd}
-                className={`${colDef.width} shrink-0 flex items-center justify-center transition-opacity
+                className={`shrink-0 flex items-center justify-center transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
+                style={{ width: `${getColumnWidth(colId)}px` }}
                 title={isDraggable ? "Drag to reorder" : undefined}
               >
                 {colDef.label}
@@ -705,6 +858,8 @@ const SectionHeader = ({
   onDragEnd,
   sectionId,
   onApplyPreset,
+  collapsed,
+  onToggleCollapse,
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
@@ -723,98 +878,146 @@ const SectionHeader = ({
     setShowPresetMenu(false);
   };
 
+  // Shared button style for consistency
+  const buttonStyle = `px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[11px] font-mono ${colors.text}`;
+
+  // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
+  const buttonsJSX = (
+    <div className="flex items-center gap-1.5 shrink-0 relative">
+      {isReversed ? (
+        <>
+          {/* Add button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Add port"
+          >
+            +
+          </button>
+          {/* Preset button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Load card preset"
+          >
+            ⊞
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Preset button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Load card preset"
+          >
+            ⊞
+          </button>
+          {/* Add button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={buttonStyle}
+            title="Add port"
+          >
+            +
+          </button>
+        </>
+      )}
+
+      {/* Preset dropdown menu - positioned relative to button container */}
+      {showPresetMenu && (
+        <div
+          className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
+            CARD PRESETS
+          </div>
+          {availablePresets.map((preset) => (
+            <button
+              key={preset.id}
+              onClick={(e) => { e.stopPropagation(); handlePresetSelect(preset.id); }}
+              className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+            >
+              <span className="text-zinc-500">{preset.ports.length}p</span>
+              <span>{preset.label}</span>
+            </button>
+          ))}
+          {availablePresets.length === 0 && (
+            <div className="px-2 py-1.5 text-[10px] font-mono text-zinc-500">
+              No presets available
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_X} py-1 ${colors.bg} border-b border-zinc-700/50`}
+      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 ${colors.bg} border-b border-zinc-700/50`}
     >
-      {/* Left side - title when anchor is left, spacer when anchor is right */}
-      <div className="flex-1 min-w-0">
-        {!isReversed && (
-          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
-            {title}
-          </span>
-        )}
-      </div>
-
-      {/* Center - Drag handle, Select All, Card preset button, and Add button */}
-      <div className="flex items-center gap-1 shrink-0 relative">
-        {/* Drag handle */}
-        <span
-          draggable
-          onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-          onDragEnd={onDragEnd}
-          onMouseDown={(e) => e.stopPropagation()}
-          className={`px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none ${colors.text}`}
-          title="Drag to reorder section"
-        >
-          ⋮⋮
-        </span>
-
-        {/* Card preset button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowPresetMenu(!showPresetMenu);
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          className={`px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-          title="Load card preset"
-        >
-          ⊞
-        </button>
-
-        {/* Preset dropdown menu */}
-        {showPresetMenu && (
-          <div
-            className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px]"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
-              CARD PRESETS
-            </div>
-            {availablePresets.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePresetSelect(preset.id);
-                }}
-                className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
-              >
-                <span className="text-zinc-500">{preset.ports.length}p</span>
-                <span>{preset.label}</span>
-              </button>
-            ))}
-            {availablePresets.length === 0 && (
-              <div className="px-2 py-1.5 text-[10px] font-mono text-zinc-500">
-                No presets available
-              </div>
-            )}
+      {isReversed ? (
+        <>
+          {/* OUTPUTS (anchor right): buttons on inner left, then arrow + title on right */}
+          {buttonsJSX}
+          <div className="flex items-center gap-1">
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse && onToggleCollapse();
+              }}
+              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              style={{ fontFamily: 'inherit' }}
+              title={collapsed ? 'Expand section' : 'Collapse section'}
+            >
+              ▸
+            </span>
+            <span
+              draggable
+              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
+              onDragEnd={onDragEnd}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
+              title="Drag to reorder section"
+            >
+              {title}
+            </span>
           </div>
-        )}
-
-        {/* Add button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAdd && onAdd();
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-          title="Add port"
-        >
-          +
-        </button>
-      </div>
-
-      {/* Right side - title when anchor is right, spacer when anchor is left */}
-      <div className="flex-1 min-w-0 text-right">
-        {isReversed && (
-          <span className={`font-mono font-bold ${colors.text} text-[11px]`}>
-            {title}
-          </span>
-        )}
-      </div>
+        </>
+      ) : (
+        <>
+          {/* INPUTS (anchor left): title + arrow on left, buttons on inner right */}
+          <div className="flex items-center gap-1">
+            <span
+              draggable
+              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
+              onDragEnd={onDragEnd}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
+              title="Drag to reorder section"
+            >
+              {title}
+            </span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse && onToggleCollapse();
+              }}
+              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              style={{ fontFamily: 'inherit' }}
+              title={collapsed ? 'Expand section' : 'Collapse section'}
+            >
+              ▸
+            </span>
+          </div>
+          {buttonsJSX}
+        </>
+      )}
     </div>
   );
 };
@@ -836,6 +1039,8 @@ const IOSection = ({
   onToggleAnchorSide,
   onSectionDragStart,
   onSectionDragEnd,
+  collapsed,
+  onToggleCollapse,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -994,6 +1199,9 @@ const IOSection = ({
     ports: data.ports.filter(p => p.cardId === card.id)
   }));
 
+  // Calculate dynamic column widths based on port content
+  const columnWidths = calculateColumnWidths(data.ports);
+
   // Helper to render port rows
   const renderPortRows = (ports) => (
     ports.map(port => (
@@ -1011,6 +1219,7 @@ const IOSection = ({
         canToggleAnchor={canToggleAnchor}
         onToggleAnchor={onToggleAnchorSide}
         columnOrder={columnOrder}
+        columnWidths={columnWidths}
         isSelected={selectedPorts.has(port.id)}
         onToggleSelection={() => togglePortSelection(port.id)}
         onBulkUpdate={bulkUpdatePorts}
@@ -1030,46 +1239,53 @@ const IOSection = ({
         onDragEnd={onSectionDragEnd}
         sectionId={sectionId}
         onApplyPreset={applyPreset}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
       />
 
-      {data.ports.length > 0 && (
-        <ColumnHeaders
-          anchorSide={anchorSide}
-          canToggleAnchor={canToggleAnchor}
-          columnOrder={columnOrder}
-          onReorderColumns={reorderColumns}
-          selectedCount={selectedPorts.size}
-          totalCount={data.ports.length}
-          onToggleSelectAll={toggleSelectAll}
-        />
-      )}
+      {!collapsed && (
+        <>
+          {data.ports.length > 0 && (
+            <ColumnHeaders
+              anchorSide={anchorSide}
+              canToggleAnchor={canToggleAnchor}
+              columnOrder={columnOrder}
+              columnWidths={columnWidths}
+              onReorderColumns={reorderColumns}
+              selectedCount={selectedPorts.size}
+              totalCount={data.ports.length}
+              onToggleSelectAll={toggleSelectAll}
+            />
+          )}
 
-      <div className="flex-1 w-full">
-        {data.ports.length === 0 ? (
-          <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[10px]`}>
-            No {type}s
+          <div className="flex-1 w-full">
+            {data.ports.length === 0 ? (
+              <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[10px]`}>
+                No {type}s
+              </div>
+            ) : (
+              <>
+                {/* Render card-grouped ports */}
+                {portsByCard.map(({ card, ports }) => (
+                  <CardWrapper
+                    key={card.id}
+                    card={card}
+                    type={sectionType}
+                    anchorSide={anchorSide}
+                    onToggleCollapse={toggleCardCollapse}
+                    onRemoveCard={removeCard}
+                  >
+                    {renderPortRows(ports)}
+                  </CardWrapper>
+                ))}
+
+                {/* Render standalone ports (not in any card) */}
+                {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            {/* Render card-grouped ports */}
-            {portsByCard.map(({ card, ports }) => (
-              <CardWrapper
-                key={card.id}
-                card={card}
-                type={sectionType}
-                anchorSide={anchorSide}
-                onToggleCollapse={toggleCardCollapse}
-                onRemoveCard={removeCard}
-              >
-                {renderPortRows(ports)}
-              </CardWrapper>
-            ))}
-
-            {/* Render standalone ports (not in any card) */}
-            {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
-          </>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };
@@ -1089,41 +1305,34 @@ const SystemSection = ({
   return (
     <div className="flex flex-col border-t border-zinc-700/50 bg-purple-500/5">
       {/* Header with collapse toggle */}
-      <div
-        className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50 cursor-pointer hover:bg-purple-500/20"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleCollapse && onToggleCollapse();
-        }}
-      >
-        {/* Left side - title */}
-        <span className="font-mono font-bold text-purple-400 text-[9px] flex-1">
-          SYS
-        </span>
+      <div className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50">
+        {/* Left side - draggable title + collapse arrow */}
+        <div className="flex items-center gap-1">
+          <span
+            draggable
+            onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
+            onDragEnd={onSectionDragEnd}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="font-mono font-bold text-purple-400 text-[9px] cursor-grab select-none hover:bg-purple-500/20 px-1 py-0.5 rounded"
+            title="Drag to reorder section"
+          >
+            SYS
+          </span>
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse && onToggleCollapse();
+            }}
+            className={`text-purple-400 text-[9px] cursor-pointer hover:bg-purple-500/20 px-0.5 rounded transition-transform ${collapsed ? '' : 'rotate-90'}`}
+            style={{ fontFamily: 'inherit' }}
+            title={collapsed ? 'Expand section' : 'Collapse section'}
+          >
+            ▸
+          </span>
+        </div>
 
-        {/* Center - Drag handle */}
-        <span
-          draggable
-          onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
-          onDragEnd={onSectionDragEnd}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          className="px-1 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] cursor-grab select-none text-purple-400 mx-1"
-          title="Drag to reorder section"
-        >
-          ⋮⋮
-        </span>
-
-        {/* Right side - Collapse toggle */}
-        <span
-          className="text-purple-400 text-[8px] flex-1 text-right"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCollapse && onToggleCollapse();
-          }}
-        >
-          {collapsed ? '▶' : '▼'}
-        </span>
+        {/* Spacer */}
+        <span className="flex-1" />
       </div>
 
       {!collapsed && (
@@ -1668,6 +1877,8 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onToggleAnchorSide={toggleInputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
+            collapsed={node.layout.inputCollapsed}
+            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
           />
         );
       case 'output':
@@ -1685,6 +1896,8 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onToggleAnchorSide={toggleOutputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
+            collapsed={node.layout.outputCollapsed}
+            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
           />
         );
       default:
