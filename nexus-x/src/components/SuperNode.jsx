@@ -725,9 +725,9 @@ const SectionHeader = ({
     setShowPresetMenu(false);
   };
 
-  // Buttons for preset and add
-  const buttonsJSX = (
-    <div className="flex items-center gap-1 shrink-0 relative">
+  // Preset button (⊞)
+  const presetButton = (
+    <div className="relative">
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -742,7 +742,7 @@ const SectionHeader = ({
 
       {showPresetMenu && (
         <div
-          className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px]"
+          className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
@@ -768,18 +768,38 @@ const SectionHeader = ({
           )}
         </div>
       )}
+    </div>
+  );
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAdd && onAdd();
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
-        title="Add port"
-      >
-        +
-      </button>
+  // Add button (+)
+  const addButton = (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onAdd && onAdd();
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={`px-2 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono ${colors.text}`}
+      title="Add port"
+    >
+      +
+    </button>
+  );
+
+  // Buttons - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
+  const buttonsJSX = (
+    <div className="flex items-center gap-1 shrink-0">
+      {isReversed ? (
+        <>
+          {addButton}
+          {presetButton}
+        </>
+      ) : (
+        <>
+          {presetButton}
+          {addButton}
+        </>
+      )}
     </div>
   );
 
