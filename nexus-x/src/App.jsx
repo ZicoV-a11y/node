@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
@@ -212,6 +212,7 @@ export default function App() {
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
   const [anchorPositions, setAnchorPositions] = useState({});
+  const [computedAnchorPositions, setComputedAnchorPositions] = useState({});
 
   // Wire selection state
   const [selectedWires, setSelectedWires] = useState(new Set());
@@ -610,19 +611,43 @@ export default function App() {
   };
 
   // Register anchor position for wire drawing (in paper-space coordinates)
-  const registerAnchor = useCallback((anchorId, position) => {
+  // Register anchor - track which anchors exist (positions computed via useLayoutEffect)
+  const registerAnchor = useCallback((anchorId) => {
     setAnchorPositions(prev => {
-      if (prev[anchorId]?.x === position.x && prev[anchorId]?.y === position.y) {
-        return prev;
-      }
-      return { ...prev, [anchorId]: position };
+      if (prev[anchorId]) return prev;
+      return { ...prev, [anchorId]: true };
     });
   }, []);
 
+  // Recalculate ALL anchor positions after DOM has updated
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const newPositions = {};
+
+    // For each registered anchor, query its DOM position and type
+    Object.keys(anchorPositions).forEach(anchorId => {
+      const anchorEl = document.querySelector(`[data-anchor-id="${anchorId}"]`);
+      if (anchorEl) {
+        const anchorRect = anchorEl.getBoundingClientRect();
+        const anchorType = anchorEl.getAttribute('data-anchor-type') || 'in';
+        newPositions[anchorId] = {
+          x: (anchorRect.left + anchorRect.width / 2 - canvasRect.left) / zoom,
+          y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom,
+          type: anchorType
+        };
+      }
+    });
+
+    setComputedAnchorPositions(newPositions);
+  }, [anchorPositions, zoom, pan, nodes]);
+
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
   const getWirePath = (fromId, toId) => {
-    const from = anchorPositions[fromId];
-    const to = anchorPositions[toId];
+    const from = computedAnchorPositions[fromId];
+    const to = computedAnchorPositions[toId];
     if (!from || !to) return '';
 
     const midX = (from.x + to.x) / 2;
@@ -949,47 +974,11 @@ export default function App() {
               />
             )}
 
-            {/* SVG Anchor Points - rendered for all registered anchors */}
-            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
-              const isInput = pos.type === 'in';
-              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
-              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
-
-              return (
-                <g key={`anchor-${anchorId}`}>
-                  {/* Glow effect for connected/active anchors */}
-                  {(isConnected || isActive) && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={5}
-                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
-                      opacity={0.3}
-                    />
-                  )}
-                  {/* Main anchor dot */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={isActive ? 3 : 2.5}
-                    fill={isActive ? '#22d3ee' : isConnected ? (isInput ? '#10b981' : '#f59e0b') : '#4b5563'}
-                    stroke={isActive ? '#67e8f9' : isConnected ? (isInput ? '#34d399' : '#fbbf24') : '#6b7280'}
-                    strokeWidth={1}
-                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAnchorClick(anchorId, pos.type);
-                    }}
-                  />
-                </g>
-              );
-            })}
-
             {connections.map(conn => {
               const wireColor = getConnectionColor(conn);
               const wirePath = getWirePath(conn.from, conn.to);
-              const fromPos = anchorPositions[conn.from];
-              const toPos = anchorPositions[conn.to];
+              const fromPos = computedAnchorPositions[conn.from];
+              const toPos = computedAnchorPositions[conn.to];
               const isSelected = selectedWires.has(conn.id);
               const isEnhanced = conn.enhanced || false;
 
@@ -1099,6 +1088,42 @@ export default function App() {
                       </text>
                     </g>
                   )}
+                </g>
+              );
+            })}
+
+            {/* SVG Anchor Points - rendered for all registered anchors */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
+              const isInput = pos.type === 'in';
+              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
+              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+
+              return (
+                <g key={`anchor-${anchorId}`}>
+                  {/* Glow effect for connected/active anchors */}
+                  {(isConnected || isActive) && (
+                    <circle
+                      cx={pos.x}
+                      cy={pos.y}
+                      r={5}
+                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
+                      opacity={0.3}
+                    />
+                  )}
+                  {/* Main anchor dot */}
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={isActive ? 3 : 2.5}
+                    fill={isActive ? '#22d3ee' : isConnected ? (isInput ? '#10b981' : '#f59e0b') : '#4b5563'}
+                    stroke={isActive ? '#67e8f9' : isConnected ? (isInput ? '#34d399' : '#fbbf24') : '#6b7280'}
+                    strokeWidth={1}
+                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnchorClick(anchorId, pos.type);
+                    }}
+                  />
                 </g>
               );
             })}

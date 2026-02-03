@@ -296,26 +296,12 @@ const BottomDropZone = ({ onDrop }) => (
 // ============================================
 
 const Anchor = ({ anchorId, type, isActive, signalColor, onClick }) => {
-  const isInput = type === 'in';
-  const colorHex = signalColor ? SIGNAL_COLORS.find(c => c.id === signalColor)?.hex : null;
-
+  // Invisible position marker - the actual visual anchor is rendered in App.jsx as SVG
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick && onClick(anchorId, type);
-      }}
+    <span
       data-anchor-id={anchorId}
-      className={`${SIZES.ANCHOR} border-2 transition-all hover:scale-125 shrink-0
-        ${isInput ? 'rounded-sm' : 'rounded-full'}
-        ${isActive
-          ? 'bg-cyan-500 border-cyan-400 shadow-lg shadow-cyan-500/50'
-          : isInput
-            ? 'bg-zinc-800 border-emerald-500 hover:bg-emerald-500/20'
-            : 'bg-zinc-800 border-amber-500 hover:bg-amber-500/20'
-        }`}
-      style={colorHex && !isInput ? { borderColor: colorHex, boxShadow: `0 0 8px ${colorHex}50` } : {}}
-      title={isInput ? 'Input - click to connect' : 'Output - click to connect'}
+      data-anchor-type={type}
+      className={`${SIZES.ANCHOR} shrink-0 opacity-0 pointer-events-none`}
     />
   );
 };
@@ -1359,31 +1345,15 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
   const layoutRows = getRows();
 
-  // Register anchor positions
+  // Register anchors (positions computed centrally in App.jsx via useLayoutEffect)
   useEffect(() => {
-    if (!registerAnchor || !nodeRef.current) return;
+    if (!registerAnchor) return;
 
-    const scale = node.scale || 1;
     const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
-
     allPorts.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current?.querySelector(`[data-anchor-id="${anchorId}"]`);
-
-      if (anchorEl) {
-        const anchorRect = anchorEl.getBoundingClientRect();
-        const nodeRect = nodeRef.current.getBoundingClientRect();
-        const totalScale = zoom * scale;
-        const localX = (anchorRect.left + anchorRect.width / 2 - nodeRect.left) / totalScale;
-        const localY = (anchorRect.top + anchorRect.height / 2 - nodeRect.top) / totalScale;
-
-        registerAnchor(anchorId, {
-          x: node.position.x + localX,
-          y: node.position.y + localY
-        });
-      }
+      registerAnchor(`${node.id}-${port.id}`);
     });
-  }, [node.position, node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
+  }, [node.inputSection, node.outputSection, node.layout, registerAnchor, node.id]);
 
   // Resize handling
   const handleResizeStart = (e) => {
