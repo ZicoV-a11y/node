@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
-import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad } from './services/storage';
+import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, downloadBlob } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 
 // Paper size constants (96 DPI)
@@ -192,12 +192,12 @@ export default function App() {
   // Paper and zoom state
   const [paperSize, setPaperSize] = useState('ANSI_B');
   const [orientation, setOrientation] = useState('landscape');
+  const [paperEnabled, setPaperEnabled] = useState(true);
   const [zoom, setZoom] = useState(0.75);
 
   // Pan state (middle mouse drag)
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
 
   // Selection box state (left click drag on canvas)
   const [isSelecting, setIsSelecting] = useState(false);
@@ -216,7 +216,7 @@ export default function App() {
 
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
-  const [anchorPositions, setAnchorPositions] = useState({});
+  const [anchorLocalOffsets, setAnchorLocalOffsets] = useState({});
 
   // Wire selection state
   const [selectedWires, setSelectedWires] = useState(new Set());
@@ -232,15 +232,60 @@ export default function App() {
   // Refs for stable access in event handlers (avoids stale closures)
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
-  zoomRef.current = zoom;
-  panRef.current = pan;
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const transformRef = useRef(null);
+  const zoomSyncTimer = useRef(null);
+
+  // Sync state → refs (only when state changes, not during direct manipulation)
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
+
+  // Apply transform directly to DOM without React re-render
+  const applyTransform = useCallback(() => {
+    if (transformRef.current) {
+      transformRef.current.style.transform =
+        `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
+    }
+  }, []);
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cachedExportBlob = useRef(null);
+
+  // Content bounds (measured from DOM) when paper is off
+  const [contentBounds, setContentBounds] = useState(null);
+
+  // Compute content bounds from actual DOM measurements when paper is off
+  useEffect(() => {
+    if (!paperEnabled && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const canvasRect = canvas.getBoundingClientRect();
+      const zoomFactor = canvasRect.width / (canvas.offsetWidth || 1);
+      let maxRight = 0;
+      let maxBottom = 0;
+      for (const child of canvas.children) {
+        const childRect = child.getBoundingClientRect();
+        const right = (childRect.right - canvasRect.left) / zoomFactor;
+        const bottom = (childRect.bottom - canvasRect.top) / zoomFactor;
+        maxRight = Math.max(maxRight, right);
+        maxBottom = Math.max(maxBottom, bottom);
+      }
+      setContentBounds({
+        width: Math.max(Math.ceil(maxRight) + 60, 800),
+        height: Math.max(Math.ceil(maxBottom) + 60, 600)
+      });
+    } else {
+      setContentBounds(null);
+    }
+  }, [paperEnabled, nodes]);
 
   // Get canvas dimensions based on paper size and orientation
   const getCanvasDimensions = () => {
+    // When paper is off, use measured content bounds
+    if (!paperEnabled && contentBounds) {
+      return contentBounds;
+    }
     const paper = PAPER_SIZES[paperSize];
     if (orientation === 'landscape') {
       return { width: paper.height, height: paper.width };
@@ -364,16 +409,16 @@ export default function App() {
     }));
   };
 
-  const updateNode = (nodeId, updates) => {
+  const updateNode = useCallback((nodeId, updates) => {
     setNodes(prev => {
       if (prev[nodeId]) {
         return { ...prev, [nodeId]: { ...prev[nodeId], ...updates } };
       }
       return prev;
     });
-  };
+  }, []);
 
-  const deleteNode = (nodeId) => {
+  const deleteNode = useCallback((nodeId) => {
     setNodes(prev => {
       const { [nodeId]: removed, ...remainingNodes } = prev;
       return remainingNodes;
@@ -382,7 +427,15 @@ export default function App() {
     setConnections(prev => prev.filter(
       c => !c.from.startsWith(nodeId) && !c.to.startsWith(nodeId)
     ));
-  };
+    // Clean up anchor offsets for this node
+    setAnchorLocalOffsets(prev => {
+      const cleaned = {};
+      Object.entries(prev).forEach(([anchorId, offset]) => {
+        if (offset.nodeId !== nodeId) cleaned[anchorId] = offset;
+      });
+      return cleaned;
+    });
+  }, []);
 
   // Get source node for an anchor (finds the originating source of a signal)
   const getSourceNode = useCallback((anchorId, visited = new Set()) => {
@@ -424,6 +477,20 @@ export default function App() {
 
     return '#22d3ee'; // Default cyan
   }, [nodes, getSourceNode]);
+
+  // Pre-compute connected anchor IDs for O(1) lookup instead of O(connections) per anchor
+  const connectedAnchorIds = useMemo(() => {
+    const set = new Set();
+    connections.forEach(c => { set.add(c.from); set.add(c.to); });
+    return set;
+  }, [connections]);
+
+  // Pre-compute wire colors to avoid recursive graph traversal per wire per render
+  const connectionColorMap = useMemo(() => {
+    const map = new Map();
+    connections.forEach(conn => map.set(conn.id, getConnectionColor(conn)));
+    return map;
+  }, [connections, getConnectionColor]);
 
   // Connection management
   const handleAnchorClick = (anchorId, direction) => {
@@ -520,9 +587,21 @@ export default function App() {
       y: cursorY - ((cursorY - prevPan.y) / prevZoom) * newZoom,
     };
 
-    setZoom(newZoom);
-    setPan(newPan);
-  }, []);
+    // Update refs and DOM directly — no React re-render
+    zoomRef.current = newZoom;
+    panRef.current = newPan;
+    applyTransform();
+
+    // Debounce React state sync (updates toolbar zoom display, etc.)
+    clearTimeout(zoomSyncTimer.current);
+    zoomSyncTimer.current = setTimeout(() => {
+      setZoom(zoomRef.current);
+      setPan({ ...panRef.current });
+    }, 150);
+  }, [applyTransform]);
+
+  // Clean up zoom sync timer on unmount
+  useEffect(() => () => clearTimeout(zoomSyncTimer.current), []);
 
   // Convert screen coordinates to canvas-space coordinates (accounting for pan + zoom)
   const screenToCanvasPosition = useCallback(({ x, y }) => {
@@ -530,18 +609,19 @@ export default function App() {
     if (!container) return { x: 0, y: 0 };
     const rect = container.getBoundingClientRect();
     return {
-      x: (x - rect.left - pan.x) / zoom,
-      y: (y - rect.top - pan.y) / zoom,
+      x: (x - rect.left - panRef.current.x) / zoomRef.current,
+      y: (y - rect.top - panRef.current.y) / zoomRef.current,
     };
-  }, [pan, zoom]);
+  }, []);
 
   // Middle mouse pan - start
   const handleMouseDown = (event) => {
     // Middle mouse button (button === 1) - pan
     if (event.button === 1) {
       event.preventDefault();
-      setIsPanning(true);
-      setPanStart({ x: event.clientX - pan.x, y: event.clientY - pan.y });
+      isPanningRef.current = true;
+      if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
+      panStartRef.current = { x: event.clientX - panRef.current.x, y: event.clientY - panRef.current.y };
     }
     // Left mouse button (button === 0) - start selection on canvas only
     else if (event.button === 0 && event.target.getAttribute('data-canvas') === 'true') {
@@ -557,11 +637,12 @@ export default function App() {
 
   // Mouse move - pan or selection box
   const handleMouseMove = (event) => {
-    if (isPanning) {
-      setPan({
-        x: event.clientX - panStart.x,
-        y: event.clientY - panStart.y
-      });
+    if (isPanningRef.current) {
+      panRef.current = {
+        x: event.clientX - panStartRef.current.x,
+        y: event.clientY - panStartRef.current.y
+      };
+      applyTransform();
     }
     if (isSelecting) {
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
@@ -572,7 +653,9 @@ export default function App() {
   // Mouse up - end pan or selection
   const handleMouseUp = (event) => {
     if (event.button === 1) {
-      setIsPanning(false);
+      isPanningRef.current = false;
+      if (containerRef.current) containerRef.current.style.cursor = '';
+      setPan({ ...panRef.current });
     }
     if (event.button === 0 && isSelecting) {
       // Calculate which nodes are in the selection box
@@ -743,41 +826,36 @@ export default function App() {
     }));
   };
 
-  // Store computed anchor positions (updated after layout via useLayoutEffect)
-  const [computedAnchorPositions, setComputedAnchorPositions] = useState({});
-
-  // Register anchor - track which anchors exist (positions computed via useLayoutEffect)
-  const registerAnchor = useCallback((anchorId) => {
-    setAnchorPositions(prev => {
-      if (prev[anchorId]) return prev;
-      return { ...prev, [anchorId]: true };
-    });
-  }, []);
-
-  // Recalculate ALL anchor positions after DOM has updated (useLayoutEffect runs synchronously after DOM mutations)
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const canvasRect = canvas.getBoundingClientRect();
-    const newPositions = {};
-
-    // For each registered anchor, query its DOM position and type
-    Object.keys(anchorPositions).forEach(anchorId => {
-      const anchorEl = document.querySelector(`[data-anchor-id="${anchorId}"]`);
-      if (anchorEl) {
-        const anchorRect = anchorEl.getBoundingClientRect();
-        const anchorType = anchorEl.getAttribute('data-anchor-type') || 'in';
-        newPositions[anchorId] = {
-          x: (anchorRect.left + anchorRect.width / 2 - canvasRect.left) / zoom,
-          y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom,
-          type: anchorType
+  // Compute global anchor positions from node state + local offsets (pure arithmetic, no DOM queries)
+  const computedAnchorPositions = useMemo(() => {
+    const positions = {};
+    Object.entries(anchorLocalOffsets).forEach(([anchorId, offset]) => {
+      const node = nodes[offset.nodeId];
+      if (node) {
+        const s = node.scale || 1;
+        positions[anchorId] = {
+          x: node.position.x + offset.localX * s,
+          y: node.position.y + offset.localY * s,
+          type: offset.type
         };
       }
     });
+    return positions;
+  }, [nodes, anchorLocalOffsets]);
 
-    setComputedAnchorPositions(newPositions);
-  }, [anchorPositions, zoom, pan, nodes]); // Recalc when zoom, pan, or nodes change
+  // Register anchor with local offset data (called by Node/SuperNode useLayoutEffect)
+  const registerAnchor = useCallback((anchorId, offset) => {
+    setAnchorLocalOffsets(prev => {
+      const existing = prev[anchorId];
+      if (existing &&
+          existing.localX === offset.localX &&
+          existing.localY === offset.localY &&
+          existing.type === offset.type) {
+        return prev;
+      }
+      return { ...prev, [anchorId]: offset };
+    });
+  }, []);
 
   // Get anchor position from pre-computed positions
   const getAnchorPosition = useCallback((anchorId) => {
@@ -800,16 +878,17 @@ export default function App() {
     name: projectName,
     version: '3.0',
     savedAt: new Date().toISOString(),
-    settings: { paperSize, orientation, zoom },
+    settings: { paperSize, orientation, zoom, paperEnabled },
     nodes,
     connections,
     userPresets,
-  }), [projectId, projectName, paperSize, orientation, zoom, nodes, connections, userPresets]);
+  }), [projectId, projectName, paperSize, orientation, zoom, paperEnabled, nodes, connections, userPresets]);
 
   // Apply loaded project data to all state
   const applyProject = useCallback((project) => {
     setPaperSize(project.settings?.paperSize || 'ANSI_B');
     setOrientation(project.settings?.orientation || 'landscape');
+    setPaperEnabled(project.settings?.paperEnabled !== false);
     setNodes(project.nodes || {});
     setConnections(project.connections || []);
     setUserPresets(project.userPresets || {});
@@ -818,6 +897,7 @@ export default function App() {
     setSelectedNodes(new Set());
     setSelectedWires(new Set());
     setActiveWire(null);
+    setAnchorLocalOffsets({});
     // Fit view after state settles
     setTimeout(() => fitView(0.1), 50);
   }, [fitView]);
@@ -832,6 +912,7 @@ export default function App() {
     setSelectedNodes(new Set());
     setSelectedWires(new Set());
     setActiveWire(null);
+    setAnchorLocalOffsets({});
     setTimeout(() => centerPage(), 50);
   }, [centerPage]);
 
@@ -942,6 +1023,56 @@ export default function App() {
     }
   }, [applyProject]);
 
+  // Background pre-render PNG export blob when browser is idle
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    cachedExportBlob.current = null;
+    let idleHandle;
+    const timer = setTimeout(() => {
+      idleHandle = requestIdleCallback(async () => {
+        try {
+          let exportWidth, exportHeight;
+          if (paperEnabled) {
+            exportWidth = canvasDimensions.width;
+            exportHeight = canvasDimensions.height;
+          } else {
+            // Measure actual content at capture time (avoids stale closure)
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const canvasRect = canvas.getBoundingClientRect();
+            const zoomFactor = canvasRect.width / (canvas.offsetWidth || 1);
+            let maxRight = 0;
+            let maxBottom = 0;
+            for (const child of canvas.children) {
+              const childRect = child.getBoundingClientRect();
+              maxRight = Math.max(maxRight, (childRect.right - canvasRect.left) / zoomFactor);
+              maxBottom = Math.max(maxBottom, (childRect.bottom - canvasRect.top) / zoomFactor);
+            }
+            exportWidth = Math.max(Math.ceil(maxRight) + 60, 800);
+            exportHeight = Math.max(Math.ceil(maxBottom) + 60, 600);
+          }
+          const blob = await renderExportBlob(canvasRef.current, {
+              scale: 1,
+              width: exportWidth,
+              height: exportHeight,
+            });
+          if (blob) cachedExportBlob.current = blob;
+        } catch {}
+      });
+    }, 1000);
+    return () => {
+      clearTimeout(timer);
+      if (idleHandle) cancelIdleCallback(idleHandle);
+    };
+  }, [nodes, connections, paperSize, orientation, paperEnabled]);
+
+  // Export canvas to PNG — instant from cached blob
+  const handleExportPNG = useCallback(() => {
+    if (cachedExportBlob.current) {
+      downloadBlob(cachedExportBlob.current, projectName || 'untitled');
+    }
+  }, [projectName]);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col">
       {/* Header Toolbar */}
@@ -975,6 +1106,13 @@ export default function App() {
             >
               ☰ Library
             </button>
+            <button
+              onClick={handleNewProject}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="Reset — clear everything and start fresh"
+            >
+              ↻
+            </button>
             <div className="h-4 border-l border-zinc-700" />
             <button
               onClick={handleNewProject}
@@ -996,6 +1134,13 @@ export default function App() {
               title="Save project to file"
             >
               Save As
+            </button>
+            <button
+              onClick={handleExportPNG}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="Export canvas as PNG image"
+            >
+              Export PNG
             </button>
             <div className="relative">
               <button
@@ -1028,6 +1173,17 @@ export default function App() {
 
           {/* Paper Size & Orientation */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPaperEnabled(p => !p)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                paperEnabled
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-500'
+              }`}
+              title={paperEnabled ? 'Paper: ON — export clips to paper' : 'Paper: OFF — export captures all nodes'}
+            >
+              Paper
+            </button>
             <select
               value={paperSize}
               onChange={(e) => setPaperSize(e.target.value)}
@@ -1053,7 +1209,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">Zoom:</span>
             <select
-              value={ZOOM_LEVELS.reduce((prev, curr) => Math.abs(curr - zoom) < Math.abs(prev - zoom) ? curr : prev)}
+              value={zoom}
               onChange={(e) => {
                 const newZoom = parseFloat(e.target.value);
                 const container = containerRef.current;
@@ -1072,11 +1228,13 @@ export default function App() {
               }}
               className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-300"
             >
+              {!ZOOM_LEVELS.includes(zoom) && (
+                <option value={zoom}>{Math.round(zoom * 100)}%</option>
+              )}
               {ZOOM_LEVELS.map(z => (
                 <option key={z} value={z}>{Math.round(z * 100)}%</option>
               ))}
             </select>
-            <span className="text-xs font-mono text-zinc-500 w-10 text-right">{Math.round(zoom * 100)}%</span>
           </div>
 
           {/* Add Node */}
@@ -1193,12 +1351,13 @@ export default function App() {
         {/* Canvas Area */}
         <main
           ref={containerRef}
-          className={`flex-1 overflow-hidden bg-zinc-900/50 relative ${isPanning ? 'cursor-grabbing' : ''}`}
+          className="flex-1 overflow-hidden bg-zinc-950 relative"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => {
-            setIsPanning(false);
+            isPanningRef.current = false;
+            if (containerRef.current) containerRef.current.style.cursor = '';
             if (isSelecting) {
               setIsSelecting(false);
               setSelectionBox(null);
@@ -1207,6 +1366,7 @@ export default function App() {
         >
         {/* Pan + Zoom container */}
         <div
+          ref={transformRef}
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0'
@@ -1215,28 +1375,31 @@ export default function App() {
           <div
             ref={canvasRef}
             data-canvas="true"
-            className="relative bg-zinc-950 border border-zinc-700 shadow-2xl"
+            className={`relative bg-zinc-950 ${paperEnabled ? 'border border-zinc-700 shadow-2xl' : ''}`}
             style={{
               width: canvasDimensions.width,
               height: canvasDimensions.height,
-              backgroundImage: `
+              overflow: paperEnabled ? undefined : 'visible',
+              backgroundImage: paperEnabled ? `
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
-              `,
-              backgroundSize: '8px 8px'
+              ` : 'none',
+              backgroundSize: paperEnabled ? '8px 8px' : undefined
             }}
             onClick={handleCanvasClick}
           >
-          {/* Print margin guides */}
-          <div
-            className="absolute border border-dashed border-zinc-800 pointer-events-none"
-            style={{
-              top: PRINT_MARGINS.top,
-              left: PRINT_MARGINS.left,
-              width: canvasDimensions.width - PRINT_MARGINS.left - PRINT_MARGINS.right,
-              height: canvasDimensions.height - PRINT_MARGINS.top - PRINT_MARGINS.bottom
-            }}
-          />
+          {/* Print margin guides (paper mode only) */}
+          {paperEnabled && (
+            <div
+              className="absolute border border-dashed border-zinc-800 pointer-events-none"
+              style={{
+                top: PRINT_MARGINS.top,
+                left: PRINT_MARGINS.left,
+                width: canvasDimensions.width - PRINT_MARGINS.left - PRINT_MARGINS.right,
+                height: canvasDimensions.height - PRINT_MARGINS.top - PRINT_MARGINS.bottom
+              }}
+            />
+          )}
 
           {/* SVG Layer for Wires and Selection Box */}
           <svg
@@ -1261,10 +1424,10 @@ export default function App() {
             {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
               const isInput = pos.type === 'in';
               const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
-              const isConnected = connections.some(c => c.from === anchorId || c.to === anchorId);
+              const isConnected = connectedAnchorIds.has(anchorId);
 
               return (
-                <g key={`anchor-${anchorId}`}>
+                <g key={`anchor-${anchorId}`} data-export-ignore="true">
                   {/* Glow effect for connected/active anchors */}
                   {(isConnected || isActive) && (
                     <circle
@@ -1294,7 +1457,7 @@ export default function App() {
             })}
 
             {connections.map(conn => {
-              const wireColor = getConnectionColor(conn);
+              const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
               const wirePath = getWirePath(conn.from, conn.to);
               const fromPos = getAnchorPosition(conn.from);
               const toPos = getAnchorPosition(conn.to);
@@ -1381,6 +1544,7 @@ export default function App() {
                   {/* Delete button for wire */}
                   {fromPos && toPos && (
                     <g
+                      data-export-ignore="true"
                       className="pointer-events-auto cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1466,7 +1630,7 @@ export default function App() {
               Canvas: {canvasDimensions.width} × {canvasDimensions.height}px
             </span>
             <span className="text-zinc-500">
-              Paper: {PAPER_SIZES[paperSize].label}
+              Paper: {paperEnabled ? PAPER_SIZES[paperSize].label : 'Off'}
             </span>
             <span className="text-zinc-500">
               Zoom: {Math.round(zoom * 100)}%

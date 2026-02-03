@@ -1,4 +1,5 @@
 import { openDB } from 'idb';
+import { domToBlob } from 'modern-screenshot';
 
 const DB_NAME = 'nexus-x';
 const DB_VERSION = 1;
@@ -69,3 +70,27 @@ export function importProject(jsonString, fileName) {
     updatedAt: Date.now(),
   };
 }
+
+export async function renderExportBlob(canvasElement, options = {}) {
+  const { scale = 1, backgroundColor = '#18181b', width, height } = options;
+  return domToBlob(canvasElement, {
+    scale,
+    backgroundColor,
+    width,
+    height,
+    style: (width && height) ? { overflow: 'hidden' } : undefined,
+    filter: (node) => !node.getAttribute?.('data-export-ignore'),
+  });
+}
+
+export function downloadBlob(blob, projectName = 'diagram') {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${projectName}-${new Date().toISOString().slice(0, 10)}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

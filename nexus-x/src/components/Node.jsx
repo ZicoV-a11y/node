@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 
 // Dropdown options
 const RESOLUTIONS = [
@@ -834,7 +834,7 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-export default function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState(null);
@@ -852,36 +852,41 @@ export default function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnc
   // Get the effective scale (node scale * zoom)
   const nodeScale = node.scale || 1;
 
-  // Register anchor positions - query DOM for inline anchor positions
-  useEffect(() => {
+  // Compute anchor local offsets via scoped DOM queries (only when layout changes, NOT on position change)
+  useLayoutEffect(() => {
     if (!registerAnchor || !nodeRef.current) return;
-
     const scale = node.scale || 1;
+    const nodeRect = nodeRef.current.getBoundingClientRect();
+    const totalScale = zoom * scale;
 
-    // Query DOM for inline anchor positions
-    const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
-    allPorts.forEach((port) => {
+    node.inputSection.ports.forEach((port) => {
       const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current?.querySelector(`[data-anchor-id="${anchorId}"]`);
-
+      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
       if (anchorEl) {
-        const anchorRect = anchorEl.getBoundingClientRect();
-        const nodeRect = nodeRef.current.getBoundingClientRect();
-
-        // Calculate center of anchor relative to node, accounting for zoom and scale
-        // Screen coords → divide by totalScale → paper-space coords relative to node
-        const totalScale = zoom * scale;
-        const localX = (anchorRect.left + anchorRect.width / 2 - nodeRect.left) / totalScale;
-        const localY = (anchorRect.top + anchorRect.height / 2 - nodeRect.top) / totalScale;
-
-        // localX/Y are already in paper-space, just add node position
+        const r = anchorEl.getBoundingClientRect();
         registerAnchor(anchorId, {
-          x: node.position.x + localX,
-          y: node.position.y + localY
+          nodeId: node.id,
+          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+          type: 'in'
         });
       }
     });
-  }, [node.position, node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
+
+    node.outputSection.ports.forEach((port) => {
+      const anchorId = `${node.id}-${port.id}`;
+      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+      if (anchorEl) {
+        const r = anchorEl.getBoundingClientRect();
+        registerAnchor(anchorId, {
+          nodeId: node.id,
+          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+          type: 'out'
+        });
+      }
+    });
+  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
 
   // Resize handling
   const handleResizeStart = (e, direction) => {
@@ -1427,3 +1432,10 @@ export default function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnc
     </div>
   );
 }
+
+export default memo(Node, (prev, next) =>
+  prev.node === next.node &&
+  prev.zoom === next.zoom &&
+  prev.isSelected === next.isSelected &&
+  prev.activeWire === next.activeWire
+);
