@@ -146,10 +146,10 @@ const SelectWithCustom = ({
   className = '',
   isSelected = false,
 }) => {
-  // Check if current value is custom (not in options list, or is "Custom...")
+  // Check if current value is custom (not in options list)
   const isCustomValue = value && value !== 'Custom...' && !options.includes(value);
-  const [isCustomMode, setIsCustomMode] = useState(isCustomValue);
-  const [customText, setCustomText] = useState(isCustomValue ? value : '');
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customText, setCustomText] = useState(value || '');
   const inputRef = useRef(null);
 
   // Focus input when entering custom mode
@@ -162,11 +162,8 @@ const SelectWithCustom = ({
 
   // Sync custom text when value changes externally
   useEffect(() => {
-    if (isCustomValue) {
-      setCustomText(value);
-      setIsCustomMode(true);
-    }
-  }, [value, isCustomValue]);
+    setCustomText(value || '');
+  }, [value]);
 
   const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
@@ -174,7 +171,7 @@ const SelectWithCustom = ({
 
   if (isCustomMode) {
     return (
-      <div className="flex items-center gap-0.5 w-full">
+      <div className={`flex items-center w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
         <input
           ref={inputRef}
           type="text"
@@ -183,7 +180,9 @@ const SelectWithCustom = ({
           onBlur={() => {
             if (customText.trim()) {
               onChange(customText.trim());
+              setIsCustomMode(false); // Save and return to dropdown
             } else {
+              // Empty text = go back to dropdown with no value
               setIsCustomMode(false);
               onChange('');
             }
@@ -192,31 +191,34 @@ const SelectWithCustom = ({
             if (e.key === 'Enter') {
               e.target.blur();
             } else if (e.key === 'Escape') {
+              // Escape = go back to dropdown, keep current saved value
               setIsCustomMode(false);
-              setCustomText('');
-              onChange('');
+              setCustomText(value || '');
             }
           }}
           onClick={(e) => e.stopPropagation()}
           placeholder="Type custom..."
-          className={`${baseStyle} flex-1 min-w-0`}
+          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[10px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
             e.stopPropagation();
+            // Save current text and return to dropdown
+            if (customText.trim()) {
+              onChange(customText.trim());
+            }
             setIsCustomMode(false);
-            setCustomText('');
-            onChange('');
           }}
-          className="text-zinc-500 hover:text-zinc-300 text-[10px] px-0.5 shrink-0"
+          className="text-zinc-400 hover:text-zinc-200 text-[8px] px-1.5 py-0.5 shrink-0 border-l border-zinc-700"
           title="Back to dropdown"
         >
-          ×
+          ▼
         </button>
       </div>
     );
   }
 
+  // Dropdown mode - show custom value as an option if it exists
   return (
     <select
       value={value || ''}
@@ -224,7 +226,7 @@ const SelectWithCustom = ({
         const newValue = e.target.value;
         if (newValue === 'Custom...') {
           setIsCustomMode(true);
-          setCustomText('');
+          setCustomText(''); // Start fresh with empty input
         } else {
           onChange(newValue);
         }
@@ -233,6 +235,10 @@ const SelectWithCustom = ({
       className={`${baseStyle} ${className}`}
     >
       <option value="">{placeholder}</option>
+      {/* Show custom value as first option if it exists */}
+      {isCustomValue && (
+        <option value={value}>{value} (custom)</option>
+      )}
       {options.map(opt => (
         <option key={opt} value={opt}>{opt}</option>
       ))}
@@ -313,15 +319,57 @@ const CardWrapper = ({
 };
 
 // Column definitions - ALL row elements as columns for template layout
-// TESTING: All columns set to draggable=true to diagnose drag issues
+// minWidth is the minimum, but columns can grow based on content
 const COLUMN_DEFS = {
-  anchor: { id: 'anchor', label: '', width: 'w-[24px]', draggable: true },
-  delete: { id: 'delete', label: '🗑', width: 'w-[24px]', draggable: true },
-  port: { id: 'port', label: 'Port', width: 'w-[52px]', draggable: true },
-  connector: { id: 'connector', label: 'Connector', width: 'w-[90px]', draggable: true },
-  resolution: { id: 'resolution', label: 'Resolution', width: 'w-[100px]', draggable: true },
-  rate: { id: 'rate', label: 'Rate', width: 'w-[70px]', draggable: true },
-  flip: { id: 'flip', label: '', width: 'w-[42px]', draggable: true },
+  anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
+  delete: { id: 'delete', label: '🗑', minWidth: 24, draggable: true },
+  port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
+  connector: { id: 'connector', label: 'Connector', minWidth: 90, draggable: true },
+  resolution: { id: 'resolution', label: 'Resolution', minWidth: 90, draggable: true },
+  rate: { id: 'rate', label: 'Rate', minWidth: 60, draggable: true },
+  flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
+};
+
+// Estimate text width in pixels (monospace font at 10px ≈ 6px per character)
+const CHAR_WIDTH = 6;
+const PADDING = 16; // px padding inside cell
+
+const estimateTextWidth = (text) => {
+  if (!text) return 0;
+  return text.length * CHAR_WIDTH + PADDING;
+};
+
+// Calculate dynamic column widths based on port data
+const calculateColumnWidths = (ports) => {
+  const widths = {
+    anchor: COLUMN_DEFS.anchor.minWidth,
+    delete: COLUMN_DEFS.delete.minWidth,
+    port: COLUMN_DEFS.port.minWidth,
+    connector: COLUMN_DEFS.connector.minWidth,
+    resolution: COLUMN_DEFS.resolution.minWidth,
+    rate: COLUMN_DEFS.rate.minWidth,
+    flip: COLUMN_DEFS.flip.minWidth,
+  };
+
+  // Also consider header labels
+  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector'));
+  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution'));
+  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate'));
+
+  // Scan all ports to find max width needed
+  ports.forEach(port => {
+    if (port.connector) {
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector));
+    }
+    if (port.resolution) {
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution));
+    }
+    if (port.refreshRate) {
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate));
+    }
+  });
+
+  return widths;
 };
 
 // Data columns that can be reordered by dragging (includes delete)
@@ -451,6 +499,7 @@ const PortRow = ({
   isSelected,
   onToggleSelection,
   onBulkUpdate,
+  columnWidths = {}, // Dynamic column widths
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -564,6 +613,11 @@ const PortRow = ({
     }
   };
 
+  // Get width for a column (use dynamic width if available, else minWidth)
+  const getColumnWidth = (colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+  };
+
   return (
     <div className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[11px] whitespace-nowrap w-full`}>
       {fullColumnOrder.map((colId, index) => {
@@ -572,11 +626,14 @@ const PortRow = ({
 
         return (
           <div key={colId} className="flex items-center">
-            {/* Marker between ALL columns (except first) - matches ColumnHeaders */}
+            {/* Marker between ALL columns (except first) - with spacing */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
-            <span className={`${colDef.width} shrink-0 flex items-center justify-center`}>
+            <span
+              className="shrink-0 flex items-center justify-center"
+              style={{ width: `${getColumnWidth(colId)}px` }}
+            >
               {renderColumnContent(colId)}
             </span>
           </div>
@@ -591,9 +648,14 @@ const PortRow = ({
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll }) => {
+const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
+
+  // Get width for a column (use dynamic width if available, else minWidth)
+  const getColumnWidth = (colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+  };
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
@@ -675,9 +737,9 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
           >
-            {/* Marker between ALL columns (except first) */}
+            {/* Marker between ALL columns (except first) - with spacing */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
             {colId === 'port' ? (
               // PORT header is both draggable AND clickable for select all
@@ -691,9 +753,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 }}
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
-                className={`${colDef.width} shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
+                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
+                style={{ width: `${getColumnWidth(colId)}px` }}
                 title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
@@ -708,9 +771,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                   if (isDraggable) handleDragStart(e, colId);
                 }}
                 onDragEnd={handleDragEnd}
-                className={`${colDef.width} shrink-0 flex items-center justify-center transition-opacity
+                className={`shrink-0 flex items-center justify-center transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
+                style={{ width: `${getColumnWidth(colId)}px` }}
                 title={isDraggable ? "Drag to reorder" : undefined}
               >
                 {colDef.label}
@@ -1135,6 +1199,9 @@ const IOSection = ({
     ports: data.ports.filter(p => p.cardId === card.id)
   }));
 
+  // Calculate dynamic column widths based on port content
+  const columnWidths = calculateColumnWidths(data.ports);
+
   // Helper to render port rows
   const renderPortRows = (ports) => (
     ports.map(port => (
@@ -1152,6 +1219,7 @@ const IOSection = ({
         canToggleAnchor={canToggleAnchor}
         onToggleAnchor={onToggleAnchorSide}
         columnOrder={columnOrder}
+        columnWidths={columnWidths}
         isSelected={selectedPorts.has(port.id)}
         onToggleSelection={() => togglePortSelection(port.id)}
         onBulkUpdate={bulkUpdatePorts}
@@ -1182,6 +1250,7 @@ const IOSection = ({
               anchorSide={anchorSide}
               canToggleAnchor={canToggleAnchor}
               columnOrder={columnOrder}
+              columnWidths={columnWidths}
               onReorderColumns={reorderColumns}
               selectedCount={selectedPorts.size}
               totalCount={data.ports.length}
