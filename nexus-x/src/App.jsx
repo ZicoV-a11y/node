@@ -3,6 +3,7 @@ import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
+import CablePrompt from './components/CablePrompt';
 import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 
@@ -221,6 +222,9 @@ export default function App() {
   // Wire selection state
   const [selectedWires, setSelectedWires] = useState(new Set());
 
+  // Cable prompt state
+  const [cablePromptData, setCablePromptData] = useState(null);
+
   // Project identity
   const [projectName, setProjectName] = useState('Untitled Project');
   const [projectId, setProjectId] = useState(() => crypto.randomUUID());
@@ -431,25 +435,27 @@ export default function App() {
       setActiveWire({ from: anchorId, direction });
     } else {
       if (activeWire.from !== anchorId && activeWire.direction !== direction) {
-        const newConnection = {
-          id: `wire-${Date.now()}`,
-          from: activeWire.direction === 'out' ? activeWire.from : anchorId,
-          to: activeWire.direction === 'out' ? anchorId : activeWire.from,
-          label: '',           // Optional wire label
-          enhanced: false,     // Enhanced styling (outline, dash, animation)
-          dashPattern: null    // Dash pattern when enhanced
-        };
+        const fromAnchor = activeWire.direction === 'out' ? activeWire.from : anchorId;
+        const toAnchor = activeWire.direction === 'out' ? anchorId : activeWire.from;
 
         // Check if connection already exists
         const exists = connections.some(
-          c => c.from === newConnection.from && c.to === newConnection.to
+          c => c.from === fromAnchor && c.to === toAnchor
         );
 
         if (!exists) {
-          setConnections(prev => [...prev, newConnection]);
+          // Show cable prompt instead of creating connection immediately
+          setCablePromptData({
+            mode: 'create',
+            from: fromAnchor,
+            to: toAnchor
+          });
+        } else {
+          setActiveWire(null);
         }
+      } else {
+        setActiveWire(null);
       }
-      setActiveWire(null);
     }
   };
 
@@ -461,6 +467,51 @@ export default function App() {
       next.delete(connId);
       return next;
     });
+  };
+
+  // Cable prompt handlers
+  const handleCablePromptSubmit = (cableData) => {
+    if (!cablePromptData) return;
+
+    if (cablePromptData.mode === 'edit') {
+      // Update existing connection
+      setConnections(prev => prev.map(conn => {
+        if (conn.id === cablePromptData.connectionId) {
+          return {
+            ...conn,
+            cableType: cableData.cableType || '',
+            cableLength: cableData.cableLength || '',
+            rpCode: cableData.rpCode || '',
+            description: cableData.description || ''
+          };
+        }
+        return conn;
+      }));
+    } else {
+      // Create new connection
+      const newConnection = {
+        id: `wire-${Date.now()}`,
+        from: cablePromptData.from,
+        to: cablePromptData.to,
+        label: '',           // Optional wire label
+        enhanced: false,     // Enhanced styling (outline, dash, animation)
+        dashPattern: null,   // Dash pattern when enhanced
+        cableType: cableData.cableType || '',
+        cableLength: cableData.cableLength || '',
+        rpCode: cableData.rpCode || '',
+        description: cableData.description || ''
+      };
+
+      setConnections(prev => [...prev, newConnection]);
+      setActiveWire(null);
+    }
+
+    setCablePromptData(null);
+  };
+
+  const handleCablePromptCancel = () => {
+    setCablePromptData(null);
+    setActiveWire(null);
   };
 
   // Wire click handling (for selection)
@@ -487,6 +538,27 @@ export default function App() {
         return new Set([wireId]); // Select only this wire
       });
     }
+  };
+
+  // Wire double-click handling (for editing cable details)
+  const handleWireDoubleClick = (wireId, event) => {
+    event.stopPropagation();
+
+    // Find the connection
+    const connection = connections.find(c => c.id === wireId);
+    if (!connection) return;
+
+    // Show cable prompt with existing data for editing
+    setCablePromptData({
+      mode: 'edit',
+      connectionId: wireId,
+      initialData: {
+        cableType: connection.cableType,
+        cableLength: connection.cableLength,
+        rpCode: connection.rpCode,
+        description: connection.description
+      }
+    });
   };
 
   // Deselect all wires (when clicking canvas) and close dropdowns
@@ -1354,18 +1426,29 @@ export default function App() {
                     />
                   )}
 
-                  {/* Wire label */}
-                  {conn.label && fromPos && toPos && (
-                    <text
-                      x={(fromPos.x + toPos.x) / 2}
-                      y={(fromPos.y + toPos.y) / 2 - 12}
-                      textAnchor="middle"
-                      className="fill-zinc-400 font-mono pointer-events-none"
-                      style={{ fontSize: 9 }}
-                    >
-                      {conn.label}
-                    </text>
-                  )}
+                  {/* Wire label or cable info */}
+                  {(() => {
+                    // Use custom label if set, otherwise show cable info if available
+                    let displayText = conn.label;
+                    if (!displayText && (conn.cableType || conn.cableLength)) {
+                      const parts = [];
+                      if (conn.cableType) parts.push(conn.cableType);
+                      if (conn.cableLength) parts.push(conn.cableLength);
+                      displayText = parts.join(' • ');
+                    }
+
+                    return displayText && fromPos && toPos ? (
+                      <text
+                        x={(fromPos.x + toPos.x) / 2}
+                        y={(fromPos.y + toPos.y) / 2 - 12}
+                        textAnchor="middle"
+                        className="fill-zinc-400 font-mono pointer-events-none"
+                        style={{ fontSize: 9 }}
+                      >
+                        {displayText}
+                      </text>
+                    ) : null;
+                  })()}
 
                   {/* Invisible click hit area (wider than visible wire) */}
                   <path
@@ -1376,6 +1459,7 @@ export default function App() {
                     strokeLinecap="round"
                     className="pointer-events-auto cursor-pointer"
                     onClick={(e) => handleWireClick(conn.id, e)}
+                    onDoubleClick={(e) => handleWireDoubleClick(conn.id, e)}
                   />
 
                   {/* Delete button for wire */}
@@ -1474,6 +1558,15 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Cable Prompt Dialog */}
+      {cablePromptData && (
+        <CablePrompt
+          onSubmit={handleCablePromptSubmit}
+          onCancel={handleCablePromptCancel}
+          initialData={cablePromptData.mode === 'edit' ? cablePromptData.initialData : null}
+        />
+      )}
     </div>
   );
 }

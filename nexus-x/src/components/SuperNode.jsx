@@ -1248,6 +1248,11 @@ const IOSection = ({
       cardId: null // No card - standalone port
     };
     onUpdate({ ports: [...data.ports, newPort] });
+
+    // Auto-expand section if collapsed so user can see the new port
+    if (collapsed && onToggleCollapse) {
+      onToggleCollapse();
+    }
   };
 
   const updatePort = (portId, updates) => {
@@ -1321,6 +1326,11 @@ const IOSection = ({
       ports: [...data.ports, ...newPorts],
       cards: [...cards, newCard]
     });
+
+    // Auto-expand section if collapsed so user can see the new card
+    if (collapsed && onToggleCollapse) {
+      onToggleCollapse();
+    }
   };
 
   // Toggle card collapse
