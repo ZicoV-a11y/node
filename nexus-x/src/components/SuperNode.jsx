@@ -61,6 +61,64 @@ const SIGNAL_COLORS = [
   { id: 'yellow', hex: '#eab308', label: 'Yellow' },
 ];
 
+// Hex color values for theming (Tailwind 500/400 equivalents)
+const HEX_COLORS = {
+  zinc:    { 500: '#71717a', 400: '#a1a1aa', 600: '#52525b', 700: '#3f3f46' },
+  emerald: { 500: '#10b981', 400: '#34d399' },
+  teal:    { 500: '#14b8a6', 400: '#2dd4bf' },
+  green:   { 500: '#22c55e', 400: '#4ade80' },
+  cyan:    { 500: '#06b6d4', 400: '#22d3ee' },
+  sky:     { 500: '#0ea5e9', 400: '#38bdf8' },
+  blue:    { 500: '#3b82f6', 400: '#60a5fa' },
+  indigo:  { 500: '#6366f1', 400: '#818cf8' },
+  violet:  { 500: '#8b5cf6', 400: '#a78bfa' },
+  purple:  { 500: '#a855f7', 400: '#c084fc' },
+  fuchsia: { 500: '#d946ef', 400: '#e879f9' },
+  pink:    { 500: '#ec4899', 400: '#f472b6' },
+  rose:    { 500: '#f43f5e', 400: '#fb7185' },
+  red:     { 500: '#ef4444', 400: '#f87171' },
+  orange:  { 500: '#f97316', 400: '#fb923c' },
+  amber:   { 500: '#f59e0b', 400: '#fbbf24' },
+  yellow:  { 500: '#eab308', 400: '#facc15' },
+  lime:    { 500: '#84cc16', 400: '#a3e635' },
+};
+
+// Generate cohesive color theme from signal color
+// Returns hex values for inline styles
+const getThemeColors = (signalColorId) => {
+  // No color selected = neutral zinc theme
+  if (!signalColorId) {
+    const zinc = HEX_COLORS.zinc;
+    return {
+      header: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      system: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      input:  { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      output: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+    };
+  }
+
+  // Color family mappings - each signal color gets related variants
+  const themes = {
+    emerald: { base: 'emerald', system: 'teal',    input: 'emerald', output: 'green' },
+    cyan:    { base: 'cyan',    system: 'sky',     input: 'cyan',    output: 'teal' },
+    blue:    { base: 'blue',    system: 'indigo',  input: 'blue',    output: 'sky' },
+    violet:  { base: 'violet',  system: 'purple',  input: 'violet',  output: 'indigo' },
+    pink:    { base: 'pink',    system: 'fuchsia', input: 'pink',    output: 'rose' },
+    red:     { base: 'red',     system: 'rose',    input: 'red',     output: 'orange' },
+    orange:  { base: 'orange',  system: 'amber',   input: 'orange',  output: 'yellow' },
+    yellow:  { base: 'yellow',  system: 'amber',   input: 'yellow',  output: 'lime' },
+  };
+
+  const theme = themes[signalColorId] || themes.cyan;
+
+  return {
+    header: { hex: HEX_COLORS[theme.base][500],   hexLight: HEX_COLORS[theme.base][400] },
+    system: { hex: HEX_COLORS[theme.system][500], hexLight: HEX_COLORS[theme.system][400] },
+    input:  { hex: HEX_COLORS[theme.input][500],  hexLight: HEX_COLORS[theme.input][400] },
+    output: { hex: HEX_COLORS[theme.output][500], hexLight: HEX_COLORS[theme.output][400] },
+  };
+};
+
 const PLATFORMS = [
   'none',
   'MacBook Pro', 'MacBook Air', 'Mac Mini', 'Mac Studio', 'Mac Pro',
@@ -258,21 +316,20 @@ const CardWrapper = ({
   type,
   onToggleCollapse,
   onRemoveCard,
-  anchorSide
+  anchorSide,
+  colors: passedColors
 }) => {
-  const colors = SECTION_COLORS[type];
+  // Use passed hex colors or fallback to zinc
+  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
+  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
   const isReversed = anchorSide === 'right';
 
   return (
     <div className="relative">
       {/* Colored stripe indicator on anchor side */}
       <div
-        className={`absolute top-0 bottom-0 w-1 ${colors.bg.replace('/10', '/40')} ${
-          isReversed ? 'right-0' : 'left-0'
-        }`}
-        style={{
-          backgroundColor: type === 'input' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'
-        }}
+        className={`absolute top-0 bottom-0 w-1 ${isReversed ? 'right-0' : 'left-0'}`}
+        style={{ backgroundColor: `${colorHex}66` }} // ~40% opacity
       />
 
       {/* Card label bar - minimal, symmetric */}
@@ -280,18 +337,21 @@ const CardWrapper = ({
         className={`
           flex items-center justify-between
           py-0.5 text-[8px] font-mono
-          ${colors.bg}
           cursor-pointer select-none
           ${isReversed ? 'flex-row-reverse pl-2 pr-1' : 'pl-1 pr-2'}
         `}
+        style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
         onClick={() => onToggleCollapse && onToggleCollapse(card.id)}
       >
         {/* Left/anchor side: collapse + name */}
         <div className={`flex items-center gap-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
-          <span className={`${colors.text} transition-transform ${card.collapsed ? '' : 'rotate-90'}`}>
+          <span
+            className={`transition-transform ${card.collapsed ? '' : 'rotate-90'}`}
+            style={{ color: colorHexLight }}
+          >
             ▶
           </span>
-          <span className={`${colors.text} font-bold tracking-wider`}>
+          <span className="font-bold tracking-wider" style={{ color: colorHexLight }}>
             {card.name}
           </span>
           <span className="text-zinc-500 bg-zinc-700/50 px-1 rounded">
@@ -407,6 +467,10 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
       e.stopPropagation();
       onDrop(side);
     }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    onMouseUp={() => {
+      onDrop(side);
+    }}
     className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-10
       border-2 border-dashed transition-all z-20 flex items-center justify-center
       ${isActive
@@ -439,10 +503,47 @@ const BottomDropZone = ({ onDrop }) => (
       e.stopPropagation();
       onDrop();
     }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    // Don't stopPropagation - let window handler do cleanup
+    onMouseUp={() => {
+      onDrop();
+    }}
     className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
       flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer"
   >
-    <span className="text-cyan-300 text-[10px] font-bold">▼ DROP HERE FOR NEW ROW ▼</span>
+    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
+  </div>
+);
+
+// ============================================
+// TOP DROP ZONE COMPONENT
+// Appears at top when dragging System section to move it to top position
+// ============================================
+
+const TopDropZone = ({ onDrop }) => (
+  <div
+    onDragOver={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDragEnter={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+    onDrop={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDrop();
+    }}
+    // Also support mouse-based drops (for System section which uses mouse events)
+    // Don't stopPropagation - let window handler do cleanup
+    onMouseUp={() => {
+      onDrop();
+    }}
+    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
+      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer mb-1"
+  >
+    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
   </div>
 );
 
@@ -500,10 +601,12 @@ const PortRow = ({
   onToggleSelection,
   onBulkUpdate,
   columnWidths = {}, // Dynamic column widths
+  colors: passedColors,
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
-  const colors = SECTION_COLORS[isInput ? 'input' : 'output'];
+  // Use passed hex colors or fallback to zinc
+  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
@@ -537,7 +640,8 @@ const PortRow = ({
               onToggleAnchor && onToggleAnchor();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[9px] font-mono ${colors.text}`}
+            className="px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[9px] font-mono"
+            style={{ color: colorHexLight }}
             title={`Anchors on ${anchorSide} side - click to toggle`}
           >
             {anchorSide === 'right' ? '■ ▶' : '◀ ■'}
@@ -805,15 +909,20 @@ const DraggableSection = ({
   isDragging,
   showSideDropZones,
   isSingleSectionRow,
+  draggedSection, // What section is currently being dragged
 }) => {
-  // System sections never show side drop zones (system always in own row)
-  const isSystemSection = sectionId === 'system';
-  const canShowSideZones = showSideDropZones && !isSystemSection;
+  // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
+  // System can NEVER be side-by-side with anything
+  const isIOSection = sectionId === 'input' || sectionId === 'output';
+  const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+  const canShowSideZones = showSideDropZones && isIOSection && isDraggingIO;
 
   return (
     <div
       onDragOver={(e) => onDragOver(e, sectionId)}
       onDrop={(e) => onDrop(e, sectionId)}
+      // Also support mouse-based drops (for System section which uses mouse events)
+      onMouseUp={() => onDrop(null, sectionId)}
       className={`
         relative w-full
         transition-all duration-150
@@ -821,7 +930,7 @@ const DraggableSection = ({
         ${isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
       `}
     >
-      {/* Side drop zones - only for INPUT/OUTPUT sections (system never side-by-side) */}
+      {/* Side drop zones - ONLY for Input/Output going side-by-side (system NEVER side-by-side) */}
       {canShowSideZones && (
         <>
           <SideDropZone
@@ -860,10 +969,13 @@ const SectionHeader = ({
   onApplyPreset,
   collapsed,
   onToggleCollapse,
+  colors: passedColors,
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
-  const colors = SECTION_COLORS[type];
+  // Use passed hex colors or fallback to zinc
+  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
+  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
 
   // Filter presets by section type (input/output)
   const availablePresets = Object.entries(CARD_PRESETS)
@@ -878,8 +990,8 @@ const SectionHeader = ({
     setShowPresetMenu(false);
   };
 
-  // Shared button style for consistency
-  const buttonStyle = `px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[11px] font-mono ${colors.text}`;
+  // Shared button style for consistency (color applied via inline style)
+  const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[11px] font-mono";
 
   // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
   const buttonsJSX = (
@@ -890,7 +1002,8 @@ const SectionHeader = ({
           <button
             onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={buttonStyle}
+            className={buttonBaseStyle}
+            style={{ color: colorHexLight }}
             title="Add port"
           >
             +
@@ -899,7 +1012,8 @@ const SectionHeader = ({
           <button
             onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={buttonStyle}
+            className={buttonBaseStyle}
+            style={{ color: colorHexLight }}
             title="Load card preset"
           >
             ⊞
@@ -911,7 +1025,8 @@ const SectionHeader = ({
           <button
             onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={buttonStyle}
+            className={buttonBaseStyle}
+            style={{ color: colorHexLight }}
             title="Load card preset"
           >
             ⊞
@@ -920,7 +1035,8 @@ const SectionHeader = ({
           <button
             onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={buttonStyle}
+            className={buttonBaseStyle}
+            style={{ color: colorHexLight }}
             title="Add port"
           >
             +
@@ -959,7 +1075,8 @@ const SectionHeader = ({
 
   return (
     <div
-      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 ${colors.bg} border-b border-zinc-700/50`}
+      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
+      style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
     >
       {isReversed ? (
         <>
@@ -971,18 +1088,26 @@ const SectionHeader = ({
                 e.stopPropagation();
                 onToggleCollapse && onToggleCollapse();
               }}
-              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
-              style={{ fontFamily: 'inherit' }}
+              className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              style={{ fontFamily: 'inherit', color: colorHexLight }}
               title={collapsed ? 'Expand section' : 'Collapse section'}
             >
               ▸
             </span>
             <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
+              data-section-drag="true"
+              draggable="true"
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStart && onDragStart(e, sectionId);
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEnd && onDragEnd();
+              }}
               onMouseDown={(e) => e.stopPropagation()}
-              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
+              className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
               {title}
@@ -994,11 +1119,19 @@ const SectionHeader = ({
           {/* INPUTS (anchor left): title + arrow on left, buttons on inner right */}
           <div className="flex items-center gap-1">
             <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
+              data-section-drag="true"
+              draggable="true"
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStart && onDragStart(e, sectionId);
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEnd && onDragEnd();
+              }}
               onMouseDown={(e) => e.stopPropagation()}
-              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
+              className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
               {title}
@@ -1008,8 +1141,8 @@ const SectionHeader = ({
                 e.stopPropagation();
                 onToggleCollapse && onToggleCollapse();
               }}
-              className={`${colors.text} text-[10px] cursor-pointer hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
-              style={{ fontFamily: 'inherit' }}
+              className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              style={{ fontFamily: 'inherit', color: colorHexLight }}
               title={collapsed ? 'Expand section' : 'Collapse section'}
             >
               ▸
@@ -1041,6 +1174,7 @@ const IOSection = ({
   onSectionDragEnd,
   collapsed,
   onToggleCollapse,
+  colors,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -1223,6 +1357,7 @@ const IOSection = ({
         isSelected={selectedPorts.has(port.id)}
         onToggleSelection={() => togglePortSelection(port.id)}
         onBulkUpdate={bulkUpdatePorts}
+        colors={colors}
       />
     ))
   );
@@ -1241,6 +1376,7 @@ const IOSection = ({
         onApplyPreset={applyPreset}
         collapsed={collapsed}
         onToggleCollapse={onToggleCollapse}
+        colors={colors}
       />
 
       {!collapsed && (
@@ -1274,6 +1410,7 @@ const IOSection = ({
                     anchorSide={anchorSide}
                     onToggleCollapse={toggleCardCollapse}
                     onRemoveCard={removeCard}
+                    colors={colors}
                   >
                     {renderPortRows(ports)}
                   </CardWrapper>
@@ -1301,38 +1438,82 @@ const SystemSection = ({
   onToggleCollapse,
   onSectionDragStart,
   onSectionDragEnd,
+  colors,
 }) => {
+  // Use passed hex colors or fallback to zinc
+  const colorHex = colors?.hex || HEX_COLORS.zinc[500];
+  const colorHexLight = colors?.hexLight || HEX_COLORS.zinc[400];
+
+  // Track drag state for visual feedback
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Use MOUSE EVENTS instead of HTML5 drag API
+  const handleMouseDown = (e) => {
+    // Only left mouse button
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    setIsDragging(true);
+
+    // Manually trigger the drag start
+    onSectionDragStart && onSectionDragStart(e, 'system');
+
+    // Global mouse handlers for drag
+    const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      onSectionDragEnd && onSectionDragEnd();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
-    <div className="flex flex-col border-t border-zinc-700/50 bg-purple-500/5">
-      {/* Header with collapse toggle */}
-      <div className="flex items-center px-2 py-0.5 bg-purple-500/10 border-b border-zinc-700/50">
-        {/* Left side - draggable title + collapse arrow */}
+    <div
+      className="flex flex-col border-t border-zinc-700/50"
+      style={{ backgroundColor: `${colorHex}0d` }}
+    >
+      {/* Header row - Using MOUSE EVENTS for drag */}
+      <div
+        data-section-drag="true"
+        onMouseDown={handleMouseDown}
+        className="flex items-center px-2 py-1.5 border-b border-zinc-700/50 cursor-grab select-none"
+        style={{
+          backgroundColor: isDragging ? `${colorHexLight}40` : `${colorHex}1a`,
+        }}
+        title="Drag to reorder section"
+      >
         <div className="flex items-center gap-1">
           <span
-            draggable
-            onDragStart={(e) => onSectionDragStart && onSectionDragStart(e, 'system')}
-            onDragEnd={onSectionDragEnd}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="font-mono font-bold text-purple-400 text-[9px] cursor-grab select-none hover:bg-purple-500/20 px-1 py-0.5 rounded"
-            title="Drag to reorder section"
+            className="font-mono font-bold text-[11px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
+            style={{ color: colorHexLight }}
           >
-            SYS
+            SYSTEM
           </span>
+          {/* Collapse toggle */}
           <span
             onClick={(e) => {
               e.stopPropagation();
+              e.preventDefault();
               onToggleCollapse && onToggleCollapse();
             }}
-            className={`text-purple-400 text-[9px] cursor-pointer hover:bg-purple-500/20 px-0.5 rounded transition-transform ${collapsed ? '' : 'rotate-90'}`}
-            style={{ fontFamily: 'inherit' }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
+            style={{ fontFamily: 'inherit', color: colorHexLight }}
             title={collapsed ? 'Expand section' : 'Collapse section'}
           >
             ▸
           </span>
         </div>
 
-        {/* Spacer */}
-        <span className="flex-1" />
+        <span className="flex-1 pointer-events-none" />
       </div>
 
       {!collapsed && (
@@ -1386,7 +1567,7 @@ const SystemSection = ({
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = ({ node, onUpdate, onDelete }) => {
+const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
   const signalColorHex = node.signalColor
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
     : null;
@@ -1406,10 +1587,17 @@ const TitleBar = ({ node, onUpdate, onDelete }) => {
     return node.title;
   };
 
+  // Use theme header colors (hex values for inline styles)
+  const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
+  const headerTextHex = themeColors?.header?.hexLight || HEX_COLORS.zinc[400];
+
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700 rounded-t-lg"
-      style={{ borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined }}
+      className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700 rounded-t-lg"
+      style={{
+        borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
+        backgroundColor: `${headerHex}33`, // 20% opacity
+      }}
     >
       {/* Library drag handle - LEFT side for preset saving */}
       <div
@@ -1419,13 +1607,14 @@ const TitleBar = ({ node, onUpdate, onDelete }) => {
           e.dataTransfer.setData('nodeId', node.id);
           e.dataTransfer.effectAllowed = 'copy';
         }}
-        className="cursor-grab text-zinc-500 hover:text-cyan-400 px-1 text-sm shrink-0"
+        className="cursor-grab px-1 text-sm shrink-0"
+        style={{ color: headerTextHex }}
         title="Drag to Library to save as preset"
       >
         ⊞
       </div>
 
-      <span className="font-mono font-bold text-zinc-100 text-sm">{displayTitle()}</span>
+      <span className="font-mono font-bold text-sm" style={{ color: headerTextHex }}>{displayTitle()}</span>
       <input
         type="text"
         value={node.title}
@@ -1514,6 +1703,18 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   const nodeRef = useRef(null);
   const nodeScale = node.scale || 1;
 
+  // Generate cohesive theme colors from signal color
+  const themeColors = getThemeColors(node.signalColor);
+
+  // ===========================================
+  // SECTION LAYOUT RULES (STRICT)
+  // ===========================================
+  // 1. System section is ALWAYS in its own row (never side-by-side)
+  // 2. System can only be at TOP or BOTTOM of the node
+  // 3. Only Input and Output can be side-by-side
+  // 4. Drop zones only appear for valid moves
+  // ===========================================
+
   // Get rows from layout (default: all sections stacked)
   const getRows = () => {
     if (node.layout.rows) {
@@ -1570,9 +1771,11 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     if (e.target.closest('[data-column-zone="true"]')) return;
 
     // Allow any draggable element to initiate its own drag behavior
-    // Check: DOM property, draggable attribute, or custom column-drag marker
+    // Check: DOM property, draggable attribute, section drag handle, or column-drag marker
     if (e.target.draggable ||
+        e.target.getAttribute?.('draggable') === 'true' ||
         e.target.closest('[draggable="true"]') ||
+        e.target.closest('[data-section-drag="true"]') ||
         e.target.closest('[data-column-drag="true"]')) return;
 
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
@@ -1617,11 +1820,15 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   }, [isDragging, dragStart, zoom, onUpdate]);
 
   // Section drag handlers
+  // Supports both HTML5 drag events (Input/Output) and mouse events (System)
   const handleSectionDragStart = (e, sectionId) => {
     e.stopPropagation();
     setDraggedSection(sectionId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('section-reorder', sectionId);
+    // Only set dataTransfer for HTML5 drag events (not mouse events)
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('section-reorder', sectionId);
+    }
   };
 
   const handleSectionDragOver = (e, sectionId) => {
@@ -1630,9 +1837,23 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
     e.preventDefault();
     e.stopPropagation();
-    if (draggedSection !== sectionId) {
-      setDragOverSection(sectionId);
-    }
+
+    if (draggedSection === sectionId) return;
+
+    // Check if this would be a valid drop (don't highlight invalid targets)
+    // Find row info for validation
+    let targetRowLength = 0;
+    let draggedRowLength = 0;
+    layoutRows.forEach(row => {
+      if (row.includes(sectionId)) targetRowLength = row.length;
+      if (row.includes(draggedSection)) draggedRowLength = row.length;
+    });
+
+    // ENFORCE: Swapping would put System side-by-side
+    if (draggedSection === 'system' && targetRowLength > 1) return;
+    if (sectionId === 'system' && draggedRowLength > 1) return;
+
+    setDragOverSection(sectionId);
   };
 
   const handleSectionDragEnd = () => {
@@ -1641,13 +1862,16 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   };
 
   // Drop on section (swap positions in same row or move to different row)
-  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle)
+  // STRICT RULE: System can only be at TOP or BOTTOM (never middle, never side-by-side)
   const handleSectionDrop = (e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+    // Handle both HTML5 drag events and mouse events (e can be null for mouse-based drops)
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     if (draggedSection === targetSectionId) {
       setDraggedSection(null);
@@ -1674,6 +1898,25 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       return;
     }
 
+    // ENFORCE: Swapping would put System side-by-side with something
+    // If System would end up in a row with 2+ sections, reject
+    const draggedRowLength = newRows[draggedRowIdx].filter(Boolean).length;
+    const targetRowLength = newRows[targetRowIdx].filter(Boolean).length;
+
+    if (draggedSection === 'system' && targetRowLength > 1) {
+      // System can't go into a multi-section row
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+    if (targetSectionId === 'system' && draggedRowLength > 1) {
+      // Something can't swap into System's row if dragged row has multiple sections
+      // (System would end up in a multi-section row)
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+
     // Swap positions
     newRows[draggedRowIdx][draggedColIdx] = targetSectionId;
     newRows[targetRowIdx][targetColIdx] = draggedSection;
@@ -1683,34 +1926,23 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       .map(row => row.filter(s => s !== null))
       .filter(row => row.length > 0);
 
-    // CONSTRAINT: Ensure system is at top or bottom (never middle)
-    const systemRowIdx = cleanedRows.findIndex(row => row.includes('system'));
-    if (systemRowIdx > 0 && systemRowIdx < cleanedRows.length - 1) {
-      // System is in the middle - move it to top or bottom based on drag direction
-      const systemRow = cleanedRows.splice(systemRowIdx, 1)[0];
-      if (targetRowIdx < draggedRowIdx) {
-        cleanedRows.unshift(systemRow); // Moving up → go to top
-      } else {
-        cleanedRows.push(systemRow); // Moving down → go to bottom
-      }
-    }
-
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
   };
 
   // Drop to side (create or join column)
-  // CONSTRAINT: System can never be side-by-side (only INPUT/OUTPUT can share a row)
+  // STRICT RULE: Only Input and Output can be side-by-side
   const handleDropToSide = (targetSectionId, side) => {
     if (!draggedSection || draggedSection === targetSectionId) {
       setDraggedSection(null);
       return;
     }
 
-    // Reject: System cannot go side-by-side with anything
+    // ENFORCE: System can NEVER be side-by-side with anything
     if (draggedSection === 'system' || targetSectionId === 'system') {
       setDraggedSection(null);
+      setDragOverSection(null);
       return;
     }
 
@@ -1813,6 +2045,36 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     setDragOverSection(null);
   };
 
+  // Drop to top (create new row at top)
+  // CONSTRAINT: Only System section can drop to top position
+  const handleDropToTop = () => {
+    if (!draggedSection) return;
+    // Only System section can use the top drop zone
+    if (draggedSection !== 'system') return;
+
+    const newRows = layoutRows.map(row => [...row]);
+
+    // Find and remove dragged section from its current position
+    newRows.forEach((row) => {
+      const idx = row.indexOf(draggedSection);
+      if (idx !== -1) {
+        row[idx] = null;
+      }
+    });
+
+    // Clean up nulls first
+    let cleanedRows = newRows
+      .map(row => row.filter(s => s !== null))
+      .filter(row => row.length > 0);
+
+    // System goes to very top
+    cleanedRows.unshift([draggedSection]);
+
+    onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
+    setDraggedSection(null);
+    setDragOverSection(null);
+  };
+
   // Get anchor side for a section based on its position
   const getAnchorSide = (sectionId, rowIndex, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
@@ -1861,6 +2123,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onToggleCollapse={() => onUpdate({ layout: { ...node.layout, systemCollapsed: !node.layout.systemCollapsed } })}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
+            colors={themeColors.system}
           />
         );
       case 'input':
@@ -1879,6 +2142,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.inputCollapsed}
             onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
+            colors={themeColors.input}
           />
         );
       case 'output':
@@ -1898,6 +2162,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.outputCollapsed}
             onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
+            colors={themeColors.output}
           />
         );
       default:
@@ -1926,22 +2191,40 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDragging || isResizing ? 100 : isSelected ? 50 : 10,
+        zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
+        isolation: 'isolate', // Create new stacking context
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
     >
-      <TitleBar node={node} onUpdate={onUpdate} onDelete={onDelete} />
+      <TitleBar node={node} onUpdate={onUpdate} onDelete={onDelete} themeColors={themeColors} />
 
       {/* Row-based layout */}
       <div className="flex flex-col">
+        {/* Top drop zone - visible when dragging System and System is not already at top */}
+        {(() => {
+          // Only show for System section drag
+          if (draggedSection !== 'system') return null;
+
+          // Check if system is already solo at top
+          const firstRow = layoutRows[0];
+          const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
+
+          if (systemAlreadyAtTop) return null;
+
+          return <TopDropZone onDrop={handleDropToTop} />;
+        })()}
+
         {layoutRows.map((row, rowIndex) => {
           const isSingleSectionRow = row.length === 1;
+          // Use content-based key for stable React reconciliation
+          // This prevents event handler issues when sections move between positions
+          const rowKey = row.join('-');
 
           return (
-            <div key={rowIndex} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
+            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
               {row.map((sectionId, colIndex) => {
                 if (!sectionId) return null;
 
@@ -1949,12 +2232,35 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
                 // Side drop zones only when:
                 // 1. Dragging an IO section (not system)
-                // 2. Target is not the dragged section
-                // 3. NOT already side-by-side (if same row, just swap - no zones needed)
+                // 2. Target is IO section (not system)
+                // 3. Target is not the dragged section
+                // 4. NOT already side-by-side (if same row, just swap - no zones needed)
+                // STRICT RULE: System can NEVER be side-by-side
+                const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+                const isTargetIO = sectionId === 'input' || sectionId === 'output';
                 const showSideDropZones = draggedSection &&
+                  isDraggingIO &&
+                  isTargetIO &&
                   draggedSection !== sectionId &&
-                  draggedSection !== 'system' &&
                   !areInSameRow(draggedSection, sectionId);
+
+                // Force React to REMOUNT SystemSection when row position changes
+                // This ensures event handlers are freshly attached
+                if (sectionId === 'system') {
+                  return (
+                    <div
+                      key={`system-row-${rowIndex}`}
+                      className={isSingleSectionRow ? 'w-full' : 'flex-1'}
+                      style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
+                      onDragOver={(e) => handleSectionDragOver(e, 'system')}
+                      onDrop={(e) => handleSectionDrop(e, 'system')}
+                      // Also support mouse-based drops
+                      onMouseUp={() => handleSectionDrop(null, 'system')}
+                    >
+                      {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
+                    </div>
+                  );
+                }
 
                 return (
                   <div
@@ -1973,6 +2279,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
                       isDraggedOver={dragOverSection === sectionId}
                       showSideDropZones={showSideDropZones}
                       isSingleSectionRow={isSingleSectionRow}
+                      draggedSection={draggedSection}
                     >
                       {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                     </DraggableSection>
@@ -1983,10 +2290,21 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
           );
         })}
 
-        {/* Bottom drop zone - only visible when dragging */}
-        {draggedSection && (
-          <BottomDropZone onDrop={handleDropToBottom} />
-        )}
+        {/* Bottom drop zone - visible when dragging any section to a new bottom row */}
+        {(() => {
+          if (!draggedSection) return null;
+
+          const lastRow = layoutRows[layoutRows.length - 1];
+          const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
+
+          // System: show bottom zone only if not already at bottom
+          if (draggedSection === 'system') {
+            return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
+          }
+
+          // IO sections: always show bottom zone (they can always move to bottom)
+          return <BottomDropZone onDrop={handleDropToBottom} />;
+        })()}
       </div>
 
       <ResizeHandle onResizeStart={handleResizeStart} />
