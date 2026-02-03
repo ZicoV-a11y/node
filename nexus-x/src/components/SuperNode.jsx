@@ -471,14 +471,12 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
     onMouseUp={() => {
       onDrop(side);
     }}
-    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-10
+    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-16
       border-2 border-dashed transition-all z-20 flex items-center justify-center
-      ${isActive
-        ? 'border-cyan-400 bg-cyan-400/20'
-        : 'border-zinc-600/50 bg-zinc-800/30 hover:border-cyan-400/50 hover:bg-cyan-400/10'}`}
+      border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40`}
   >
-    <span className="text-cyan-400 text-[8px] font-bold">
-      {side === 'left' ? '◀' : '▶'}
+    <span className="text-cyan-300 text-[10px] font-mono font-bold pointer-events-none">
+      {side === 'left' ? '← DROP' : 'DROP →'}
     </span>
   </div>
 );
@@ -1517,45 +1515,48 @@ const SystemSection = ({
       </div>
 
       {!collapsed && (
-        <div className="p-2 space-y-2 text-[10px]">
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-500 font-mono w-24 shrink-0">Platform</span>
-            <select
-              value={data.platform || 'none'}
-              onChange={(e) => onUpdate({ platform: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 font-mono text-zinc-300"
-            >
-              {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
+        <div className="p-2 text-[10px]">
+          {/* Flex wrap - adapts to available width set by Input/Output sections */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+              <span className="text-zinc-500 font-mono text-[9px]">Platform</span>
+              <select
+                value={data.platform || 'none'}
+                onChange={(e) => onUpdate({ platform: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+              >
+                {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-500 font-mono w-24 shrink-0">Software</span>
-            <select
-              value={data.software || 'none'}
-              onChange={(e) => onUpdate({ software: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 font-mono text-zinc-300"
-            >
-              {SOFTWARE_PRESETS.map(s => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
-          </div>
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+              <span className="text-zinc-500 font-mono text-[9px]">Software</span>
+              <select
+                value={data.software || 'none'}
+                onChange={(e) => onUpdate({ software: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+              >
+                {SOFTWARE_PRESETS.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-500 font-mono w-24 shrink-0">Capture Card</span>
-            <select
-              value={data.captureCard || 'none'}
-              onChange={(e) => onUpdate({ captureCard: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 font-mono text-zinc-300"
-            >
-              {CAPTURE_CARDS.map(c => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+              <span className="text-zinc-500 font-mono text-[9px]">Capture</span>
+              <select
+                value={data.captureCard || 'none'}
+                onChange={(e) => onUpdate({ captureCard: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+              >
+                {CAPTURE_CARDS.map(c => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       )}
