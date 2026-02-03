@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { NODE_PRESET_CATEGORIES, getSubcategories } from '../config/nodePresets';
 import { getSubcategoryMeta } from '../config/gearMetadata';
+import PresetEditor from './PresetEditor';
+import NewSubcategoryDialog from './NewSubcategoryDialog';
 
 // Droppable subcategory folder
 const SubcategoryFolder = ({
@@ -13,14 +15,26 @@ const SubcategoryFolder = ({
   onToggle,
   onSavePreset,
   onDeletePreset,
+  onEditPreset,
+  onDeleteSubcategory,
   userPresets,
-  onAddPreset
+  onAddPreset,
+  onAddBlankNode,
+  draggedItem,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onReorderPresets
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dragOverPresetId, setDragOverPresetId] = useState(null);
   const key = `${catId}/${subId}`;
   const presets = userPresets[key] || [];
   const hasPresets = presets.length > 0;
   const paddingLeft = 12 + depth * 12;
+
+  // Check if this is a special subcategory that can add blank nodes
+  const canAddBlank = subId === 'editing';
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -46,28 +60,60 @@ const SubcategoryFolder = ({
 
   return (
     <div>
-      {/* Folder header - droppable */}
+      {/* Folder header - droppable and draggable */}
       <div
+        draggable={true}
+        onDragStart={(e) => {
+          // Only drag if not clicking on buttons
+          if (!e.target.closest('span[title*="Delete"]')) {
+            onDragStart && onDragStart({ type: 'subcategory', catId, subId });
+          } else {
+            e.preventDefault();
+          }
+        }}
+        onDragEnd={(e) => {
+          onDragEnd && onDragEnd();
+        }}
         className={`
-          flex items-center gap-2 px-2 py-1.5 cursor-pointer
+          group flex items-center gap-2 px-2 py-1.5 cursor-move
           transition-colors text-xs font-mono text-zinc-400
           ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : 'hover:bg-zinc-700/50'}
+          ${draggedItem?.type === 'subcategory' && draggedItem.subId === subId ? 'opacity-40' : ''}
         `}
         style={{ paddingLeft }}
-        onClick={() => hasPresets && onToggle && onToggle()}
+        onClick={(e) => {
+          // Prevent click during drag
+          if (draggedItem) return;
+
+          // Always allow toggling folders open/closed
+          if (canAddBlank && !hasPresets && onAddBlankNode) {
+            // Special case: empty editing folder adds a blank node
+            onAddBlankNode();
+          } else {
+            // All other folders can be toggled
+            onToggle && onToggle();
+          }
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        title={isDragOver ? 'Drop to save as preset' : description}
+        title={isDragOver ? 'Drop to save as preset' : (canAddBlank && !hasPresets ? 'Click to add blank SuperNode' : `${description} • Click to expand • Drag to reorder`)}
       >
-        {/* Expand/collapse indicator */}
-        {hasPresets ? (
-          <span className="text-zinc-500 w-3 text-center">
-            {isExpanded ? '▼' : '▶'}
-          </span>
-        ) : (
-          <span className="w-3 text-zinc-600 text-center">○</span>
-        )}
+        {/* Drag handle */}
+        <span className="w-3 text-zinc-600 text-center cursor-move">⋮⋮</span>
+
+        {/* Expand/collapse indicator - always shown */}
+        <span
+          className="text-zinc-500 w-3 text-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!(canAddBlank && !hasPresets)) {
+              onToggle && onToggle();
+            }
+          }}
+        >
+          {isExpanded ? '▼' : '▶'}
+        </span>
 
         {/* Folder icon */}
         <span className={isDragOver ? 'text-cyan-400' : 'text-zinc-500'}>
@@ -77,39 +123,117 @@ const SubcategoryFolder = ({
         {/* Label */}
         <span className="flex-1 truncate">{label}</span>
 
+        {/* Delete subcategory button */}
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onDeleteSubcategory && confirm(`Delete "${label}" subcategory and all its presets?`)) {
+              onDeleteSubcategory(catId, subId);
+            }
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => e.stopPropagation()}
+          className="text-zinc-600 hover:text-red-400 opacity-0 hover:opacity-100 px-1 group-hover:opacity-100"
+          title="Delete subcategory"
+        >
+          ×
+        </span>
+
+        {/* Add button for empty editing subcategory */}
+        {canAddBlank && !hasPresets && (
+          <span className="text-zinc-600 hover:text-cyan-400">+</span>
+        )}
+
         {/* Preset count */}
         {hasPresets && (
           <span className="text-zinc-600 text-[10px]">{presets.length}</span>
         )}
       </div>
 
-      {/* Presets inside folder */}
-      {hasPresets && isExpanded && (
+      {/* Folder content when expanded */}
+      {isExpanded && (
         <div>
-          {presets.map((preset) => (
-            <div
-              key={preset.id}
-              className="group flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-zinc-700/50 text-xs font-mono text-zinc-400"
-              style={{ paddingLeft: paddingLeft + 12 }}
-              onClick={() => onAddPreset(preset)}
-              title={`Add ${preset.label}`}
-            >
-              <span className="w-3" />
-              <span className="text-zinc-500">◦</span>
-              <span className="flex-1 truncate">{preset.label}</span>
-              <span
-                className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-1"
-                onClick={(e) => {
+          {/* Presets inside folder */}
+          {hasPresets ? (
+            presets.map((preset, index) => {
+            const isDragging = draggedItem?.type === 'preset' && draggedItem.id === preset.id;
+            const isDropTarget = dragOverPresetId === preset.id;
+
+            return (
+              <div
+                key={preset.id}
+                draggable={true}
+                onDragStart={(e) => {
                   e.stopPropagation();
-                  onDeletePreset && onDeletePreset(catId, subId, preset.id);
+                  onDragStart && onDragStart({ type: 'preset', catId, subId, id: preset.id, index });
                 }}
-                title="Delete preset"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverPresetId(preset.id);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setDragOverPresetId(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverPresetId(null);
+
+                  if (draggedItem?.type === 'preset' && draggedItem.catId === catId && draggedItem.subId === subId) {
+                    // Reorder within same subcategory
+                    if (onReorderPresets && draggedItem.index !== index) {
+                      onReorderPresets(catId, subId, draggedItem.index, index);
+                    }
+                  }
+                }}
+                onDragEnd={(e) => {
+                  e.preventDefault();
+                  setDragOverPresetId(null);
+                  onDragEnd && onDragEnd();
+                }}
+                className={`group flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-zinc-700/50 text-xs font-mono text-zinc-400 transition-all ${
+                  isDragging ? 'opacity-40' : ''
+                } ${
+                  isDropTarget ? 'border-t-2 border-cyan-500' : ''
+                }`}
+                style={{ paddingLeft: paddingLeft + 12 }}
+                onClick={(e) => {
+                  if (!isDragging) onAddPreset(preset);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onEditPreset && onEditPreset(catId, subId, preset);
+                }}
+                title={`Click to add • Double-click to edit • Drag to reorder`}
               >
-                ×
-              </span>
-              <span className="text-zinc-600 hover:text-cyan-400">+</span>
+                <span className="w-3 text-zinc-600">⋮⋮</span>
+                <span className="text-zinc-500">◦</span>
+                <span className="flex-1 truncate">{preset.label}</span>
+                <span
+                  className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeletePreset && onDeletePreset(catId, subId, preset.id);
+                  }}
+                  title="Delete preset"
+                >
+                  ×
+                </span>
+                <span className="text-zinc-600 hover:text-cyan-400">+</span>
+              </div>
+            );
+          })
+          ) : (
+            /* Empty folder message */
+            <div
+              className="px-2 py-2 text-xs font-mono text-zinc-600 italic"
+              style={{ paddingLeft: paddingLeft + 12 }}
+            >
+              No presets yet • Drag a node here to save
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -117,7 +241,7 @@ const SubcategoryFolder = ({
 };
 
 // Simple panel item (non-droppable)
-const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggle, children, icon }) => {
+const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggle, onAddSubcategory, children, icon }) => {
   const hasChildren = children && children.length > 0;
   const paddingLeft = 12 + depth * 12;
 
@@ -153,6 +277,20 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
         {/* Label */}
         <span className="flex-1 truncate">{label}</span>
 
+        {/* Add subcategory button for categories */}
+        {hasChildren && onAddSubcategory && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddSubcategory();
+            }}
+            className="text-zinc-600 hover:text-cyan-400 px-1"
+            title="Add new subcategory"
+          >
+            +
+          </span>
+        )}
+
         {/* Add button for leaf items */}
         {!hasChildren && onClick && (
           <span className="text-zinc-600 hover:text-cyan-400 px-1">+</span>
@@ -169,10 +307,20 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
   );
 };
 
-export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, nodes, onSavePreset, onDeletePreset }) {
+export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, userSubcategories = {}, nodes, onSavePreset, onDeletePreset, onUpdatePreset, onAddSubcategory, onDeleteSubcategory, onReorderPresets, onReorderSubcategories }) {
   // Track which categories/subcategories are expanded
   const [expandedCategories, setExpandedCategories] = useState({ sources: true });
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
+
+  // Preset editor state
+  const [editingPreset, setEditingPreset] = useState(null);
+
+  // New subcategory state
+  const [addingSubcategory, setAddingSubcategory] = useState(null);
+
+  // Drag and drop state
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverItem, setDragOverItem] = useState(null);
 
   const toggleCategory = (catId) => {
     setExpandedCategories(prev => ({
@@ -202,6 +350,52 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
     });
   };
 
+  // Handle editing a preset
+  const handleEditPreset = (catId, subId, preset) => {
+    setEditingPreset({
+      catId,
+      subId,
+      preset
+    });
+  };
+
+  // Handle saving edited preset
+  const handleSaveEditedPreset = (updatedPreset) => {
+    if (editingPreset && onUpdatePreset) {
+      onUpdatePreset(
+        editingPreset.catId,
+        editingPreset.subId,
+        editingPreset.preset.id,
+        updatedPreset
+      );
+    }
+    setEditingPreset(null);
+  };
+
+  // Handle creating new subcategory
+  const handleCreateSubcategory = (data) => {
+    if (onAddSubcategory) {
+      onAddSubcategory(data);
+    }
+    setAddingSubcategory(null);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (item) => {
+    setDraggedItem(item);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleReorderPresets = (catId, subId, fromIndex, toIndex) => {
+    if (onReorderPresets) {
+      onReorderPresets(catId, subId, fromIndex, toIndex);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -222,21 +416,18 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
       {/* Panel Content */}
       <div className="flex-1 overflow-y-auto py-2">
-        {/* SuperNode (always first) */}
-        <div className="mb-2">
-          <PanelItem
-            label="SuperNode"
-            description="Blank configurable node"
-            icon="□"
-            onClick={handleAddSuperNode}
-          />
-        </div>
-
-        <div className="border-t border-zinc-800 my-2" />
-
         {/* Categories from nodePresets */}
         {Object.entries(NODE_PRESET_CATEGORIES).map(([catId, category]) => {
-          const subcategories = getSubcategories(catId);
+          const baseSubcategories = getSubcategories(catId);
+          // Merge base subcategories with user-created ones
+          const userSubs = userSubcategories[catId] || {};
+          const userSubList = Object.entries(userSubs).map(([id, sub]) => ({
+            id,
+            label: sub.label,
+            description: sub.description
+          }));
+          const subcategories = [...baseSubcategories, ...userSubList];
+
           const isCatExpanded = expandedCategories[catId];
 
           return (
@@ -246,6 +437,7 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
               description={category.description}
               isExpanded={isCatExpanded}
               onToggle={() => toggleCategory(catId)}
+              onAddSubcategory={() => setAddingSubcategory({ categoryId: catId, categoryLabel: category.label })}
             >
               {subcategories.map(sub => {
                 const subKey = `${catId}/${sub.id}`;
@@ -264,8 +456,15 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
                     onToggle={() => toggleSubcategory(catId, sub.id)}
                     onSavePreset={onSavePreset}
                     onDeletePreset={onDeletePreset}
+                    onEditPreset={handleEditPreset}
+                    onDeleteSubcategory={onDeleteSubcategory}
                     userPresets={userPresets}
                     onAddPreset={handleAddFromPreset}
+                    onAddBlankNode={handleAddSuperNode}
+                    draggedItem={draggedItem}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onReorderPresets={handleReorderPresets}
                   />
                 );
               })}
@@ -319,6 +518,25 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
           Drag node to folder to save preset
         </p>
       </div>
+
+      {/* Preset Editor Dialog */}
+      {editingPreset && (
+        <PresetEditor
+          preset={editingPreset.preset}
+          onSubmit={handleSaveEditedPreset}
+          onCancel={() => setEditingPreset(null)}
+        />
+      )}
+
+      {/* New Subcategory Dialog */}
+      {addingSubcategory && (
+        <NewSubcategoryDialog
+          categoryId={addingSubcategory.categoryId}
+          categoryLabel={addingSubcategory.categoryLabel}
+          onSubmit={handleCreateSubcategory}
+          onCancel={() => setAddingSubcategory(null)}
+        />
+      )}
     </div>
   );
 }

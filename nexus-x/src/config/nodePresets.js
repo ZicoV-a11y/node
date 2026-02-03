@@ -8,30 +8,74 @@
 
 export const NODE_PRESET_CATEGORIES = {
   // ============================================
-  // SOURCES
-  // Devices that originate signal (cameras, computers, playback)
+  // EVERYTHING
+  // Comprehensive category with all editing and gear types
   // ============================================
-  sources: {
-    label: 'Sources',
-    description: 'Devices that originate video/audio signal',
+  everything: {
+    label: 'Everything',
+    description: 'Complete library of editing tools and gear',
     subcategories: {
-      laptop: {
-        label: 'Laptop',
+      // Editing subcategory
+      editing: {
+        label: 'Editing - SuperNode',
+        description: 'Latest SuperNode with full feature set',
+        presets: {
+          // User will add presets here
+        }
+      },
+
+      // Video Gear subcategories
+      videogear_laptop: {
+        label: 'Video Gear - Laptop',
         description: 'Computers and workstations',
         presets: {
           // User will add presets here
         }
       },
-      camera: {
-        label: 'Camera',
+      videogear_camera: {
+        label: 'Video Gear - Camera',
         description: 'Video cameras and PTZ units',
         presets: {
           // User will add presets here
         }
       },
-      mediaserver: {
-        label: 'Media Server',
+      videogear_mediaserver: {
+        label: 'Video Gear - Media Server',
         description: 'Playback and graphics servers',
+        presets: {
+          // User will add presets here
+        }
+      },
+
+      // Audio Gear subcategories (placeholder for future)
+      audiogear_mixer: {
+        label: 'Audio Gear - Mixer',
+        description: 'Audio mixing consoles',
+        presets: {
+          // User will add presets here
+        }
+      }
+    }
+  },
+
+  // ============================================
+  // CABLE
+  // Cable templates and configurations
+  // ============================================
+  cable: {
+    label: 'Cable',
+    description: 'Cable presets and templates',
+    subcategories: {
+      video: {
+        label: 'Video',
+        description: 'Video cable configurations',
+        presets: {
+          // User will add presets here
+        }
+      },
+      audio: {
+        label: 'Audio',
+        description: 'Audio cable configurations',
         presets: {
           // User will add presets here
         }

@@ -4,22 +4,45 @@
 
 export const GEAR_METADATA = {
   // ============================================
-  // SOURCES
+  // EVERYTHING
   // ============================================
-  sources: {
-    label: 'Sources',
-    description: 'Devices that originate video/audio signal',
-    role: 'source',
-    signalDirection: 'output',
-    defaultSignalColor: 'emerald',
+  everything: {
+    label: 'Everything',
+    description: 'Complete library of editing tools and gear',
+    role: 'universal',
+    signalDirection: 'bidirectional',
+    defaultSignalColor: null,
 
     subcategories: {
-      laptop: {
-        label: 'Laptop',
+      editing: {
+        label: 'Editing - SuperNode',
+        description: 'Latest SuperNode with full feature set',
+        docPath: '/docs/gear/everything/supernode.md',
+
+        defaults: {
+          title: 'SUPERNODE',
+          signalColor: null,
+          systemSection: {
+            platform: null,
+            software: null,
+            captureCard: null
+          },
+          inputSection: { ports: [] },
+          outputSection: { ports: [] }
+        },
+
+        useWhen: [
+          'Building custom signal flow diagrams',
+          'Flexible node with all features',
+          'Custom device configurations'
+        ]
+      },
+
+      videogear_laptop: {
+        label: 'Video Gear - Laptop',
         description: 'Computers and workstations as content sources',
         docPath: '/docs/gear/sources/laptop.md',
 
-        // Default node configuration
         defaults: {
           title: 'LAPTOP',
           signalColor: 'emerald',
@@ -36,14 +59,12 @@ export const GEAR_METADATA = {
           }
         },
 
-        // Common configurations for quick setup
         commonConfigs: [
           { label: 'HDMI 1080p', output: { connector: 'HDMI', resolution: '1920x1080', refreshRate: '60' } },
           { label: 'HDMI 4K', output: { connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' } },
           { label: 'USB-C/DP', output: { connector: 'USB-C', resolution: '3840x2160', refreshRate: '60' } },
         ],
 
-        // Decision helper
         useWhen: [
           'Content from presentation software',
           'Video conferencing source',
@@ -56,7 +77,6 @@ export const GEAR_METADATA = {
           'Show control integration required'
         ],
 
-        // Gotchas shown as warnings
         warnings: [
           'HDCP may cause capture issues',
           'Disable sleep/screen saver before show',
@@ -64,8 +84,8 @@ export const GEAR_METADATA = {
         ]
       },
 
-      camera: {
-        label: 'Camera',
+      videogear_camera: {
+        label: 'Video Gear - Camera',
         description: 'Video cameras for live capture (broadcast, PTZ, POV)',
         docPath: '/docs/gear/sources/camera.md',
 
@@ -111,8 +131,8 @@ export const GEAR_METADATA = {
         ]
       },
 
-      mediaserver: {
-        label: 'Media Server',
+      videogear_mediaserver: {
+        label: 'Video Gear - Media Server',
         description: 'Dedicated playback and graphics systems',
         docPath: '/docs/gear/sources/media-server.md',
 
@@ -157,11 +177,93 @@ export const GEAR_METADATA = {
           'Consider backup/redundancy for critical shows'
         ],
 
-        // Software presets for this category
         softwarePresets: [
           'disguise', 'hippotizer', 'watchout', 'resolume',
           'playbackpro', 'pvp', 'propresenter', 'qlab',
           'millumin', 'touchdesigner'
+        ]
+      },
+
+      audiogear_mixer: {
+        label: 'Audio Gear - Mixer',
+        description: 'Audio mixing consoles',
+        docPath: '/docs/gear/audio/mixer.md',
+
+        defaults: {
+          title: 'MIXER',
+          signalColor: 'yellow',
+          systemSection: {
+            platform: null,
+            software: null,
+            captureCard: null
+          },
+          inputSection: { ports: [] },
+          outputSection: { ports: [] }
+        },
+
+        useWhen: [
+          'Audio mixing and routing',
+          'Live sound reinforcement',
+          'Recording sessions'
+        ]
+      }
+    }
+  },
+
+  // ============================================
+  // CABLE
+  // ============================================
+  cable: {
+    label: 'Cable',
+    description: 'Cable presets and templates',
+    role: 'connection',
+    signalDirection: 'bidirectional',
+    defaultSignalColor: null,
+
+    subcategories: {
+      video: {
+        label: 'Video',
+        description: 'Video cable configurations and templates',
+        docPath: '/docs/cable/video.md',
+
+        defaults: {
+          cableType: '',
+          cableLength: '',
+          rpCode: '',
+          description: ''
+        },
+
+        commonTypes: [
+          'HDMI 2.0',
+          'HDMI 2.1',
+          'DisplayPort 1.4',
+          'DisplayPort 2.0',
+          'SDI',
+          '3G-SDI',
+          '12G-SDI',
+          'Fiber Optic'
+        ]
+      },
+
+      audio: {
+        label: 'Audio',
+        description: 'Audio cable configurations and templates',
+        docPath: '/docs/cable/audio.md',
+
+        defaults: {
+          cableType: '',
+          cableLength: '',
+          rpCode: '',
+          description: ''
+        },
+
+        commonTypes: [
+          'XLR Audio',
+          'TRS Audio',
+          'RCA Audio',
+          'AES/EBU (XLR)',
+          'CAT5e',
+          'CAT6'
         ]
       }
     }

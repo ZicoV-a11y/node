@@ -53,6 +53,8 @@ const createNode = (id) => ({
   signalColor: null,
   position: { x: 100, y: 100 },
   scale: 0.5, // Default 50% scale
+  rpCode: '', // Equipment inventory code
+  description: '', // Manufacturer and model description
   layout: {
     systemPosition: 'top',
     ioArrangement: 'columns',
@@ -63,6 +65,8 @@ const createNode = (id) => ({
     systemCollapsed: false
   },
   system: {
+    manufacturer: '', // Manufacturer name
+    model: '', // Model name/number
     settings: [],
     cards: []
   },
@@ -138,6 +142,8 @@ const createSuperNode = (id) => ({
   signalColor: null, // No color by default
   position: { x: 100, y: 100 },
   scale: 0.5, // Default 50% scale
+  rpCode: '', // Equipment inventory code
+  description: '', // Manufacturer and model description
   layout: {
     // Unified row-based layout (no more stacked/columns toggle)
     // Each row is an array of section IDs
@@ -155,6 +161,8 @@ const createSuperNode = (id) => ({
     outputCollapsed: false
   },
   system: {
+    manufacturer: '', // Manufacturer name
+    model: '', // Model name/number
     platform: 'none',
     software: 'none',
     captureCard: 'none',
@@ -215,6 +223,9 @@ export default function App() {
   // User-created presets (saved by dragging nodes to library)
   const [userPresets, setUserPresets] = useState({});
 
+  // User-created subcategories (custom folders in sidebar)
+  const [userSubcategories, setUserSubcategories] = useState({});
+
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
   const [anchorPositions, setAnchorPositions] = useState({});
@@ -270,12 +281,19 @@ export default function App() {
         if (preset) {
           if (preset.title) newNode.title = preset.title;
           if (preset.signalColor) newNode.signalColor = preset.signalColor;
-          if (preset.systemSection) {
+          if (preset.rpCode) newNode.rpCode = preset.rpCode;
+          if (preset.description) newNode.description = preset.description;
+
+          // Support both old 'systemSection' and new 'system' property names
+          const systemData = preset.system || preset.systemSection;
+          if (systemData) {
             newNode.system = {
               ...newNode.system,
-              platform: preset.systemSection.platform || newNode.system.platform,
-              software: preset.systemSection.software || newNode.system.software,
-              captureCard: preset.systemSection.captureCard || newNode.system.captureCard
+              manufacturer: systemData.manufacturer || newNode.system.manufacturer,
+              model: systemData.model || newNode.system.model,
+              platform: systemData.platform || newNode.system.platform,
+              software: systemData.software || newNode.system.software,
+              captureCard: systemData.captureCard || newNode.system.captureCard
             };
           }
           if (preset.inputSection?.ports) {
@@ -330,7 +348,11 @@ export default function App() {
       label: node.title || 'Untitled',
       title: node.title,
       signalColor: node.signalColor,
-      systemSection: node.system ? {
+      rpCode: node.rpCode || '',
+      description: node.description || '',
+      system: node.system ? {
+        manufacturer: node.system.manufacturer || '',
+        model: node.system.model || '',
         platform: node.system.platform,
         software: node.system.software,
         captureCard: node.system.captureCard
@@ -366,6 +388,77 @@ export default function App() {
       ...prev,
       [key]: (prev[key] || []).filter(p => p.id !== presetId)
     }));
+  };
+
+  const updatePreset = (categoryId, subcategoryId, presetId, updatedPreset) => {
+    const key = `${categoryId}/${subcategoryId}`;
+    setUserPresets(prev => ({
+      ...prev,
+      [key]: (prev[key] || []).map(p => p.id === presetId ? updatedPreset : p)
+    }));
+  };
+
+  // Add a new subcategory to a category
+  const addSubcategory = ({ categoryId, subcategoryId, label, description }) => {
+    setUserSubcategories(prev => ({
+      ...prev,
+      [categoryId]: {
+        ...(prev[categoryId] || {}),
+        [subcategoryId]: {
+          label,
+          description,
+          presets: {}
+        }
+      }
+    }));
+  };
+
+  // Delete a subcategory and all its presets
+  const deleteSubcategory = (categoryId, subcategoryId) => {
+    // Remove subcategory from userSubcategories
+    setUserSubcategories(prev => {
+      const updated = { ...prev };
+      if (updated[categoryId]) {
+        const categoryUpdated = { ...updated[categoryId] };
+        delete categoryUpdated[subcategoryId];
+        if (Object.keys(categoryUpdated).length === 0) {
+          delete updated[categoryId];
+        } else {
+          updated[categoryId] = categoryUpdated;
+        }
+      }
+      return updated;
+    });
+
+    // Also remove all presets for this subcategory
+    const key = `${categoryId}/${subcategoryId}`;
+    setUserPresets(prev => {
+      const updated = { ...prev };
+      delete updated[key];
+      return updated;
+    });
+  };
+
+  // Reorder presets within a subcategory
+  const reorderPresets = (categoryId, subcategoryId, fromIndex, toIndex) => {
+    const key = `${categoryId}/${subcategoryId}`;
+    setUserPresets(prev => {
+      const presets = [...(prev[key] || [])];
+      const [removed] = presets.splice(fromIndex, 1);
+      presets.splice(toIndex, 0, removed);
+
+      return {
+        ...prev,
+        [key]: presets
+      };
+    });
+  };
+
+  // Reorder subcategories within a category
+  const reorderSubcategories = (categoryId, fromIndex, toIndex) => {
+    // This would require maintaining order separately
+    // For now, we'll implement preset reordering first
+    console.log('Subcategory reordering not yet implemented');
   };
 
   const updateNode = (nodeId, updates) => {
@@ -431,6 +524,7 @@ export default function App() {
 
   // Connection management
   const handleAnchorClick = (anchorId, direction) => {
+    console.log('handleAnchorClick called:', anchorId, direction);
     if (!activeWire) {
       setActiveWire({ from: anchorId, direction });
     } else {
@@ -826,7 +920,15 @@ export default function App() {
     });
   }, []);
 
-  // Recalculate ALL anchor positions after DOM has updated (useLayoutEffect runs synchronously after DOM mutations)
+  // CRITICAL: Recalculate ALL anchor positions after DOM has updated
+  // useLayoutEffect runs synchronously after DOM mutations but before paint
+  // This ensures anchor positions are ALWAYS accurate relative to node size and configuration
+  // Dependencies:
+  //   - anchorPositions: New anchors registered/unregistered
+  //   - zoom: Canvas zoom changes
+  //   - pan: Canvas pan changes
+  //   - nodes: ANY node update (position, scale/size, ports, sections collapsed, etc.)
+  // DO NOT remove the 'nodes' dependency - it ensures positions update when nodes resize
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -835,6 +937,7 @@ export default function App() {
     const newPositions = {};
 
     // For each registered anchor, query its DOM position and type
+    // Position calculated as center point of anchor element relative to canvas
     Object.keys(anchorPositions).forEach(anchorId => {
       const anchorEl = document.querySelector(`[data-anchor-id="${anchorId}"]`);
       if (anchorEl) {
@@ -845,9 +948,12 @@ export default function App() {
           y: (anchorRect.top + anchorRect.height / 2 - canvasRect.top) / zoom,
           type: anchorType
         };
+      } else {
+        console.warn('Anchor element not found:', anchorId);
       }
     });
 
+    console.log('Computed anchor positions:', Object.keys(newPositions).length, 'anchors');
     setComputedAnchorPositions(newPositions);
   }, [anchorPositions, zoom, pan, nodes]); // Recalc when zoom, pan, or nodes change
 
@@ -1014,10 +1120,47 @@ export default function App() {
     }
   }, [applyProject]);
 
+  // Export user presets in format ready for nodePresets.js
+  const handleExportPresets = useCallback(() => {
+    if (!userPresets || Object.keys(userPresets).length === 0) {
+      alert('No user presets to export. Drag nodes to sidebar folders to create presets first.');
+      return;
+    }
+
+    // Format presets for easy pasting into nodePresets.js
+    let output = '// User Presets Export\n';
+    output += `// Generated: ${new Date().toISOString()}\n`;
+    output += '// Paste these into nexus-x/src/config/nodePresets.js\n\n';
+
+    Object.entries(userPresets).forEach(([key, presets]) => {
+      const [categoryId, subcategoryId] = key.split('/');
+      output += `// ${categoryId} -> ${subcategoryId}\n`;
+      output += `// Add to NODE_PRESET_CATEGORIES.${categoryId}.subcategories.${subcategoryId}.presets:\n\n`;
+
+      presets.forEach((preset, index) => {
+        const presetId = preset.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        output += `'${presetId}': ${JSON.stringify(preset, null, 2)},\n\n`;
+      });
+
+      output += '\n';
+    });
+
+    // Download as file
+    const blob = new Blob([output], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user-presets-export.js';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    alert(`Exported ${Object.keys(userPresets).length} preset categories!\n\nCheck your downloads for: user-presets-export.js\n\nCopy the code and paste into nodePresets.js, then commit to Git.`);
+  }, [userPresets]);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col">
       {/* Header Toolbar */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-3">
+      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-3 relative">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
@@ -1096,6 +1239,14 @@ export default function App() {
                 </div>
               )}
             </div>
+            <div className="h-4 border-l border-zinc-700" />
+            <button
+              onClick={handleExportPresets}
+              className="px-2 py-1 border border-cyan-700 rounded text-xs font-mono text-cyan-400 hover:text-cyan-300 hover:border-cyan-500"
+              title="Export user presets for Git commit (ready to paste into nodePresets.js)"
+            >
+              Export Presets →
+            </button>
           </div>
 
           {/* Paper Size & Orientation */}
@@ -1165,7 +1316,7 @@ export default function App() {
 
         {/* Active Wire Indicator */}
         {activeWire && (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-2 py-2 px-3 bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 rounded shadow-lg z-50">
             <span className="text-xs font-mono text-cyan-400 animate-pulse">
               Wire active — Click another anchor to connect
             </span>
@@ -1180,7 +1331,7 @@ export default function App() {
 
         {/* Wire Selection Toolbar */}
         {selectedWires.size > 0 && (
-          <div className="mt-2 flex items-center gap-3 py-2 px-3 bg-cyan-500/10 border border-cyan-500/30 rounded">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-3 py-2 px-3 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 rounded shadow-lg z-50">
             <span className="text-xs font-mono text-cyan-400">
               {selectedWires.size} wire{selectedWires.size > 1 ? 's' : ''} selected
             </span>
@@ -1219,7 +1370,7 @@ export default function App() {
 
         {/* Node Selection Toolbar */}
         {selectedNodes.size > 0 && (
-          <div className="mt-2 flex items-center gap-3 py-2 px-3 bg-violet-500/10 border border-violet-500/30 rounded">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-3 py-2 px-3 bg-violet-500/10 backdrop-blur-sm border border-violet-500/30 rounded shadow-lg z-50">
             <span className="text-xs font-mono text-violet-400">
               {selectedNodes.size} node{selectedNodes.size > 1 ? 's' : ''} selected
             </span>
@@ -1260,6 +1411,12 @@ export default function App() {
           nodes={nodes}
           onSavePreset={savePreset}
           onDeletePreset={deletePreset}
+          onUpdatePreset={updatePreset}
+          userSubcategories={userSubcategories}
+          onAddSubcategory={addSubcategory}
+          onDeleteSubcategory={deleteSubcategory}
+          onReorderPresets={reorderPresets}
+          onReorderSubcategories={reorderSubcategories}
         />
 
         {/* Canvas Area */}

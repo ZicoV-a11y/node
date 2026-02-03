@@ -559,13 +559,8 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
 
   const handleMouseDown = (e) => {
     e.stopPropagation();
-    // Start wire connection on drag
-    onClick && onClick(anchorId, type);
-  };
-
-  const handleClick = (e) => {
-    e.stopPropagation();
-    // Also support simple click (will be called on mouseup if no drag occurred)
+    e.preventDefault(); // Prevent the subsequent click event
+    // Start wire connection
     onClick && onClick(anchorId, type);
   };
 
@@ -575,7 +570,6 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
       data-anchor-type={type}
       className="w-3 h-3 shrink-0 flex items-center justify-center cursor-pointer select-none"
       onMouseDown={handleMouseDown}
-      onClick={handleClick}
     >
       <div
         className="rounded-full transition-all"
@@ -1418,7 +1412,59 @@ const IOSection = ({
         colors={colors}
       />
 
-      {!collapsed && (
+      {collapsed ? (
+        /* When collapsed, render minimal port rows to maintain exact anchor column positions */
+        <div className="w-full">
+          {data.ports.map((port) => {
+            const isReversed = anchorSide === 'right';
+            const dataOrder = columnOrder || ['delete', 'port', 'connector', 'resolution', 'rate'];
+            const fullColumnOrder = canToggleAnchor
+              ? (isReversed ? [...dataOrder, 'anchor'].reverse() : ['anchor', ...dataOrder])
+              : (isReversed ? dataOrder.reverse() : ['anchor', ...dataOrder]);
+
+            return (
+              <div key={port.id} className="flex items-center py-0.5 opacity-40 hover:opacity-100 transition-opacity">
+                {fullColumnOrder.map((colId, index) => {
+                  if (colId === 'anchor') {
+                    return (
+                      <div key={colId} className="flex items-center">
+                        {index > 0 && <span className="w-px shrink-0 mx-2" />}
+                        <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                          <div
+                            data-anchor-id={`${nodeId}-${port.id}`}
+                            data-anchor-type={type === 'input' ? 'in' : 'out'}
+                            className="w-2 h-2 rounded-full cursor-pointer"
+                            style={{
+                              backgroundColor: type === 'input' ? '#10b981' : (signalColor || '#f59e0b'),
+                              border: `1px solid ${type === 'input' ? '#34d399' : (signalColor ? `${signalColor}cc` : '#fbbf24')}`,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, type === 'input' ? 'in' : 'out');
+                            }}
+                            title={`${port.label || port.id} (collapsed)`}
+                          />
+                        </span>
+                      </div>
+                    );
+                  } else if (colId === 'port') {
+                    const portWidth = columnWidths['port'] || 52;
+                    return (
+                      <div key={colId} className="flex items-center">
+                        {index > 0 && <span className="w-px shrink-0 mx-2" />}
+                        <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${portWidth}px` }}>
+                          {port.label || port.id}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
         <>
           {data.ports.length > 0 && (
             <ColumnHeaders
@@ -1478,6 +1524,7 @@ const SystemSection = ({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
+  constrainToColumn = false, // When true, constrain content to column width
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1556,28 +1603,52 @@ const SystemSection = ({
       </div>
 
       {!collapsed && (
-        <div className="p-2 text-[11px]">
-          {/* Flex wrap - adapts to available width set by Input/Output sections */}
-          <div className="flex flex-wrap gap-2">
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+        <div className="p-2 text-[11px] w-full">
+          {/* Flex wrap - adapts to width set by Input/Output sections, wraps to new rows as needed */}
+          <div className="flex flex-wrap gap-1.5 w-full">
+            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
+              <span className="text-zinc-500 font-mono text-[10px]">Manufacturer</span>
+              <input
+                type="text"
+                value={data.manufacturer || ''}
+                onChange={(e) => onUpdate({ manufacturer: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Manufacturer..."
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+              />
+            </div>
+
+            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
+              <span className="text-zinc-500 font-mono text-[10px]">Model</span>
+              <input
+                type="text"
+                value={data.model || ''}
+                onChange={(e) => onUpdate({ model: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Model..."
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+              />
+            </div>
+
+            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '70px' }}>
               <span className="text-zinc-500 font-mono text-[10px]">Platform</span>
               <select
                 value={data.platform || 'none'}
                 onChange={(e) => onUpdate({ platform: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
               >
                 {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
               <span className="text-zinc-500 font-mono text-[10px]">Software</span>
               <select
                 value={data.software || 'none'}
                 onChange={(e) => onUpdate({ software: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
               >
                 {SOFTWARE_PRESETS.map(s => (
                   <option key={s.id} value={s.id}>{s.label}</option>
@@ -1585,13 +1656,13 @@ const SystemSection = ({
               </select>
             </div>
 
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
+            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '70px' }}>
               <span className="text-zinc-500 font-mono text-[10px]">Capture</span>
               <select
                 value={data.captureCard || 'none'}
                 onChange={(e) => onUpdate({ captureCard: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
               >
                 {CAPTURE_CARDS.map(c => (
                   <option key={c.id} value={c.id}>{c.label}</option>
@@ -1770,13 +1841,15 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   const layoutRows = getRows();
 
   // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
+  // CRITICAL: Always register all anchors - we render hidden placeholder elements for collapsed sections
+  // to maintain wire connections and prevent "disappearing anchor" issues
   useEffect(() => {
     if (!registerAnchor) return;
     const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
     allPorts.forEach((port) => {
       registerAnchor(`${node.id}-${port.id}`);
     });
-  }, [node.inputSection, node.outputSection, node.layout, registerAnchor, node.id]);
+  }, [node.inputSection.ports, node.outputSection.ports, registerAnchor, node.id]);
 
   // Resize handling
   const handleResizeStart = (e) => {
@@ -2153,6 +2226,9 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     });
   };
 
+  // Check if Input and Output are in the same row (side-by-side)
+  const areIOSideBySide = areInSameRow('input', 'output');
+
   // Render section content
   const renderSectionContent = (sectionId, anchorSide, canToggleAnchor) => {
     switch (sectionId) {
@@ -2166,6 +2242,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
+            constrainToColumn={false}
           />
         );
       case 'input':
