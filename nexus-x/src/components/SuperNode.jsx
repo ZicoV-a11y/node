@@ -384,6 +384,8 @@ const COLUMN_DEFS = {
   anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
   delete: { id: 'delete', label: '🗑', minWidth: 24, draggable: true },
   port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
+  source: { id: 'source', label: 'Source', minWidth: 90, draggable: true },
+  destination: { id: 'destination', label: 'Destination', minWidth: 90, draggable: true },
   connector: { id: 'connector', label: 'Connector', minWidth: 90, draggable: true },
   resolution: { id: 'resolution', label: 'Resolution', minWidth: 90, draggable: true },
   rate: { id: 'rate', label: 'Rate', minWidth: 60, draggable: true },
@@ -405,6 +407,8 @@ const calculateColumnWidths = (ports) => {
     anchor: COLUMN_DEFS.anchor.minWidth,
     delete: COLUMN_DEFS.delete.minWidth,
     port: COLUMN_DEFS.port.minWidth,
+    source: COLUMN_DEFS.source.minWidth,
+    destination: COLUMN_DEFS.destination.minWidth,
     connector: COLUMN_DEFS.connector.minWidth,
     resolution: COLUMN_DEFS.resolution.minWidth,
     rate: COLUMN_DEFS.rate.minWidth,
@@ -412,6 +416,8 @@ const calculateColumnWidths = (ports) => {
   };
 
   // Also consider header labels
+  widths.source = Math.max(widths.source, estimateTextWidth('Source'));
+  widths.destination = Math.max(widths.destination, estimateTextWidth('Destination'));
   widths.connector = Math.max(widths.connector, estimateTextWidth('Connector'));
   widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution'));
   widths.rate = Math.max(widths.rate, estimateTextWidth('Rate'));
@@ -735,6 +741,38 @@ const PortRow = ({
             }}
           />
         );
+      case 'source':
+        return (
+          <SelectWithCustom
+            value={port.source || ''}
+            options={['Custom']}
+            placeholder="Source"
+            isSelected={isSelected}
+            onChange={(value) => {
+              if (isSelected && onBulkUpdate) {
+                onBulkUpdate('source', value);
+              } else {
+                onUpdate({ source: value });
+              }
+            }}
+          />
+        );
+      case 'destination':
+        return (
+          <SelectWithCustom
+            value={port.destination || ''}
+            options={['Custom']}
+            placeholder="Destination"
+            isSelected={isSelected}
+            onChange={(value) => {
+              if (isSelected && onBulkUpdate) {
+                onBulkUpdate('destination', value);
+              } else {
+                onUpdate({ destination: value });
+              }
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -844,7 +882,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
     <div
       data-column-zone="true"
       className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-zinc-500 uppercase tracking-wide w-full`}
+        text-[10px] font-mono text-white uppercase tracking-wide w-full`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -881,7 +919,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
                 className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
-                  selectedCount > 0 ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-300'
+                  selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
                 style={{ width: `${getColumnWidth(colId)}px` }}
                 title="Click to select all, drag to reorder"
@@ -998,7 +1036,7 @@ const SectionHeader = ({
   const isReversed = anchorSide === 'right';
   // Use passed hex colors or fallback to zinc
   const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+  const colorHexLight = '#ffffff'; // White text for section headers
 
   // Filter presets by section type (input/output)
   const availablePresets = Object.entries(CARD_PRESETS)
@@ -1345,9 +1383,14 @@ const IOSection = ({
   };
 
   // Get column order from data or use default
+  // Conditionally include 'source' for inputs or 'destination' for outputs
+  const baseColumns = sectionType === 'input'
+    ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
+    : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
+
   // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
   const savedOrder = data.columnOrder || [];
-  const columnOrder = DATA_COLUMNS.map(col => col).sort((a, b) => {
+  const columnOrder = baseColumns.map(col => col).sort((a, b) => {
     const aIdx = savedOrder.indexOf(a);
     const bIdx = savedOrder.indexOf(b);
     // If both are in saved order, use that order
@@ -1355,8 +1398,8 @@ const IOSection = ({
     // If only one is in saved order, it comes first
     if (aIdx !== -1) return -1;
     if (bIdx !== -1) return 1;
-    // Neither in saved order, use DATA_COLUMNS order
-    return DATA_COLUMNS.indexOf(a) - DATA_COLUMNS.indexOf(b);
+    // Neither in saved order, use baseColumns order
+    return baseColumns.indexOf(a) - baseColumns.indexOf(b);
   });
 
   // Group ports: by cardId or standalone (null cardId)
@@ -1524,7 +1567,7 @@ const SystemSection = ({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
-  constrainToColumn = false, // When true, constrain content to column width
+  isSideBySideView = false, // When true, INPUT/OUTPUT are side-by-side, use wider layout
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1579,7 +1622,7 @@ const SystemSection = ({
         <div className="flex items-center gap-1">
           <span
             className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
-            style={{ color: colorHexLight }}
+            style={{ color: '#ffffff' }}
           >
             SYSTEM
           </span>
@@ -1604,10 +1647,12 @@ const SystemSection = ({
 
       {!collapsed && (
         <div className="p-2 text-[11px] w-full">
-          {/* Flex wrap - adapts to width set by Input/Output sections, wraps to new rows as needed */}
-          <div className="flex flex-wrap gap-1.5 w-full">
-            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
-              <span className="text-zinc-500 font-mono text-[10px]">Manufacturer</span>
+          {/* Adaptive grid layout based on view:
+              - Stacked view: 2 columns (constrained, doesn't force node width)
+              - Side-by-side view: 3 columns (utilizes full available width) */}
+          <div className={`grid ${isSideBySideView ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 w-full`}>
+            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
+              <span className="text-white font-mono text-[10px]">Manufacturer</span>
               <input
                 type="text"
                 value={data.manufacturer || ''}
@@ -1618,8 +1663,8 @@ const SystemSection = ({
               />
             </div>
 
-            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
-              <span className="text-zinc-500 font-mono text-[10px]">Model</span>
+            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
+              <span className="text-white font-mono text-[10px]">Model</span>
               <input
                 type="text"
                 value={data.model || ''}
@@ -1630,8 +1675,8 @@ const SystemSection = ({
               />
             </div>
 
-            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '70px' }}>
-              <span className="text-zinc-500 font-mono text-[10px]">Platform</span>
+            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
+              <span className="text-white font-mono text-[10px]">Platform</span>
               <select
                 value={data.platform || 'none'}
                 onChange={(e) => onUpdate({ platform: e.target.value })}
@@ -1642,8 +1687,8 @@ const SystemSection = ({
               </select>
             </div>
 
-            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '80px' }}>
-              <span className="text-zinc-500 font-mono text-[10px]">Software</span>
+            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
+              <span className="text-white font-mono text-[10px]">Software</span>
               <select
                 value={data.software || 'none'}
                 onChange={(e) => onUpdate({ software: e.target.value })}
@@ -1656,8 +1701,8 @@ const SystemSection = ({
               </select>
             </div>
 
-            <div className="flex flex-col gap-0.5" style={{ flex: '1 1 auto', minWidth: '70px' }}>
-              <span className="text-zinc-500 font-mono text-[10px]">Capture</span>
+            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
+              <span className="text-white font-mono text-[10px]">Capture</span>
               <select
                 value={data.captureCard || 'none'}
                 onChange={(e) => onUpdate({ captureCard: e.target.value })}
@@ -1702,7 +1747,7 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
 
   // Use theme header colors (hex values for inline styles)
   const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
-  const headerTextHex = themeColors?.header?.hexLight || HEX_COLORS.zinc[400];
+  const headerTextHex = '#ffffff'; // White text for all headers
 
   return (
     <div
@@ -1728,15 +1773,6 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
       </div>
 
       <span className="font-mono font-bold text-sm" style={{ color: headerTextHex }}>{displayTitle()}</span>
-      <input
-        type="text"
-        value={node.title}
-        onChange={(e) => onUpdate({ title: e.target.value })}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-transparent font-mono text-zinc-400 focus:outline-none text-[11px] w-20 opacity-50 hover:opacity-100"
-        title="Edit device name"
-        placeholder="Device"
-      />
 
       <div className="flex items-center gap-1 ml-auto shrink-0">
         {/* Signal color picker */}
@@ -2242,7 +2278,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
-            constrainToColumn={false}
+            isSideBySideView={areIOSideBySide}
           />
         );
       case 'input':

@@ -112,7 +112,7 @@ const SubcategoryFolder = ({
         }}
         className={`
           group flex items-center gap-2 px-2 py-1.5 cursor-move
-          transition-colors text-xs font-mono text-zinc-400
+          transition-colors text-xs font-mono text-white
           ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : 'hover:bg-zinc-700/50'}
           ${draggedItem?.type === 'subcategory' && draggedItem.subId === subId ? 'opacity-40' : ''}
         `}
@@ -322,7 +322,7 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
         className={`
           flex items-center gap-2 px-2 py-1.5 cursor-pointer
           hover:bg-zinc-700/50 transition-colors text-xs font-mono
-          ${depth === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-400'}
+          ${depth === 0 ? 'text-white font-medium' : 'text-white'}
           ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : ''}
         `}
         style={{ paddingLeft }}
@@ -571,7 +571,7 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
     >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
-        <span className="text-xs font-mono font-semibold text-zinc-300 tracking-wide">
+        <span className="text-xs font-mono font-semibold text-white tracking-wide">
           LIBRARY
         </span>
         <button
