@@ -909,9 +909,13 @@ const DraggableSection = ({
   isDragging,
   showSideDropZones,
   isSingleSectionRow,
+  draggedSection, // What section is currently being dragged
 }) => {
-  // NO RESTRICTIONS - System can show side drop zones for testing
-  const canShowSideZones = showSideDropZones;
+  // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
+  // System can NEVER be side-by-side with anything
+  const isIOSection = sectionId === 'input' || sectionId === 'output';
+  const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+  const canShowSideZones = showSideDropZones && isIOSection && isDraggingIO;
 
   return (
     <div
@@ -926,7 +930,7 @@ const DraggableSection = ({
         ${isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
       `}
     >
-      {/* Side drop zones - only for INPUT/OUTPUT sections (system never side-by-side) */}
+      {/* Side drop zones - ONLY for Input/Output going side-by-side (system NEVER side-by-side) */}
       {canShowSideZones && (
         <>
           <SideDropZone
@@ -1702,8 +1706,16 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   // Generate cohesive theme colors from signal color
   const themeColors = getThemeColors(node.signalColor);
 
+  // ===========================================
+  // SECTION LAYOUT RULES (STRICT)
+  // ===========================================
+  // 1. System section is ALWAYS in its own row (never side-by-side)
+  // 2. System can only be at TOP or BOTTOM of the node
+  // 3. Only Input and Output can be side-by-side
+  // 4. Drop zones only appear for valid moves
+  // ===========================================
+
   // Get rows from layout (default: all sections stacked)
-  // NO RESTRICTIONS - System can go anywhere for testing
   const getRows = () => {
     if (node.layout.rows) {
       return node.layout.rows;
@@ -1714,8 +1726,6 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   };
 
   const layoutRows = getRows();
-
-  // Auto-persist removed - no restrictions for testing
 
   // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
   useEffect(() => {
@@ -1828,10 +1838,22 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     e.preventDefault();
     e.stopPropagation();
 
-    // NO RESTRICTIONS - System can go anywhere for testing
-    if (draggedSection !== sectionId) {
-      setDragOverSection(sectionId);
-    }
+    if (draggedSection === sectionId) return;
+
+    // Check if this would be a valid drop (don't highlight invalid targets)
+    // Find row info for validation
+    let targetRowLength = 0;
+    let draggedRowLength = 0;
+    layoutRows.forEach(row => {
+      if (row.includes(sectionId)) targetRowLength = row.length;
+      if (row.includes(draggedSection)) draggedRowLength = row.length;
+    });
+
+    // ENFORCE: Swapping would put System side-by-side
+    if (draggedSection === 'system' && targetRowLength > 1) return;
+    if (sectionId === 'system' && draggedRowLength > 1) return;
+
+    setDragOverSection(sectionId);
   };
 
   const handleSectionDragEnd = () => {
@@ -1840,7 +1862,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
   };
 
   // Drop on section (swap positions in same row or move to different row)
-  // CONSTRAINT: System can only be at TOP or BOTTOM (never middle, never side-by-side)
+  // STRICT RULE: System can only be at TOP or BOTTOM (never middle, never side-by-side)
   const handleSectionDrop = (e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
@@ -1857,7 +1879,6 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       return;
     }
 
-    // NO RESTRICTIONS - System can go anywhere for testing
     const newRows = layoutRows.map(row => [...row]);
 
     // Find positions
@@ -1877,6 +1898,25 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       return;
     }
 
+    // ENFORCE: Swapping would put System side-by-side with something
+    // If System would end up in a row with 2+ sections, reject
+    const draggedRowLength = newRows[draggedRowIdx].filter(Boolean).length;
+    const targetRowLength = newRows[targetRowIdx].filter(Boolean).length;
+
+    if (draggedSection === 'system' && targetRowLength > 1) {
+      // System can't go into a multi-section row
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+    if (targetSectionId === 'system' && draggedRowLength > 1) {
+      // Something can't swap into System's row if dragged row has multiple sections
+      // (System would end up in a multi-section row)
+      setDraggedSection(null);
+      setDragOverSection(null);
+      return;
+    }
+
     // Swap positions
     newRows[draggedRowIdx][draggedColIdx] = targetSectionId;
     newRows[targetRowIdx][targetColIdx] = draggedSection;
@@ -1886,17 +1926,23 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
       .map(row => row.filter(s => s !== null))
       .filter(row => row.length > 0);
 
-    // NO RESTRICTIONS - System can go anywhere for testing
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
   };
 
   // Drop to side (create or join column)
-  // NO RESTRICTIONS - System can go anywhere for testing
+  // STRICT RULE: Only Input and Output can be side-by-side
   const handleDropToSide = (targetSectionId, side) => {
     if (!draggedSection || draggedSection === targetSectionId) {
       setDraggedSection(null);
+      return;
+    }
+
+    // ENFORCE: System can NEVER be side-by-side with anything
+    if (draggedSection === 'system' || targetSectionId === 'system') {
+      setDraggedSection(null);
+      setDragOverSection(null);
       return;
     }
 
@@ -2186,10 +2232,15 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
                 // Side drop zones only when:
                 // 1. Dragging an IO section (not system)
-                // 2. Target is not the dragged section
-                // 3. NOT already side-by-side (if same row, just swap - no zones needed)
-                // NO RESTRICTIONS - System can show side drop zones for testing
+                // 2. Target is IO section (not system)
+                // 3. Target is not the dragged section
+                // 4. NOT already side-by-side (if same row, just swap - no zones needed)
+                // STRICT RULE: System can NEVER be side-by-side
+                const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+                const isTargetIO = sectionId === 'input' || sectionId === 'output';
                 const showSideDropZones = draggedSection &&
+                  isDraggingIO &&
+                  isTargetIO &&
                   draggedSection !== sectionId &&
                   !areInSameRow(draggedSection, sectionId);
 
@@ -2228,6 +2279,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
                       isDraggedOver={dragOverSection === sectionId}
                       showSideDropZones={showSideDropZones}
                       isSingleSectionRow={isSingleSectionRow}
+                      draggedSection={draggedSection}
                     >
                       {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                     </DraggableSection>
@@ -2238,13 +2290,21 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
           );
         })}
 
-        {/* Bottom drop zone - visible when dragging IO sections, or System if not already solo at bottom */}
-        {draggedSection && (
-          draggedSection !== 'system' ||
-          !(layoutRows[layoutRows.length - 1]?.length === 1 && layoutRows[layoutRows.length - 1]?.includes('system'))
-        ) && (
-          <BottomDropZone onDrop={handleDropToBottom} />
-        )}
+        {/* Bottom drop zone - visible when dragging any section to a new bottom row */}
+        {(() => {
+          if (!draggedSection) return null;
+
+          const lastRow = layoutRows[layoutRows.length - 1];
+          const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
+
+          // System: show bottom zone only if not already at bottom
+          if (draggedSection === 'system') {
+            return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
+          }
+
+          // IO sections: always show bottom zone (they can always move to bottom)
+          return <BottomDropZone onDrop={handleDropToBottom} />;
+        })()}
       </div>
 
       <ResizeHandle onResizeStart={handleResizeStart} />
