@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NODE_PRESET_CATEGORIES, getSubcategories } from '../config/nodePresets';
 import { getSubcategoryMeta } from '../config/gearMetadata';
 import PresetEditor from './PresetEditor';
@@ -17,14 +17,18 @@ const SubcategoryFolder = ({
   onDeletePreset,
   onEditPreset,
   onDeleteSubcategory,
+  onMoveSubcategory,
   userPresets,
+  userSubcategories,
   onAddPreset,
   onAddBlankNode,
   draggedItem,
   onDragStart,
   onDragOver,
   onDragEnd,
-  onReorderPresets
+  onReorderPresets,
+  children,
+  isUserCreated
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverPresetId, setDragOverPresetId] = useState(null);
@@ -39,7 +43,18 @@ const SubcategoryFolder = ({
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+
+    console.log('Drag over folder:', subId, 'draggedItem:', draggedItem);
+
+    // Only show drop indicator for nodes (saving as preset) or subcategory reordering
+    if (draggedItem?.type === 'subcategory' && draggedItem.catId === catId) {
+      console.log('Valid subcategory drag detected');
+      setIsDragOver(true);
+    } else if (!draggedItem) {
+      // Dragging a node from canvas
+      console.log('Node drag detected');
+      setIsDragOver(true);
+    }
   };
 
   const handleDragLeave = (e) => {
@@ -49,29 +64,50 @@ const SubcategoryFolder = ({
 
   const handleDrop = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
 
-    // Get the node ID from the drag data
+    // Handle subcategory dropping into this folder (nesting)
+    if (draggedItem?.type === 'subcategory' && draggedItem.catId === catId && draggedItem.subId !== subId) {
+      // Check if dropping with Ctrl/Cmd key = move into folder (nest)
+      if (e.ctrlKey || e.metaKey) {
+        // Allow nesting into any folder
+        console.log('Nesting:', draggedItem.subId, 'into', subId);
+        onMoveSubcategory && onMoveSubcategory(catId, draggedItem.subId, subId);
+      } else {
+        // Regular drop = reorder at same level
+        console.log('Reordering:', draggedItem.subId, 'to position of', subId);
+        onDragOver && onDragOver(draggedItem.catId, draggedItem.subId, subId);
+      }
+      return;
+    }
+
+    // Handle node drop (save as preset)
     const nodeId = e.dataTransfer.getData('nodeId');
     if (nodeId && onSavePreset) {
       onSavePreset(nodeId, catId, subId);
     }
   };
 
+  console.log('SubcategoryFolder render:', subId, 'draggable:', isUserCreated);
+
   return (
     <div>
       {/* Folder header - droppable and draggable */}
       <div
-        draggable={true}
+        draggable="true"
         onDragStart={(e) => {
+          console.log('onDragStart fired for:', subId);
           // Only drag if not clicking on buttons
           if (!e.target.closest('span[title*="Delete"]')) {
-            onDragStart && onDragStart({ type: 'subcategory', catId, subId });
+            console.log('Drag started:', { type: 'subcategory', catId, subId, isUserCreated });
+            onDragStart && onDragStart({ type: 'subcategory', catId, subId, isUserCreated });
           } else {
             e.preventDefault();
           }
         }}
         onDragEnd={(e) => {
+          console.log('Drag ended');
           onDragEnd && onDragEnd();
         }}
         className={`
@@ -97,7 +133,11 @@ const SubcategoryFolder = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        title={isDragOver ? 'Drop to save as preset' : (canAddBlank && !hasPresets ? 'Click to add blank SuperNode' : `${description} • Click to expand • Drag to reorder`)}
+        title={
+          isDragOver
+            ? (draggedItem?.type === 'subcategory' ? 'Drop to reorder • Hold Ctrl/Cmd to nest inside' : 'Drop to save as preset')
+            : (canAddBlank && !hasPresets ? 'Click to add blank SuperNode' : `${description} • Click to expand • Drag to reorder or nest`)
+        }
       >
         {/* Drag handle */}
         <span className="w-3 text-zinc-600 text-center cursor-move">⋮⋮</span>
@@ -227,23 +267,54 @@ const SubcategoryFolder = ({
           })
           ) : (
             /* Empty folder message */
-            <div
-              className="px-2 py-2 text-xs font-mono text-zinc-600 italic"
-              style={{ paddingLeft: paddingLeft + 12 }}
-            >
-              No presets yet • Drag a node here to save
-            </div>
+            !children && (
+              <div
+                className="px-2 py-2 text-xs font-mono text-zinc-600 italic"
+                style={{ paddingLeft: paddingLeft + 12 }}
+              >
+                No presets yet • Drag a node here to save
+              </div>
+            )
           )}
+
+          {/* Nested subcategories (children) */}
+          {children}
         </div>
       )}
     </div>
   );
 };
 
-// Simple panel item (non-droppable)
-const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggle, onAddSubcategory, children, icon }) => {
+// Simple panel item (droppable for unnesting folders)
+const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggle, onAddSubcategory, children, icon, catId, draggedItem, onMoveSubcategory }) => {
   const hasChildren = children && children.length > 0;
   const paddingLeft = 12 + depth * 12;
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e) => {
+    // Only accept subcategory drops to move them to top-level
+    if (draggedItem?.type === 'subcategory' && draggedItem.catId === catId) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    // Move subcategory to top-level (parentId = null)
+    if (draggedItem?.type === 'subcategory' && draggedItem.catId === catId) {
+      onMoveSubcategory && onMoveSubcategory(catId, draggedItem.subId, null);
+    }
+  };
 
   return (
     <div>
@@ -252,6 +323,7 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
           flex items-center gap-2 px-2 py-1.5 cursor-pointer
           hover:bg-zinc-700/50 transition-colors text-xs font-mono
           ${depth === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-400'}
+          ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : ''}
         `}
         style={{ paddingLeft }}
         onClick={() => {
@@ -261,7 +333,10 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
             onClick();
           }
         }}
-        title={description}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        title={isDragOver ? 'Drop to move to top-level' : description}
       >
         {/* Expand/collapse indicator */}
         {hasChildren && (
@@ -307,10 +382,14 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
   );
 };
 
-export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, userSubcategories = {}, nodes, onSavePreset, onDeletePreset, onUpdatePreset, onAddSubcategory, onDeleteSubcategory, onReorderPresets, onReorderSubcategories }) {
+export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, userSubcategories = {}, subcategoryOrder = {}, nodes, onSavePreset, onDeletePreset, onUpdatePreset, onAddSubcategory, onDeleteSubcategory, onMoveSubcategory, onReorderPresets, onReorderSubcategories }) {
   // Track which categories/subcategories are expanded
   const [expandedCategories, setExpandedCategories] = useState({ sources: true });
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
+
+  // Panel width state
+  const [panelWidth, setPanelWidth] = useState(224); // Default 224px (w-56)
+  const [isResizing, setIsResizing] = useState(false);
 
   // Preset editor state
   const [editingPreset, setEditingPreset] = useState(null);
@@ -396,10 +475,100 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
     }
   };
 
+  // Handle panel resize
+  const handleResizeStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Resize started');
+    setIsResizing(true);
+  };
+
+  // Add/remove mouse event listeners for resizing
+  useEffect(() => {
+    const handleResizeMove = (e) => {
+      const newWidth = e.clientX;
+      console.log('Resizing to:', newWidth);
+      // Constrain between 200px and 600px
+      if (newWidth >= 200 && newWidth <= 600) {
+        setPanelWidth(newWidth);
+      }
+    };
+
+    const handleResizeEnd = () => {
+      console.log('Resize ended');
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleResizeEnd);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleResizeMove);
+      window.removeEventListener('mouseup', handleResizeEnd);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
+
+  // Recursive function to render subcategories with nesting
+  const renderSubcategory = (catId, sub, parentId, depth, isUserCreated = false) => {
+    const subKey = `${catId}/${sub.id}`;
+    const isSubExpanded = expandedSubcategories[subKey];
+    const gearMeta = getSubcategoryMeta(catId, sub.id);
+
+    // Find children of this subcategory
+    const userSubs = userSubcategories[catId] || {};
+    const children = Object.entries(userSubs)
+      .filter(([_, subData]) => subData.parentId === sub.id)
+      .map(([id, subData]) => ({
+        id,
+        label: subData.label,
+        description: subData.description,
+        parentId: subData.parentId
+      }));
+
+    return (
+      <SubcategoryFolder
+        key={sub.id}
+        catId={catId}
+        subId={sub.id}
+        label={sub.label}
+        description={gearMeta?.description || sub.description}
+        depth={depth}
+        isExpanded={isSubExpanded}
+        onToggle={() => toggleSubcategory(catId, sub.id)}
+        onSavePreset={onSavePreset}
+        onDeletePreset={onDeletePreset}
+        onEditPreset={handleEditPreset}
+        onDeleteSubcategory={onDeleteSubcategory}
+        onMoveSubcategory={onMoveSubcategory}
+        userPresets={userPresets}
+        userSubcategories={userSubcategories}
+        onAddPreset={handleAddFromPreset}
+        onAddBlankNode={handleAddSuperNode}
+        draggedItem={draggedItem}
+        onDragStart={handleDragStart}
+        onDragOver={onReorderSubcategories}
+        onDragEnd={handleDragEnd}
+        onReorderPresets={handleReorderPresets}
+        isUserCreated={isUserCreated}
+      >
+        {children.length > 0 && children.map(childSub => renderSubcategory(catId, childSub, sub.id, depth + 1, true))}
+      </SubcategoryFolder>
+    );
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="w-56 h-full bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden">
+    <div
+      className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden relative"
+      style={{ width: `${panelWidth}px` }}
+    >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="text-xs font-mono font-semibold text-zinc-300 tracking-wide">
@@ -419,54 +588,57 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
         {/* Categories from nodePresets */}
         {Object.entries(NODE_PRESET_CATEGORIES).map(([catId, category]) => {
           const baseSubcategories = getSubcategories(catId);
-          // Merge base subcategories with user-created ones
+          // Merge base subcategories with user-created ones (only top-level, parentId === null or undefined)
           const userSubs = userSubcategories[catId] || {};
-          const userSubList = Object.entries(userSubs).map(([id, sub]) => ({
-            id,
-            label: sub.label,
-            description: sub.description
-          }));
-          const subcategories = [...baseSubcategories, ...userSubList];
+          const userSubList = Object.entries(userSubs)
+            .filter(([_, sub]) => !sub.parentId) // Only top-level
+            .map(([id, sub]) => ({
+              id,
+              label: sub.label,
+              description: sub.description,
+              parentId: sub.parentId
+            }));
+
+          // Combine and apply custom ordering
+          let subcategories = [...baseSubcategories, ...userSubList];
+          const order = subcategoryOrder[catId] || [];
+
+          // Sort user subcategories according to order array
+          if (order.length > 0) {
+            subcategories = subcategories.sort((a, b) => {
+              const indexA = order.indexOf(a.id);
+              const indexB = order.indexOf(b.id);
+
+              // If both are in order array, sort by their position
+              if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+              // If only A is in order, it comes after base subcategories
+              if (indexA !== -1) return 1;
+              // If only B is in order, it comes after base subcategories
+              if (indexB !== -1) return -1;
+              // Neither in order (both are base), maintain original order
+              return 0;
+            });
+          }
 
           const isCatExpanded = expandedCategories[catId];
 
           return (
             <PanelItem
               key={catId}
+              catId={catId}
               label={category.label}
               description={category.description}
               isExpanded={isCatExpanded}
               onToggle={() => toggleCategory(catId)}
               onAddSubcategory={() => setAddingSubcategory({ categoryId: catId, categoryLabel: category.label })}
+              draggedItem={draggedItem}
+              onMoveSubcategory={onMoveSubcategory}
             >
               {subcategories.map(sub => {
-                const subKey = `${catId}/${sub.id}`;
-                const isSubExpanded = expandedSubcategories[subKey];
-                const gearMeta = getSubcategoryMeta(catId, sub.id);
-
-                return (
-                  <SubcategoryFolder
-                    key={sub.id}
-                    catId={catId}
-                    subId={sub.id}
-                    label={sub.label}
-                    description={gearMeta?.description || sub.description}
-                    depth={1}
-                    isExpanded={isSubExpanded}
-                    onToggle={() => toggleSubcategory(catId, sub.id)}
-                    onSavePreset={onSavePreset}
-                    onDeletePreset={onDeletePreset}
-                    onEditPreset={handleEditPreset}
-                    onDeleteSubcategory={onDeleteSubcategory}
-                    userPresets={userPresets}
-                    onAddPreset={handleAddFromPreset}
-                    onAddBlankNode={handleAddSuperNode}
-                    draggedItem={draggedItem}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onReorderPresets={handleReorderPresets}
-                  />
-                );
+                // Check if this is a user-created subcategory (convert to boolean)
+                const isUserCreated = !!(userSubcategories[catId] && userSubcategories[catId][sub.id]);
+                console.log('Rendering subcategory:', sub.id, 'isUserCreated:', isUserCreated);
+                return renderSubcategory(catId, sub, null, 1, isUserCreated);
               })}
             </PanelItem>
           );
@@ -518,6 +690,13 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
           Drag node to folder to save preset
         </p>
       </div>
+
+      {/* Resize Handle */}
+      <div
+        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize bg-zinc-700/30 hover:bg-cyan-500/70 transition-colors z-50"
+        onMouseDown={handleResizeStart}
+        title="Drag to resize sidebar"
+      />
 
       {/* Preset Editor Dialog */}
       {editingPreset && (

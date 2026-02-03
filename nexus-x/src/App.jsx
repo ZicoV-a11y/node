@@ -6,6 +6,7 @@ import CanvasControls from './components/canvas/CanvasControls';
 import CablePrompt from './components/CablePrompt';
 import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
+import { getSubcategories } from './config/nodePresets';
 
 // Paper size constants (96 DPI)
 const PAPER_SIZES = {
@@ -226,6 +227,9 @@ export default function App() {
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
 
+  // Subcategory order tracking (categoryId -> array of subcategory IDs)
+  const [subcategoryOrder, setSubcategoryOrder] = useState({});
+
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
   const [anchorPositions, setAnchorPositions] = useState({});
@@ -399,7 +403,7 @@ export default function App() {
   };
 
   // Add a new subcategory to a category
-  const addSubcategory = ({ categoryId, subcategoryId, label, description }) => {
+  const addSubcategory = ({ categoryId, subcategoryId, label, description, parentId = null }) => {
     setUserSubcategories(prev => ({
       ...prev,
       [categoryId]: {
@@ -407,20 +411,88 @@ export default function App() {
         [subcategoryId]: {
           label,
           description,
+          parentId, // null = top-level, or another subcategoryId
           presets: {}
         }
       }
     }));
+
+    // Add to order tracking
+    setSubcategoryOrder(prev => ({
+      ...prev,
+      [categoryId]: [...(prev[categoryId] || []), subcategoryId]
+    }));
   };
 
-  // Delete a subcategory and all its presets
+  // Move a subcategory into or out of another subcategory
+  const moveSubcategory = (categoryId, subcategoryId, newParentId) => {
+    console.log('moveSubcategory called:', { categoryId, subcategoryId, newParentId });
+    setUserSubcategories(prev => {
+      const updated = { ...prev };
+
+      // Ensure category exists
+      if (!updated[categoryId]) {
+        updated[categoryId] = {};
+      }
+
+      if (updated[categoryId][subcategoryId]) {
+        // Subcategory already in userSubcategories, just update parentId
+        console.log('Moving existing user subcategory:', subcategoryId, 'to parent:', newParentId);
+        updated[categoryId] = {
+          ...updated[categoryId],
+          [subcategoryId]: {
+            ...updated[categoryId][subcategoryId],
+            parentId: newParentId
+          }
+        };
+      } else {
+        // This is a built-in subcategory being moved for the first time
+        // Add it to userSubcategories with the parentId
+        const baseSubcats = getSubcategories(categoryId);
+        const baseSub = baseSubcats.find(s => s.id === subcategoryId);
+
+        if (baseSub) {
+          console.log('Adding built-in subcategory to userSubcategories:', subcategoryId, 'with parent:', newParentId);
+          updated[categoryId] = {
+            ...updated[categoryId],
+            [subcategoryId]: {
+              label: baseSub.label,
+              description: baseSub.description,
+              parentId: newParentId
+            }
+          };
+        } else {
+          console.log('Subcategory not found:', subcategoryId);
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  // Delete a subcategory and all its presets (and children recursively)
   const deleteSubcategory = (categoryId, subcategoryId) => {
-    // Remove subcategory from userSubcategories
+    // Find all child subcategories recursively
+    const findChildren = (parentId) => {
+      const children = [];
+      const subs = userSubcategories[categoryId] || {};
+      Object.keys(subs).forEach(subId => {
+        if (subs[subId].parentId === parentId) {
+          children.push(subId);
+          children.push(...findChildren(subId));
+        }
+      });
+      return children;
+    };
+
+    const allToDelete = [subcategoryId, ...findChildren(subcategoryId)];
+
+    // Remove subcategories from userSubcategories
     setUserSubcategories(prev => {
       const updated = { ...prev };
       if (updated[categoryId]) {
         const categoryUpdated = { ...updated[categoryId] };
-        delete categoryUpdated[subcategoryId];
+        allToDelete.forEach(id => delete categoryUpdated[id]);
         if (Object.keys(categoryUpdated).length === 0) {
           delete updated[categoryId];
         } else {
@@ -430,11 +502,19 @@ export default function App() {
       return updated;
     });
 
-    // Also remove all presets for this subcategory
-    const key = `${categoryId}/${subcategoryId}`;
+    // Remove from order tracking
+    setSubcategoryOrder(prev => ({
+      ...prev,
+      [categoryId]: (prev[categoryId] || []).filter(id => !allToDelete.includes(id))
+    }));
+
+    // Remove all presets for these subcategories
     setUserPresets(prev => {
       const updated = { ...prev };
-      delete updated[key];
+      allToDelete.forEach(id => {
+        const key = `${categoryId}/${id}`;
+        delete updated[key];
+      });
       return updated;
     });
   };
@@ -455,10 +535,23 @@ export default function App() {
   };
 
   // Reorder subcategories within a category
-  const reorderSubcategories = (categoryId, fromIndex, toIndex) => {
-    // This would require maintaining order separately
-    // For now, we'll implement preset reordering first
-    console.log('Subcategory reordering not yet implemented');
+  const reorderSubcategories = (categoryId, fromSubId, toSubId) => {
+    setSubcategoryOrder(prev => {
+      const currentOrder = prev[categoryId] || [];
+      const fromIndex = currentOrder.indexOf(fromSubId);
+      const toIndex = currentOrder.indexOf(toSubId);
+
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const newOrder = [...currentOrder];
+      const [removed] = newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, removed);
+
+      return {
+        ...prev,
+        [categoryId]: newOrder
+      };
+    });
   };
 
   const updateNode = (nodeId, updates) => {
@@ -1413,8 +1506,10 @@ export default function App() {
           onDeletePreset={deletePreset}
           onUpdatePreset={updatePreset}
           userSubcategories={userSubcategories}
+          subcategoryOrder={subcategoryOrder}
           onAddSubcategory={addSubcategory}
           onDeleteSubcategory={deleteSubcategory}
+          onMoveSubcategory={moveSubcategory}
           onReorderPresets={reorderPresets}
           onReorderSubcategories={reorderSubcategories}
         />
@@ -1469,7 +1564,7 @@ export default function App() {
 
           {/* SVG Layer for Wires and Selection Box */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-[60]"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[110]"
             style={{ overflow: 'visible' }}
           >
             {/* Selection Box Rectangle */}
