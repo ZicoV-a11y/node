@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, memo } from 'react';
 
 // ============================================
 // CONSTANTS - Single source of truth for sizes
@@ -1839,7 +1839,7 @@ const ResizeHandle = ({ onResizeStart }) => (
 // SUPERNODE COMPONENT
 // ============================================
 
-export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -1876,16 +1876,41 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
   const layoutRows = getRows();
 
-  // Register anchors so App knows which ones exist (positions computed via useLayoutEffect in App)
-  // CRITICAL: Always register all anchors - we render hidden placeholder elements for collapsed sections
-  // to maintain wire connections and prevent "disappearing anchor" issues
-  useEffect(() => {
-    if (!registerAnchor) return;
-    const allPorts = [...node.inputSection.ports, ...node.outputSection.ports];
-    allPorts.forEach((port) => {
-      registerAnchor(`${node.id}-${port.id}`);
+  // Compute anchor local offsets via scoped DOM queries (only when layout changes)
+  useLayoutEffect(() => {
+    if (!registerAnchor || !nodeRef.current) return;
+    const scale = node.scale || 1;
+    const nodeRect = nodeRef.current.getBoundingClientRect();
+    const totalScale = zoom * scale;
+
+    node.inputSection.ports.forEach((port) => {
+      const anchorId = `${node.id}-${port.id}`;
+      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+      if (anchorEl) {
+        const r = anchorEl.getBoundingClientRect();
+        registerAnchor(anchorId, {
+          nodeId: node.id,
+          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+          type: 'in'
+        });
+      }
     });
-  }, [node.inputSection.ports, node.outputSection.ports, registerAnchor, node.id]);
+
+    node.outputSection.ports.forEach((port) => {
+      const anchorId = `${node.id}-${port.id}`;
+      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+      if (anchorEl) {
+        const r = anchorEl.getBoundingClientRect();
+        registerAnchor(anchorId, {
+          nodeId: node.id,
+          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+          type: 'out'
+        });
+      }
+    });
+  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
 
   // Resize handling
   const handleResizeStart = (e) => {
@@ -2475,3 +2500,10 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
     </div>
   );
 }
+
+export default memo(SuperNode, (prev, next) =>
+  prev.node === next.node &&
+  prev.zoom === next.zoom &&
+  prev.isSelected === next.isSelected &&
+  prev.activeWire === next.activeWire
+);
