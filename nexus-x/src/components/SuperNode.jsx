@@ -7,8 +7,8 @@ import { useState, useRef, useEffect } from 'react';
 const SIZES = {
   ANCHOR: 'w-3 h-3',        // 12px
   DELETE: 'w-4',            // 16px
-  PADDING_X: 'px-2',
-  PADDING_Y: 'py-1.5',
+  PADDING_X: 'px-1.5',      // slightly tighter
+  PADDING_Y: 'py-1',        // slightly tighter
 };
 
 // Colors per section type
@@ -223,7 +223,7 @@ const SelectWithCustom = ({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[10px] w-full ${
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -256,7 +256,7 @@ const SelectWithCustom = ({
           }}
           onClick={(e) => e.stopPropagation()}
           placeholder="Type custom..."
-          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[10px] text-zinc-300 outline-none"
+          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
@@ -267,7 +267,7 @@ const SelectWithCustom = ({
             }
             setIsCustomMode(false);
           }}
-          className="text-zinc-400 hover:text-zinc-200 text-[8px] px-1.5 py-0.5 shrink-0 border-l border-zinc-700"
+          className="text-zinc-400 hover:text-zinc-200 text-[9px] px-1.5 py-0.5 shrink-0 border-l border-zinc-700"
           title="Back to dropdown"
         >
           ▼
@@ -336,7 +336,7 @@ const CardWrapper = ({
       <div
         className={`
           flex items-center justify-between
-          py-0.5 text-[8px] font-mono
+          py-0.5 text-[9px] font-mono
           cursor-pointer select-none
           ${isReversed ? 'flex-row-reverse pl-2 pr-1' : 'pl-1 pr-2'}
         `}
@@ -475,7 +475,7 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
       border-2 border-dashed transition-all z-20 flex items-center justify-center
       border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40`}
   >
-    <span className="text-cyan-300 text-[10px] font-mono font-bold pointer-events-none">
+    <span className="text-cyan-300 text-[11px] font-mono font-bold pointer-events-none">
       {side === 'left' ? '← DROP' : 'DROP →'}
     </span>
   </div>
@@ -509,7 +509,7 @@ const BottomDropZone = ({ onDrop }) => (
     className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
       flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer"
   >
-    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
+    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
   </div>
 );
 
@@ -541,7 +541,7 @@ const TopDropZone = ({ onDrop }) => (
     className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
       flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer mb-1"
   >
-    <span className="text-cyan-300 text-[10px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
+    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
   </div>
 );
 
@@ -549,14 +549,45 @@ const TopDropZone = ({ onDrop }) => (
 // ANCHOR COMPONENT
 // ============================================
 
-// Invisible placeholder for anchor positioning - visual rendered in SVG layer
-const Anchor = ({ anchorId, type }) => {
+// Visible anchor point built into the node column
+const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
+  const isInput = type === 'in';
+
+  // Color logic: inputs are green, outputs use signalColor or amber
+  const baseColor = isInput ? '#10b981' : (signalColor || '#f59e0b');
+  const lightColor = isInput ? '#34d399' : (signalColor ? `${signalColor}cc` : '#fbbf24');
+
+  const handleMouseDown = (e) => {
+    e.stopPropagation();
+    // Start wire connection on drag
+    onClick && onClick(anchorId, type);
+  };
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    // Also support simple click (will be called on mouseup if no drag occurred)
+    onClick && onClick(anchorId, type);
+  };
+
   return (
-    <span
+    <div
       data-anchor-id={anchorId}
       data-anchor-type={type}
-      className="w-3 h-3 shrink-0"
-    />
+      className="w-3 h-3 shrink-0 flex items-center justify-center cursor-pointer select-none"
+      onMouseDown={handleMouseDown}
+      onClick={handleClick}
+    >
+      <div
+        className="rounded-full transition-all"
+        style={{
+          width: isActive ? '8px' : '7px',
+          height: isActive ? '8px' : '7px',
+          backgroundColor: baseColor,
+          border: `1px solid ${lightColor}`,
+          boxShadow: isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`
+        }}
+      />
+    </div>
   );
 };
 
@@ -638,7 +669,7 @@ const PortRow = ({
               onToggleAnchor && onToggleAnchor();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[9px] font-mono"
+            className="px-1.5 py-0.5 bg-zinc-700/50 hover:bg-zinc-600 rounded text-[10px] font-mono"
             style={{ color: colorHexLight }}
             title={`Anchors on ${anchorSide} side - click to toggle`}
           >
@@ -721,7 +752,7 @@ const PortRow = ({
   };
 
   return (
-    <div className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[11px] whitespace-nowrap w-full`}>
+    <div className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap w-full`}>
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
@@ -819,7 +850,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
     <div
       data-column-zone="true"
       className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[9px] font-mono text-zinc-500 uppercase tracking-wide w-full`}
+        text-[10px] font-mono text-zinc-500 uppercase tracking-wide w-full`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -989,7 +1020,7 @@ const SectionHeader = ({
   };
 
   // Shared button style for consistency (color applied via inline style)
-  const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[11px] font-mono";
+  const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
 
   // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
   const buttonsJSX = (
@@ -1048,21 +1079,21 @@ const SectionHeader = ({
           className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="px-2 py-1 text-[9px] text-zinc-500 border-b border-zinc-700 font-mono">
+          <div className="px-2 py-1 text-[10px] text-zinc-500 border-b border-zinc-700 font-mono">
             CARD PRESETS
           </div>
           {availablePresets.map((preset) => (
             <button
               key={preset.id}
               onClick={(e) => { e.stopPropagation(); handlePresetSelect(preset.id); }}
-              className="w-full text-left px-2 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
+              className="w-full text-left px-2 py-1.5 text-[11px] font-mono text-zinc-300 hover:bg-zinc-700 flex items-center gap-2"
             >
               <span className="text-zinc-500">{preset.ports.length}p</span>
               <span>{preset.label}</span>
             </button>
           ))}
           {availablePresets.length === 0 && (
-            <div className="px-2 py-1.5 text-[10px] font-mono text-zinc-500">
+            <div className="px-2 py-1.5 text-[11px] font-mono text-zinc-500">
               No presets available
             </div>
           )}
@@ -1086,7 +1117,7 @@ const SectionHeader = ({
                 e.stopPropagation();
                 onToggleCollapse && onToggleCollapse();
               }}
-              className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
               style={{ fontFamily: 'inherit', color: colorHexLight }}
               title={collapsed ? 'Expand section' : 'Collapse section'}
             >
@@ -1104,7 +1135,7 @@ const SectionHeader = ({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
@@ -1128,7 +1159,7 @@ const SectionHeader = ({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[11px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
@@ -1139,7 +1170,7 @@ const SectionHeader = ({
                 e.stopPropagation();
                 onToggleCollapse && onToggleCollapse();
               }}
-              className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
+              className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 ${collapsed ? '' : 'rotate-90'}`}
               style={{ fontFamily: 'inherit', color: colorHexLight }}
               title={collapsed ? 'Expand section' : 'Collapse section'}
             >
@@ -1394,7 +1425,7 @@ const IOSection = ({
 
           <div className="flex-1 w-full">
             {data.ports.length === 0 ? (
-              <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[10px]`}>
+              <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[11px]`}>
                 No {type}s
               </div>
             ) : (
@@ -1490,7 +1521,7 @@ const SystemSection = ({
       >
         <div className="flex items-center gap-1">
           <span
-            className="font-mono font-bold text-[11px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
+            className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
             style={{ color: colorHexLight }}
           >
             SYSTEM
@@ -1503,7 +1534,7 @@ const SystemSection = ({
               onToggleCollapse && onToggleCollapse();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`text-[10px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
+            className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
             style={{ fontFamily: 'inherit', color: colorHexLight }}
             title={collapsed ? 'Expand section' : 'Collapse section'}
           >
@@ -1515,28 +1546,28 @@ const SystemSection = ({
       </div>
 
       {!collapsed && (
-        <div className="p-2 text-[10px]">
+        <div className="p-2 text-[11px]">
           {/* Flex wrap - adapts to available width set by Input/Output sections */}
           <div className="flex flex-wrap gap-2">
             <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
-              <span className="text-zinc-500 font-mono text-[9px]">Platform</span>
+              <span className="text-zinc-500 font-mono text-[10px]">Platform</span>
               <select
                 value={data.platform || 'none'}
                 onChange={(e) => onUpdate({ platform: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
               >
                 {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
             <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
-              <span className="text-zinc-500 font-mono text-[9px]">Software</span>
+              <span className="text-zinc-500 font-mono text-[10px]">Software</span>
               <select
                 value={data.software || 'none'}
                 onChange={(e) => onUpdate({ software: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
               >
                 {SOFTWARE_PRESETS.map(s => (
                   <option key={s.id} value={s.id}>{s.label}</option>
@@ -1545,12 +1576,12 @@ const SystemSection = ({
             </div>
 
             <div className="flex flex-col gap-0.5 min-w-0 flex-1" style={{ minWidth: '70px' }}>
-              <span className="text-zinc-500 font-mono text-[9px]">Capture</span>
+              <span className="text-zinc-500 font-mono text-[10px]">Capture</span>
               <select
                 value={data.captureCard || 'none'}
                 onChange={(e) => onUpdate({ captureCard: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[9px] min-w-0"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] min-w-0"
               >
                 {CAPTURE_CARDS.map(c => (
                   <option key={c.id} value={c.id}>{c.label}</option>
@@ -1621,7 +1652,7 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
         value={node.title}
         onChange={(e) => onUpdate({ title: e.target.value })}
         onClick={(e) => e.stopPropagation()}
-        className="bg-transparent font-mono text-zinc-400 focus:outline-none text-[10px] w-20 opacity-50 hover:opacity-100"
+        className="bg-transparent font-mono text-zinc-400 focus:outline-none text-[11px] w-20 opacity-50 hover:opacity-100"
         title="Edit device name"
         placeholder="Device"
       />
@@ -1632,7 +1663,7 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
           value={node.signalColor || ''}
           onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
           onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-700 border-none rounded px-1 py-0.5 text-[9px] text-zinc-300"
+          className="bg-zinc-700 border-none rounded px-1 py-0.5 text-[10px] text-zinc-300"
           title="Signal color"
           style={{ color: signalColorHex || undefined }}
         >
@@ -2312,7 +2343,7 @@ export default function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, 
 
       {nodeScale !== 1 && (
         <div
-          className="absolute -bottom-5 left-0 text-[9px] font-mono text-zinc-500"
+          className="absolute -bottom-5 left-0 text-[10px] font-mono text-zinc-500"
           style={{ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }}
         >
           {Math.round(nodeScale * 100)}%
