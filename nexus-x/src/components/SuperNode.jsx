@@ -789,18 +789,9 @@ const SectionHeader = ({
     >
       {isReversed ? (
         <>
+          {/* OUTPUTS (anchor right): buttons on inner left, then arrow + title on right */}
           {buttonsJSX}
-          <div className="flex items-center gap-1 flex-row-reverse">
-            <span
-              draggable
-              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
-              onDragEnd={onDragEnd}
-              onMouseDown={(e) => e.stopPropagation()}
-              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
-              title="Drag to reorder section"
-            >
-              {title}
-            </span>
+          <div className="flex items-center gap-1">
             <span
               onClick={(e) => {
                 e.stopPropagation();
@@ -812,10 +803,21 @@ const SectionHeader = ({
             >
               ▸
             </span>
+            <span
+              draggable
+              onDragStart={(e) => onDragStart && onDragStart(e, sectionId)}
+              onDragEnd={onDragEnd}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={`font-mono font-bold ${colors.text} text-[11px] cursor-grab select-none hover:bg-${type === 'input' ? 'emerald' : 'amber'}-500/20 px-1 py-0.5 rounded whitespace-nowrap`}
+              title="Drag to reorder section"
+            >
+              {title}
+            </span>
           </div>
         </>
       ) : (
         <>
+          {/* INPUTS (anchor left): title + arrow on left, buttons on inner right */}
           <div className="flex items-center gap-1">
             <span
               draggable
