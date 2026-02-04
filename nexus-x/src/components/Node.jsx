@@ -835,11 +835,13 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 
 // Main Node component
 function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
-  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const hasDraggedRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
+  const [isDraggingVisual, setIsDraggingVisual] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Drag state for section reordering in stacked mode
   const [draggedSection, setDraggedSection] = useState(null);
@@ -939,58 +941,63 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
   }, [isResizing, resizeDirection, resizeStart, onUpdate]);
 
   // Drag handling - position is in paper-space coordinates
-  // Since zoom is applied at container level, we need to convert screen coords to paper coords
+  // Uses refs + document listeners (not useState/useEffect) for reliable click-vs-drag detection
   const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
-    if (isResizing) return; // Don't start drag if resizing
+    if (isResizing) return;
 
     e.preventDefault();
-    setIsDragging(true);
-    // Store the offset from mouse to node position (in screen space)
+    e.stopPropagation();
+
+    setIsDraggingVisual(true);
+
     const rect = nodeRef.current.getBoundingClientRect();
-    setDragStart({
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top
-    });
-  };
+    };
+    isDraggingRef.current = true;
+    hasDraggedRef.current = false;
 
-  useEffect(() => {
-    if (!isDragging) return;
+    const handleMouseMove = (moveEvent) => {
+      if (!isDraggingRef.current) return;
 
-    const handleMouseMove = (e) => {
-      // Get the canvas container to calculate relative position
+      // Track if mouse moved enough to suppress click-to-select (3px)
+      if (!hasDraggedRef.current) {
+        const dx = Math.abs(moveEvent.clientX - dragStartRef.current.x);
+        const dy = Math.abs(moveEvent.clientY - dragStartRef.current.y);
+        if (dx >= 3 || dy >= 3) hasDraggedRef.current = true;
+      }
+
+      // Always update position (instant drag, no threshold)
       const canvas = nodeRef.current?.closest('[data-canvas]');
       if (!canvas) return;
-
       const canvasRect = canvas.getBoundingClientRect();
 
-      // Convert screen position to paper-space position (accounting for zoom)
-      let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
-      let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
+      let newX = (moveEvent.clientX - canvasRect.left - dragStartRef.current.offsetX) / zoom;
+      let newY = (moveEvent.clientY - canvasRect.top - dragStartRef.current.offsetY) / zoom;
 
-      // Snap to grid if enabled
       if (snapToGrid && gridSize > 0) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }
 
-      onUpdate({
-        position: { x: newX, y: newY }
-      });
+      onUpdate({ position: { x: newX, y: newY } });
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
+      isDraggingRef.current = false;
+      setIsDraggingVisual(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
 
   // Drag handlers for section reordering in stacked mode
   const handleSectionDragStart = (e, sectionId) => {
@@ -1202,8 +1209,8 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
 
   // Handle click to select (shift+click to add to selection)
   const handleClick = (e) => {
-    if (onSelect && !isDragging) {
-      e.stopPropagation();
+    e.stopPropagation();
+    if (onSelect && !hasDraggedRef.current) {
       onSelect(node.id, e.shiftKey);
     }
   };
@@ -1211,17 +1218,18 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
   return (
     <div
       ref={nodeRef}
+      data-node-id={node.id}
       className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
         isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
       } ${
-        isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
+        isDraggingVisual ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
       }`}
       style={{
         left: node.position.x,
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDragging || isResizing ? 100 : isSelected ? 50 : 10,
+        zIndex: isDraggingVisual || isResizing ? 100 : isSelected ? 50 : 10,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
         // Conditionally apply grid or flex styles
