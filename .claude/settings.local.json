@@ -13,7 +13,18 @@
       "Bash(npm run dev:*)",
       "Bash(npm create:*)",
       "Bash(timeout:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit - Signal Flow Workspace\n\nReact + Vite application for video signal flow diagrams with:\n- Node components with configurable layouts \\(columns/stacked\\)\n- System, Input, Output sections with dropdowns\n- SVG-based wire connections with fluid movement\n- Multi-page workspace support\n- Anchor side toggle for stacked mode\n- Signal color propagation through wire paths\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit - Signal Flow Workspace\n\nReact + Vite application for video signal flow diagrams with:\n- Node components with configurable layouts \\(columns/stacked\\)\n- System, Input, Output sections with dropdowns\n- SVG-based wire connections with fluid movement\n- Multi-page workspace support\n- Anchor side toggle for stacked mode\n- Signal color propagation through wire paths\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd GitHub Pages deployment\n\n- Configure Vite base path for /node/ subdirectory\n- Add GitHub Actions workflow for automatic deployment\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh run list:*)",
+      "WebFetch(domain:zicov-a11y.github.io)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm run build:*)",
+      "Bash(start:*)",
+      "Bash(code --install-extension:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }
