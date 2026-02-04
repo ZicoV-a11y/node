@@ -227,7 +227,7 @@ const SelectWithCustom = ({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full text-center ${
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full max-w-full overflow-hidden text-ellipsis text-center ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -299,7 +299,7 @@ const SelectWithCustom = ({
       <option value="">{placeholder}</option>
       {/* Show custom value as first option if it exists */}
       {isCustomValue && (
-        <option value={value}>{value} (custom)</option>
+        <option value={value}>{value}</option>
       )}
       {options.map(opt => (
         <option key={opt} value={opt}>{opt}</option>
@@ -396,13 +396,18 @@ const COLUMN_DEFS = {
   flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
 };
 
-// Estimate text width in pixels (monospace font at 10px ≈ 6px per character)
-const CHAR_WIDTH = 6;
-const PADDING = 16; // px padding inside cell
+// Width calculation constants
+const CHAR_WIDTH = 7; // Character width for text estimation
+const PADDING = 16; // Padding inside cells
+const DROPDOWN_ARROW_WIDTH = 20; // Width reserved for native select dropdown arrow
+const SEPARATOR_WIDTH = 9; // 1px content + 8px margins (mx-2)
 
-const estimateTextWidth = (text) => {
+const estimateTextWidth = (text, isDropdown = false) => {
   if (!text) return 0;
-  return text.length * CHAR_WIDTH + PADDING;
+  const baseWidth = text.length * CHAR_WIDTH + PADDING;
+  const width = isDropdown ? baseWidth + DROPDOWN_ARROW_WIDTH : baseWidth;
+  // Return calculated width without artificial cap - let node expand to fit all columns
+  return width;
 };
 
 // Calculate dynamic column widths based on port data
@@ -419,23 +424,29 @@ const calculateColumnWidths = (ports) => {
     flip: COLUMN_DEFS.flip.minWidth,
   };
 
-  // Also consider header labels
-  widths.source = Math.max(widths.source, estimateTextWidth('Source'));
-  widths.destination = Math.max(widths.destination, estimateTextWidth('Destination'));
-  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector'));
-  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution'));
-  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate'));
+  // Also consider header labels and placeholder text (with dropdown arrow width)
+  widths.source = Math.max(widths.source, estimateTextWidth('Source', true));
+  widths.destination = Math.max(widths.destination, estimateTextWidth('Destination', true));
+  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector', true), estimateTextWidth('Type', true));
+  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution', true), estimateTextWidth('Choose', true));
+  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate', true), estimateTextWidth('Choose', true));
 
-  // Scan all ports to find max width needed
+  // Scan all ports to find max width needed (with dropdown arrow width)
   ports.forEach(port => {
+    if (port.source) {
+      widths.source = Math.max(widths.source, estimateTextWidth(port.source, true));
+    }
+    if (port.destination) {
+      widths.destination = Math.max(widths.destination, estimateTextWidth(port.destination, true));
+    }
     if (port.connector) {
-      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector));
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector, true));
     }
     if (port.resolution) {
-      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution));
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution, true));
     }
     if (port.refreshRate) {
-      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate));
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate, true));
     }
   });
 
@@ -758,7 +769,7 @@ const PortRow = ({
         return (
           <SelectWithCustom
             value={port.source || ''}
-            options={['Custom']}
+            options={['Custom...']}
             placeholder="Source"
             isSelected={isSelected}
             onChange={(value) => {
@@ -774,7 +785,7 @@ const PortRow = ({
         return (
           <SelectWithCustom
             value={port.destination || ''}
-            options={['Custom']}
+            options={['Custom...']}
             placeholder="Destination"
             isSelected={isSelected}
             onChange={(value) => {
@@ -811,8 +822,8 @@ const PortRow = ({
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
             <span
-              className="shrink-0 flex items-center justify-center"
-              style={{ width: `${getColumnWidth(colId)}px` }}
+              className="shrink-0 flex items-center justify-center overflow-hidden"
+              style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
             >
               {renderColumnContent(colId)}
             </span>
@@ -933,10 +944,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 }}
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
+                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors overflow-hidden ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px` }}
+                style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
                 title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
@@ -951,10 +962,10 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                   if (isDraggable) handleDragStart(e, colId);
                 }}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center transition-opacity
+                className={`shrink-0 flex items-center justify-center transition-opacity overflow-hidden
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px` }}
+                style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
                 title={isDraggable ? "Drag to reorder" : undefined}
               >
                 {colDef.label}
@@ -1512,7 +1523,7 @@ const IOSection = ({
               : ['anchor', ...dataOrder];  // Anchor at start = left side
 
             return (
-              <div key={port.id} className={`flex items-center py-0.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
+              <div key={port.id} className={`flex items-center py-1.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
                 {/* INPUT layout: [Anchor][Source] - all on left */}
                 {!shouldAnchorBeOnRight && (() => {
                   const anchorId = `${nodeId}-${port.id}`;
@@ -1537,7 +1548,13 @@ const IOSection = ({
                         />
                       </span>
                       {/* Source */}
-                      <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['source'] || 90}px` }}>
+                      <span
+                        className="shrink-0 text-[10px] text-white truncate overflow-hidden"
+                        style={{
+                          width: `${columnWidths['source'] || 90}px`,
+                          maxWidth: `${columnWidths['source'] || 90}px`
+                        }}
+                      >
                         {port.source || ''}
                       </span>
                     </div>
@@ -1551,7 +1568,13 @@ const IOSection = ({
                   return (
                     <div className="flex items-center gap-2">
                       {/* Destination */}
-                      <span className="shrink-0 text-[10px] text-zinc-600 truncate text-right" style={{ width: `${columnWidths['destination'] || 90}px` }}>
+                      <span
+                        className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden"
+                        style={{
+                          width: `${columnWidths['destination'] || 90}px`,
+                          maxWidth: `${columnWidths['destination'] || 90}px`
+                        }}
+                      >
                         {port.destination || ''}
                       </span>
                       {/* Anchor */}
@@ -1638,7 +1661,10 @@ const SystemSection = ({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
-  isSideBySideView = false, // When true, INPUT/OUTPUT are side-by-side, use wider layout
+  isSideBySideView = false, // When true, INPUT/OUTPUT are side-by-side, show two-column layout
+  useFixedWidths = false, // When true, use fixed widths to align with INPUT/OUTPUT
+  inputSectionWidth, // content width for left column
+  outputSectionWidth, // content width for right column
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1731,10 +1757,11 @@ const SystemSection = ({
         <div className="p-2 text-[11px] w-full">
           {/* Two dropdown system with checkmark in same row */}
           <div className="relative w-full">
-            {/* Grid layout for dropdowns when side-by-side view */}
-            <div className={isSideBySideView ? "grid grid-cols-2 gap-1 w-full items-center" : "flex gap-2 items-center w-full"}>
-              {/* Left: Field Type dropdown with custom text input */}
-              <div className="flex items-center flex-1">
+            {/* Flex layout with specific widths when side-by-side to match INPUT/OUTPUT sections */}
+            <div className={isSideBySideView ? "flex items-center gap-3" : "flex gap-2 items-center w-full"}>
+              {/* Left: Field Type dropdown - matches INPUT section width when using fixed widths */}
+              <div className="flex items-center"
+                   style={useFixedWidths && inputSectionWidth ? { width: `${inputSectionWidth}px` } : { flex: 1 }}>
                 <SelectWithCustom
                   value={data.selectedField || 'Manufacturer'}
                   options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
@@ -1745,9 +1772,10 @@ const SystemSection = ({
                 />
               </div>
 
-              {/* Right: Value dropdown/input (changes based on left selection) */}
-              <div className="flex items-center gap-1">
-                <div className="flex-1">
+              {/* Right: Value dropdown/input + checkmark - matches OUTPUT section width when using fixed widths */}
+              <div className="flex items-center gap-1"
+                   style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth}px` } : { flex: 1 }}>
+                <div style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth - 32}px` } : undefined} className={!useFixedWidths ? "flex-1" : ""}>
                   {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                     <SelectWithCustom
                       value={data.selectedValue || ''}
@@ -1827,7 +1855,7 @@ const SystemSection = ({
                     }}
                     className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
                     title="Approve and add to header"
-                    style={{ minWidth: '28px', height: '28px' }}
+                    style={{ width: '28px', height: '28px' }}
                   >
                     ✓
                   </button>
@@ -1845,7 +1873,7 @@ const SystemSection = ({
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
+const TitleBar = ({ node, onUpdate, onDelete, themeColors, inputSectionWidth, outputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
   const signalColorHex = node.signalColor
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
@@ -1934,8 +1962,22 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
         </div>
       </div>
 
-      {/* Centered title - absolutely positioned at exact 50% mark */}
-      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap">
+      {/* Centered title - positioned at divider when side-by-side, otherwise centered */}
+      <div
+        className="absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
+        style={{
+          left: (() => {
+            // Only use special divider-centered positioning when both sections are expanded and side-by-side
+            if (areIOSideBySide && !inputCollapsed && !outputCollapsed && inputSectionWidth) {
+              // Position at the divider between INPUT and OUTPUT sections
+              // inputSectionWidth already includes buffer, just add gap between sections
+              return `${inputSectionWidth + 8}px`;
+            }
+            // All other cases: use standard 50% centering (collapsed, stacked, or mixed states)
+            return '50%';
+          })()
+        }}
+      >
         <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
       </div>
 
@@ -2044,6 +2086,35 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
   const sharedColumnWidths = calculateColumnWidths(allPorts);
+
+  // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
+  // When side-by-side, sections have: anchor(24) + delete(24) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
+  // Gaps between columns: 8px each (via mx-2 on separator)
+  const calculateSectionWidth = (includeDest = false) => {
+    const columns = [
+      sharedColumnWidths.anchor,      // 24
+      sharedColumnWidths.delete,      // 24
+      sharedColumnWidths.port,        // 52
+      includeDest ? sharedColumnWidths.destination : sharedColumnWidths.source,  // dynamic
+      sharedColumnWidths.connector,   // dynamic
+      sharedColumnWidths.resolution,  // dynamic
+      sharedColumnWidths.rate,        // dynamic
+    ];
+    const numGaps = columns.length - 1; // gaps between columns
+    const gapWidth = SEPARATOR_WIDTH; // 9px (1px content + 8px mx-2 margins)
+    return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
+  };
+
+  const inputContentWidth = calculateSectionWidth(false); // uses source
+  const outputContentWidth = calculateSectionWidth(true); // uses destination
+
+  // Container widths include buffer for borders, CardWrapper stripe (4px), and spacing
+  const inputSectionWidth = inputContentWidth + 50;
+  const outputSectionWidth = outputContentWidth + 50;
+
+  // Collapsed section widths (anchor + gap + source/destination only)
+  const inputCollapsedWidth = 24 + 8 + sharedColumnWidths.source; // anchor + gap-2 + source
+  const outputCollapsedWidth = sharedColumnWidths.destination + 8 + 24; // destination + gap-2 + anchor
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
@@ -2497,6 +2568,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
             isSideBySideView={areIOSideBySide}
+            useFixedWidths={areIOSideBySide && (node.layout.inputCollapsed === node.layout.outputCollapsed)}
+            inputSectionWidth={node.layout.inputCollapsed && node.layout.outputCollapsed ? inputCollapsedWidth : inputSectionWidth}
+            outputSectionWidth={node.layout.inputCollapsed && node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
           />
         );
       case 'input':
@@ -2557,6 +2631,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     }
   };
 
+  // Calculate dynamic minWidth based on collapsed state
+  const allSectionsCollapsed = node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed;
+  const dynamicMinWidth = allSectionsCollapsed ? 'auto' : 320;
+
   return (
     <div
       ref={nodeRef}
@@ -2569,7 +2647,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         left: node.position.x,
         top: node.position.y,
         width: 'auto',
-        minWidth: 320,
+        minWidth: dynamicMinWidth,
         zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
@@ -2578,7 +2656,17 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       onMouseDown={handleMouseDown}
       onClick={handleClick}
     >
-      <TitleBar node={node} onUpdate={onUpdate} onDelete={onDelete} themeColors={themeColors} />
+      <TitleBar
+        node={node}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        themeColors={themeColors}
+        inputSectionWidth={inputSectionWidth}
+        outputSectionWidth={outputSectionWidth}
+        areIOSideBySide={areIOSideBySide}
+        inputCollapsed={node.layout.inputCollapsed}
+        outputCollapsed={node.layout.outputCollapsed}
+      />
 
       {/* Row-based layout */}
       <div className="flex flex-col">
@@ -2653,9 +2741,59 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                   );
                 }
 
+                // Check if section is collapsed
+                const isCollapsed = sectionId === 'input'
+                  ? node.layout.inputCollapsed
+                  : sectionId === 'output'
+                  ? node.layout.outputCollapsed
+                  : node.layout.systemCollapsed;
+
+                // Calculate wrapper width and className for side-by-side layout
+                const getWrapperClassName = () => {
+                  if (isSingleSectionRow) return 'w-full';
+                  // When collapsed, don't use flex-1 (let it shrink to content)
+                  if (isCollapsed) return '';
+                  // When expanded, don't use flex-1 if we have a fixed width
+                  const hasFixedWidth = (sectionId === 'input' || sectionId === 'output') && (inputSectionWidth || outputSectionWidth);
+                  if (hasFixedWidth) return '';
+                  // Fallback: use flex-1
+                  return 'flex-1';
+                };
+
+                const getWrapperStyle = () => {
+                  if (isSingleSectionRow) return {};
+
+                  // Only apply fixed widths when expanded
+                  if (isCollapsed) {
+                    return {};
+                  }
+
+                  // When expanded and side-by-side, use calculated widths with overflow constraints
+                  if (sectionId === 'input' && inputSectionWidth) {
+                    return {
+                      width: `${inputSectionWidth}px`,
+                      maxWidth: `${inputSectionWidth}px`,
+                      flexShrink: 0,
+                      overflow: 'hidden'
+                    };
+                  }
+                  if (sectionId === 'output' && outputSectionWidth) {
+                    return {
+                      width: `${outputSectionWidth}px`,
+                      maxWidth: `${outputSectionWidth}px`,
+                      flexShrink: 0,
+                      overflow: 'hidden'
+                    };
+                  }
+                  return {}; // Fallback for other sections
+                };
+
                 return (
                   <Fragment key={sectionId}>
-                    <div className={isSingleSectionRow ? 'w-full' : 'flex-1'}>
+                    <div
+                      className={getWrapperClassName()}
+                      style={getWrapperStyle()}
+                    >
                       <DraggableSection
                         sectionId={sectionId}
                         anchorSide={anchorSide}
