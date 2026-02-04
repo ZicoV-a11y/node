@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, memo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, memo, Fragment } from 'react';
 
 // ============================================
 // CONSTANTS - Single source of truth for sizes
@@ -119,6 +119,10 @@ const getThemeColors = (signalColorId) => {
   };
 };
 
+const MANUFACTURERS = [
+  'Barco', 'Black Magic', 'AJA', 'Apple', 'Dell', 'HP', 'Lenovo', 'Custom...'
+];
+
 const PLATFORMS = [
   'none',
   'MacBook Pro', 'MacBook Air', 'Mac Mini', 'Mac Studio', 'Mac Pro',
@@ -223,7 +227,7 @@ const SelectWithCustom = ({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full ${
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full text-center ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -558,9 +562,6 @@ const TopDropZone = ({ onDrop }) => (
 // Visible anchor point built into the node column
 const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
   const isInput = type === 'in';
-
-  // Debug log
-  console.log('NEW ANCHOR CODE:', { anchorId, themeColor, isConnected });
 
   // Use theme color if provided, otherwise fallback to signal color or default
   const baseColor = themeColor || (isInput ? '#71717a' : (signalColor || '#71717a')); // zinc-500 when off
@@ -1275,6 +1276,7 @@ const IOSection = ({
   colors,
   connectedAnchorIds,
   themeColor,
+  sharedColumnWidths,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -1448,8 +1450,8 @@ const IOSection = ({
     ports: data.ports.filter(p => p.cardId === card.id)
   }));
 
-  // Calculate dynamic column widths based on port content
-  const columnWidths = calculateColumnWidths(data.ports);
+  // Calculate dynamic column widths based on port content (use shared widths if provided)
+  const columnWidths = sharedColumnWidths || calculateColumnWidths(data.ports);
 
   // Helper to render port rows
   const renderPortRows = (ports) => (
@@ -1512,27 +1514,31 @@ const IOSection = ({
             return (
               <div key={port.id} className="flex items-center justify-between py-0.5 opacity-40 hover:opacity-100 transition-opacity">
                 {/* Render anchor on left for inputs */}
-                {!shouldAnchorBeOnRight && (
-                  <div className="flex items-center">
-                    <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
-                      <div
-                        data-anchor-id={`${nodeId}-${port.id}`}
-                        data-anchor-type="in"
-                        className="w-2 h-2 rounded-full cursor-pointer"
-                        style={{
-                          backgroundColor: '#10b981',
-                          border: '1px solid #34d399',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, 'in');
-                        }}
-                        title={`${port.label || port.id} (collapsed)`}
-                      />
-                    </span>
-                    <span className="w-px shrink-0 mx-2" />
-                  </div>
-                )}
+                {!shouldAnchorBeOnRight && (() => {
+                  const anchorId = `${nodeId}-${port.id}`;
+                  const isConnected = connectedAnchorIds?.has(anchorId);
+                  return (
+                    <div className="flex items-center">
+                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                        <div
+                          data-anchor-id={anchorId}
+                          data-anchor-type="in"
+                          className="w-2 h-2 rounded-full cursor-pointer"
+                          style={{
+                            backgroundColor: isConnected ? (themeColor || '#71717a') : '#71717a',
+                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : '#a1a1aa') : '#a1a1aa'}`,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAnchorClick && onAnchorClick(anchorId, 'in');
+                          }}
+                          title={`${port.label || port.id} (collapsed)`}
+                        />
+                      </span>
+                      <span className="w-px shrink-0 mx-2" />
+                    </div>
+                  );
+                })()}
 
                 {/* Port label */}
                 <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['port'] || 52}px` }}>
@@ -1540,27 +1546,31 @@ const IOSection = ({
                 </span>
 
                 {/* Render anchor on right for outputs */}
-                {shouldAnchorBeOnRight && (
-                  <div className="flex items-center">
-                    <span className="w-px shrink-0 mx-2" />
-                    <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
-                      <div
-                        data-anchor-id={`${nodeId}-${port.id}`}
-                        data-anchor-type="out"
-                        className="w-2 h-2 rounded-full cursor-pointer"
-                        style={{
-                          backgroundColor: signalColor || '#f59e0b',
-                          border: `1px solid ${signalColor ? `${signalColor}cc` : '#fbbf24'}`,
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, 'out');
-                        }}
-                        title={`${port.label || port.id} (collapsed)`}
-                      />
-                    </span>
-                  </div>
-                )}
+                {shouldAnchorBeOnRight && (() => {
+                  const anchorId = `${nodeId}-${port.id}`;
+                  const isConnected = connectedAnchorIds?.has(anchorId);
+                  return (
+                    <div className="flex items-center">
+                      <span className="w-px shrink-0 mx-2" />
+                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                        <div
+                          data-anchor-id={anchorId}
+                          data-anchor-type="out"
+                          className="w-2 h-2 rounded-full cursor-pointer"
+                          style={{
+                            backgroundColor: isConnected ? (themeColor || (signalColor || '#71717a')) : '#71717a',
+                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : '#a1a1aa')) : '#a1a1aa'}`,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAnchorClick && onAnchorClick(anchorId, 'out');
+                          }}
+                          title={`${port.label || port.id} (collapsed)`}
+                        />
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -1700,77 +1710,126 @@ const SystemSection = ({
           </span>
         </div>
 
-        <span className="flex-1 pointer-events-none" />
+        {/* Display approved fields in header (excluding Manufacturer and Model which are in title bar) */}
+        {data.approvedFields && (data.approvedFields['Platform'] || data.approvedFields['Software'] || data.approvedFields['Capture'] || data.approvedFields['IP Address']) && (
+          <div className="flex-1 px-2 pointer-events-none text-[9px] font-mono opacity-70">
+            <div className="truncate">
+              {data.approvedFields['IP Address'] && <span>IP: {data.approvedFields['IP Address']}</span>}
+              {data.approvedFields['Platform'] && <span className={data.approvedFields['IP Address'] ? 'ml-1' : ''}>{data.approvedFields['IP Address'] ? '| ' : ''}{data.approvedFields['Platform']}</span>}
+              {data.approvedFields['Software'] && <span className="ml-1">| {data.approvedFields['Software']}</span>}
+              {data.approvedFields['Capture'] && <span className="ml-1">| {data.approvedFields['Capture']}</span>}
+            </div>
+          </div>
+        )}
+        {(!data.approvedFields || (!data.approvedFields['Platform'] && !data.approvedFields['Software'] && !data.approvedFields['Capture'] && !data.approvedFields['IP Address'])) && <span className="flex-1 pointer-events-none" />}
       </div>
 
       {!collapsed && (
         <div className="p-2 text-[11px] w-full">
-          {/* Adaptive grid layout based on view:
-              - Stacked view: 2 columns (constrained, doesn't force node width)
-              - Side-by-side view: 3 columns (utilizes full available width) */}
-          <div className={`grid ${isSideBySideView ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 w-full`}>
-            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-              <span className="text-white font-mono text-[10px]">Manufacturer</span>
-              <input
-                type="text"
-                value={data.manufacturer || ''}
-                onChange={(e) => onUpdate({ manufacturer: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                placeholder="Manufacturer..."
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
-              />
-            </div>
+          {/* Two dropdown system with checkmark in same row */}
+          <div className="relative w-full">
+            {/* Grid layout for dropdowns when side-by-side view */}
+            <div className={isSideBySideView ? "grid grid-cols-2 gap-1 w-full items-center" : "flex gap-2 items-center w-full"}>
+              {/* Left: Field Type dropdown with custom text input */}
+              <div className="flex items-center flex-1">
+                <SelectWithCustom
+                  value={data.selectedField || 'Manufacturer'}
+                  options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
+                  placeholder="Select field..."
+                  onChange={(value) => {
+                    onUpdate({ selectedField: value, selectedValue: '' });
+                  }}
+                />
+              </div>
 
-            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-              <span className="text-white font-mono text-[10px]">Model</span>
-              <input
-                type="text"
-                value={data.model || ''}
-                onChange={(e) => onUpdate({ model: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                placeholder="Model..."
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
-              />
-            </div>
+              {/* Right: Value dropdown/input (changes based on left selection) */}
+              <div className="flex items-center gap-1">
+                <div className="flex-1">
+                  {(!data.selectedField || data.selectedField === 'Manufacturer') && (
+                    <SelectWithCustom
+                      value={data.selectedValue || ''}
+                      options={MANUFACTURERS}
+                      placeholder="Select manufacturer..."
+                      onChange={(value) => onUpdate({ selectedValue: value })}
+                    />
+                  )}
+                  {data.selectedField === 'Model' && (
+                    <input
+                      type="text"
+                      value={data.selectedValue || ''}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ selectedValue: e.target.value });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Enter model..."
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                    />
+                  )}
+                  {data.selectedField === 'Platform' && (
+                    <SelectWithCustom
+                      value={data.selectedValue || ''}
+                      options={PLATFORMS}
+                      placeholder="Select platform..."
+                      onChange={(value) => onUpdate({ selectedValue: value })}
+                    />
+                  )}
+                  {data.selectedField === 'Software' && (
+                    <SelectWithCustom
+                      value={data.selectedValue || ''}
+                      options={SOFTWARE_PRESETS.map(s => s.label)}
+                      placeholder="Select software..."
+                      onChange={(value) => onUpdate({ selectedValue: value })}
+                    />
+                  )}
+                  {data.selectedField === 'Capture' && (
+                    <SelectWithCustom
+                      value={data.selectedValue || ''}
+                      options={CAPTURE_CARDS.map(c => c.label)}
+                      placeholder="Select capture card..."
+                      onChange={(value) => onUpdate({ selectedValue: value })}
+                    />
+                  )}
+                  {data.selectedField === 'IP Address' && (
+                    <input
+                      type="text"
+                      value={data.selectedValue || ''}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ selectedValue: e.target.value });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Enter IP address..."
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                    />
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-              <span className="text-white font-mono text-[10px]">Platform</span>
-              <select
-                value={data.platform || 'none'}
-                onChange={(e) => onUpdate({ platform: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
-              >
-                {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
+                {/* Checkmark Button - in side-by-side view, show inline */}
+                {isSideBySideView && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const field = data.selectedField || 'Manufacturer';
+                      const value = data.selectedValue || '';
 
-            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-              <span className="text-white font-mono text-[10px]">Software</span>
-              <select
-                value={data.software || 'none'}
-                onChange={(e) => onUpdate({ software: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
-              >
-                {SOFTWARE_PRESETS.map(s => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+                      // Add to approved fields
+                      const approvedFields = data.approvedFields || {};
+                      approvedFields[field] = value;
 
-            <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-              <span className="text-white font-mono text-[10px]">Capture</span>
-              <select
-                value={data.captureCard || 'none'}
-                onChange={(e) => onUpdate({ captureCard: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px]"
-              >
-                {CAPTURE_CARDS.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+                      onUpdate({
+                        approvedFields: approvedFields,
+                        selectedValue: '' // Clear value after approve
+                      });
+                    }}
+                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                    title="Approve and add to header"
+                    style={{ minWidth: '28px', height: '28px' }}
+                  >
+                    ✓
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1784,6 +1843,7 @@ const SystemSection = ({
 // ============================================
 
 const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
+  const [showSettings, setShowSettings] = useState(false);
   const signalColorHex = node.signalColor
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
     : null;
@@ -1803,52 +1863,126 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
     return node.title;
   };
 
+  const handleResetSystemSettings = () => {
+    onUpdate({
+      system: {
+        ...node.system,
+        approvedFields: {},
+        selectedField: 'Manufacturer',
+        selectedValue: ''
+      }
+    });
+    setShowSettings(false);
+  };
+
   // Use theme header colors (hex values for inline styles)
   const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
   const headerTextHex = '#ffffff'; // White text for all headers
 
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
+      className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
       style={{
         borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
         backgroundColor: `${headerHex}33`, // 20% opacity
       }}
     >
-      {/* Centered title - absolutely positioned */}
-      <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-none">
+      {/* Left corner - Manufacturer/Model and Color picker */}
+      <div className="flex items-center gap-2 z-10">
+        {(node.system?.approvedFields?.['Manufacturer'] || node.system?.approvedFields?.['Model']) && (
+          <div className="flex flex-col gap-0 font-mono leading-tight" style={{ color: headerTextHex }}>
+            {node.system?.approvedFields?.['Manufacturer'] && (
+              <div className="opacity-90 text-[12px]">{node.system.approvedFields['Manufacturer']}</div>
+            )}
+            {node.system?.approvedFields?.['Model'] && (
+              <div className="opacity-70 text-[10px]">{node.system.approvedFields['Model']}</div>
+            )}
+          </div>
+        )}
+
+        {/* Signal color picker - rounded square style */}
+        <div className="relative">
+          <select
+            value={node.signalColor || ''}
+            onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
+            onClick={(e) => e.stopPropagation()}
+            className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
+            title="Signal color"
+            style={{
+              colorScheme: 'dark'
+            }}
+          >
+            <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
+            {SIGNAL_COLORS.map(color => (
+              <option key={color.id} value={color.id} className="bg-zinc-800 text-zinc-300">
+                {color.label}
+              </option>
+            ))}
+          </select>
+          <div
+            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
+            style={{
+              backgroundColor: signalColorHex || '#52525b',
+              boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
+              borderColor: signalColorHex ? `${signalColorHex}cc` : '#71717a'
+            }}
+            title={node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color'}
+          />
+        </div>
+      </div>
+
+      {/* Centered title - absolutely positioned at exact 50% mark */}
+      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap">
         <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
       </div>
 
-      <div className="flex items-center gap-1 ml-auto shrink-0">
-        {/* Signal color picker */}
-        <select
-          value={node.signalColor || ''}
-          onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-700 border-none rounded px-1 py-0.5 text-[10px] text-zinc-300"
-          title="Signal color"
-          style={{ color: signalColorHex || undefined }}
-        >
-          <option value="">No Color</option>
-          {SIGNAL_COLORS.map(color => (
-            <option key={color.id} value={color.id} style={{ color: color.hex }}>
-              ● {color.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Delete button */}
+      {/* Settings button - top right */}
+      <div className="flex items-center gap-1 ml-auto z-10 relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onDelete();
+            setShowSettings(!showSettings);
           }}
-          className="text-red-400 hover:text-red-300 ml-1 text-sm font-bold"
-          title="Delete node"
+          className="text-zinc-300 hover:text-white text-[16px] px-1"
+          title="Node settings"
         >
-          ×
+          ⚙
         </button>
+
+        {/* Settings dropdown menu */}
+        {showSettings && (
+          <div
+            className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-50 py-1 min-w-[160px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // TODO: Implement save preset
+                setShowSettings(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
+            >
+              Save Preset
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // TODO: Implement set as default
+                setShowSettings(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
+            >
+              Set as Default
+            </button>
+            <button
+              onClick={handleResetSystemSettings}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-red-400 hover:bg-zinc-700 hover:text-red-300"
+            >
+              Reset System Settings
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1901,11 +2035,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // Generate cohesive theme colors from signal color
   const themeColors = getThemeColors(node.signalColor);
 
-  // Debug
-  console.log('NODE SIGNAL COLOR:', node.signalColor, 'THEME COLORS:', themeColors);
-
   // Extract theme color for anchors (use the header/main color)
   const anchorThemeColor = themeColors.header?.hex || null;
+
+  // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
+  const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
+  const sharedColumnWidths = calculateColumnWidths(allPorts);
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
@@ -2380,6 +2515,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             colors={themeColors.input}
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
+            sharedColumnWidths={sharedColumnWidths}
           />
         );
       case 'output':
@@ -2402,6 +2538,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             colors={themeColors.output}
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
+            sharedColumnWidths={sharedColumnWidths}
           />
         );
       default:
@@ -2463,8 +2600,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           const rowKey = row.join('-');
 
           return (
-            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''}`}>
+            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''} items-stretch`}>
               {row.map((sectionId, colIndex) => {
+                const isLastInRow = colIndex === row.length - 1;
                 if (!sectionId) return null;
 
                 const anchorSide = getAnchorSide(sectionId, rowIndex, colIndex, isSingleSectionRow);
@@ -2487,42 +2625,62 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                 // This ensures event handlers are freshly attached
                 if (sectionId === 'system') {
                   return (
-                    <div
-                      key={`system-row-${rowIndex}`}
-                      className={isSingleSectionRow ? 'w-full' : 'flex-1'}
-                      style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
-                      onDragOver={(e) => handleSectionDragOver(e, 'system')}
-                      onDrop={(e) => handleSectionDrop(e, 'system')}
-                      // Also support mouse-based drops
-                      onMouseUp={() => handleSectionDrop(null, 'system')}
-                    >
-                      {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
-                    </div>
+                    <Fragment key={`system-row-${rowIndex}`}>
+                      <div
+                        className={isSingleSectionRow ? 'w-full' : 'flex-1'}
+                        style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
+                        onDragOver={(e) => handleSectionDragOver(e, 'system')}
+                        onDrop={(e) => handleSectionDrop(e, 'system')}
+                        // Also support mouse-based drops
+                        onMouseUp={() => handleSectionDrop(null, 'system')}
+                      >
+                        {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
+                      </div>
+                      {/* Divider between sections when side-by-side */}
+                      {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                        <div
+                          className="self-stretch"
+                          style={{
+                            width: '2.5px',
+                            background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
+                          }}
+                        />
+                      )}
+                    </Fragment>
                   );
                 }
 
                 return (
-                  <div
-                    key={sectionId}
-                    className={isSingleSectionRow ? 'w-full' : 'flex-1'}
-                  >
-                    <DraggableSection
-                      sectionId={sectionId}
-                      anchorSide={anchorSide}
-                      onDragStart={handleSectionDragStart}
-                      onDragOver={handleSectionDragOver}
-                      onDragEnd={handleSectionDragEnd}
-                      onDrop={handleSectionDrop}
-                      onDropToSide={handleDropToSide}
-                      isDragging={draggedSection === sectionId}
-                      isDraggedOver={dragOverSection === sectionId}
-                      showSideDropZones={showSideDropZones}
-                      isSingleSectionRow={isSingleSectionRow}
-                      draggedSection={draggedSection}
-                    >
-                      {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
-                    </DraggableSection>
-                  </div>
+                  <Fragment key={sectionId}>
+                    <div className={isSingleSectionRow ? 'w-full' : 'flex-1'}>
+                      <DraggableSection
+                        sectionId={sectionId}
+                        anchorSide={anchorSide}
+                        onDragStart={handleSectionDragStart}
+                        onDragOver={handleSectionDragOver}
+                        onDragEnd={handleSectionDragEnd}
+                        onDrop={handleSectionDrop}
+                        onDropToSide={handleDropToSide}
+                        isDragging={draggedSection === sectionId}
+                        isDraggedOver={dragOverSection === sectionId}
+                        showSideDropZones={showSideDropZones}
+                        isSingleSectionRow={isSingleSectionRow}
+                        draggedSection={draggedSection}
+                      >
+                        {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
+                      </DraggableSection>
+                    </div>
+                    {/* Divider between sections when side-by-side */}
+                    {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                      <div
+                        className="self-stretch"
+                        style={{
+                          width: '2.5px',
+                          background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
+                        }}
+                      />
+                    )}
+                  </Fragment>
                 );
               })}
             </div>
