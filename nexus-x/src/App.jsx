@@ -3,20 +3,13 @@ import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
+import PageGridOverlay from './components/canvas/PageGridOverlay';
 import CablePrompt from './components/CablePrompt';
 import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, downloadBlob } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
+import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
+import { usePageGrid } from './hooks/usePageGrid';
 import { getSubcategories } from './config/nodePresets';
-
-// Paper size constants (96 DPI)
-const PAPER_SIZES = {
-  'ANSI_A': { width: 816, height: 1056, label: 'Letter (8.5×11)' },
-  'ANSI_B': { width: 1056, height: 1632, label: 'Tabloid (11×17)' },
-  'ANSI_C': { width: 1632, height: 2112, label: 'ANSI C (17×22)' },
-  'ANSI_D': { width: 2112, height: 3264, label: 'ANSI D (22×34)' },
-  'A4': { width: 794, height: 1123, label: 'A4' },
-  'A3': { width: 1123, height: 1588, label: 'A3' },
-};
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
 
@@ -199,10 +192,14 @@ const createSuperNode = (id) => ({
 });
 
 export default function App() {
-  // Paper and zoom state
-  const [paperSize, setPaperSize] = useState('ANSI_B');
-  const [orientation, setOrientation] = useState('landscape');
-  const [paperEnabled, setPaperEnabled] = useState(true);
+  // Paper and canvas settings (persisted to localStorage)
+  const {
+    paperSize, orientation, paperEnabled, setPaperEnabled,
+    customWidth, customHeight, snapToGrid, showRatioOverlay, gridSize,
+    canvasDimensions, handlePaperSizeChange, handleOrientationChange,
+    handleCustomSizeChange, toggleSnapToGrid, toggleRatioOverlay, centerPage: centerPageFn,
+  } = useCanvasSettings();
+
   const [zoom, setZoom] = useState(0.75);
 
   // Pan state (middle mouse drag)
@@ -272,47 +269,23 @@ export default function App() {
   const fileInputRef = useRef(null);
   const cachedExportBlob = useRef(null);
 
-  // Content bounds (measured from DOM) when paper is off
-  const [contentBounds, setContentBounds] = useState(null);
+  // Multi-page grid (pages extend dynamically as nodes are placed)
+  const nodeArray = useMemo(() => Object.values(nodes), [nodes]);
+  const pages = usePageGrid({
+    nodes: paperEnabled ? nodeArray : [],
+    pageWidth: canvasDimensions.width,
+    pageHeight: canvasDimensions.height,
+  });
 
-  // Compute content bounds from actual DOM measurements when paper is off
-  useEffect(() => {
-    if (!paperEnabled && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const canvasRect = canvas.getBoundingClientRect();
-      const zoomFactor = canvasRect.width / (canvas.offsetWidth || 1);
-      let maxRight = 0;
-      let maxBottom = 0;
-      for (const child of canvas.children) {
-        const childRect = child.getBoundingClientRect();
-        const right = (childRect.right - canvasRect.left) / zoomFactor;
-        const bottom = (childRect.bottom - canvasRect.top) / zoomFactor;
-        maxRight = Math.max(maxRight, right);
-        maxBottom = Math.max(maxBottom, bottom);
-      }
-      setContentBounds({
-        width: Math.max(Math.ceil(maxRight) + 60, 800),
-        height: Math.max(Math.ceil(maxBottom) + 60, 600)
-      });
-    } else {
-      setContentBounds(null);
-    }
-  }, [paperEnabled, nodes]);
-
-  // Get canvas dimensions based on paper size and orientation
-  const getCanvasDimensions = () => {
-    // When paper is off, use measured content bounds
-    if (!paperEnabled && contentBounds) {
-      return contentBounds;
-    }
-    const paper = PAPER_SIZES[paperSize];
-    if (orientation === 'landscape') {
-      return { width: paper.height, height: paper.width };
-    }
-    return { width: paper.width, height: paper.height };
-  };
-
-  const canvasDimensions = getCanvasDimensions();
+  // Compute bounding box of all pages for canvas sizing
+  const pageBounds = useMemo(() => {
+    if (!paperEnabled || pages.length === 0) return null;
+    const minX = Math.min(...pages.map(p => p.x));
+    const minY = Math.min(...pages.map(p => p.y));
+    const maxX = Math.max(...pages.map(p => p.x + p.width));
+    const maxY = Math.max(...pages.map(p => p.y + p.height));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }, [pages, paperEnabled]);
 
   // Node management
   const addNode = (typeOrConfig = 'generic') => {
@@ -837,7 +810,9 @@ export default function App() {
 
     const prevZoom = zoomRef.current;
     const prevPan = panRef.current;
-    const zoomFactor = 1 - event.deltaY * 0.001;
+    // Smoother zoom: clamp delta and use exponential scaling
+    const delta = Math.max(-5, Math.min(5, -event.deltaY * 0.01));
+    const zoomFactor = Math.pow(1.1, delta);
     const newZoom = Math.max(0.05, Math.min(8, prevZoom * zoomFactor));
 
     // Adjust pan so the point under the cursor stays fixed
@@ -885,8 +860,9 @@ export default function App() {
     // Left mouse button (button === 0) - start selection on canvas only
     else if (event.button === 0 && event.target.getAttribute('data-canvas') === 'true') {
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
+      if (containerRef.current) containerRef.current.style.cursor = 'crosshair';
       setIsSelecting(true);
-      setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y });
+      setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y, active: false });
       // Clear selection unless shift is held
       if (!event.shiftKey) {
         setSelectedNodes(new Set());
@@ -903,9 +879,13 @@ export default function App() {
       };
       applyTransform();
     }
-    if (isSelecting) {
+    if (isSelecting && selectionBox) {
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
-      setSelectionBox(prev => prev ? { ...prev, endX: pos.x, endY: pos.y } : null);
+      const dx = Math.abs(pos.x - selectionBox.startX);
+      const dy = Math.abs(pos.y - selectionBox.startY);
+      // Require minimum 3px drag distance before showing selection box
+      const isActive = selectionBox.active || dx > 3 || dy > 3;
+      setSelectionBox(prev => prev ? { ...prev, endX: pos.x, endY: pos.y, active: isActive } : null);
     }
   };
 
@@ -917,8 +897,9 @@ export default function App() {
       setPan({ ...panRef.current });
     }
     if (event.button === 0 && isSelecting) {
-      // Calculate which nodes are in the selection box
-      if (selectionBox) {
+      if (containerRef.current) containerRef.current.style.cursor = '';
+      // Calculate which nodes overlap the selection box (AABB intersection)
+      if (selectionBox && selectionBox.active) {
         const minX = Math.min(selectionBox.startX, selectionBox.endX);
         const maxX = Math.max(selectionBox.startX, selectionBox.endX);
         const minY = Math.min(selectionBox.startY, selectionBox.endY);
@@ -926,21 +907,21 @@ export default function App() {
 
         const nodesInBox = new Set();
         Object.values(nodes).forEach(node => {
-          // Node position is top-left corner, estimate size (200x150 default)
           const nodeWidth = 200 * (node.scale || 1);
           const nodeHeight = 150 * (node.scale || 1);
-          const nodeCenterX = node.position.x + nodeWidth / 2;
-          const nodeCenterY = node.position.y + nodeHeight / 2;
+          const nodeLeft = node.position.x;
+          const nodeTop = node.position.y;
+          const nodeRight = nodeLeft + nodeWidth;
+          const nodeBottom = nodeTop + nodeHeight;
 
-          // Check if node center is within selection box
-          if (nodeCenterX >= minX && nodeCenterX <= maxX &&
-              nodeCenterY >= minY && nodeCenterY <= maxY) {
+          // AABB intersection: node overlaps selection box
+          if (nodeRight >= minX && nodeLeft <= maxX &&
+              nodeBottom >= minY && nodeTop <= maxY) {
             nodesInBox.add(node.id);
           }
         });
 
         if (event.shiftKey) {
-          // Add to existing selection
           setSelectedNodes(prev => new Set([...prev, ...nodesInBox]));
         } else {
           setSelectedNodes(nodesInBox);
@@ -953,15 +934,8 @@ export default function App() {
 
   // Center the paper in the viewport at default zoom
   const centerPage = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const defaultZoom = 0.75;
-    const rect = container.getBoundingClientRect();
-    const newPanX = (rect.width - canvasDimensions.width * defaultZoom) / 2;
-    const newPanY = (rect.height - canvasDimensions.height * defaultZoom) / 2;
-    setZoom(defaultZoom);
-    setPan({ x: newPanX, y: newPanY });
-  }, [canvasDimensions]);
+    centerPageFn(containerRef, zoomRef, panRef, applyTransform, setZoom, setPan);
+  }, [centerPageFn, applyTransform]);
 
   // Fit all nodes into view with padding
   const fitView = useCallback((padding = 0.1) => {
@@ -1051,6 +1025,36 @@ export default function App() {
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
+  // Auto-select wires between selected nodes
+  useEffect(() => {
+    if (selectedNodes.size < 2) return;
+    const autoSelectedWires = new Set();
+    connections.forEach(conn => {
+      // Extract node ID from anchor ID format "node-{timestamp}-{port}"
+      const fromParts = conn.from.split('-');
+      const toParts = conn.to.split('-');
+      const fromNodeId = fromParts.slice(0, 2).join('-');
+      const toNodeId = toParts.slice(0, 2).join('-');
+      if (selectedNodes.has(fromNodeId) && selectedNodes.has(toNodeId)) {
+        autoSelectedWires.add(conn.id);
+      }
+    });
+    if (autoSelectedWires.size > 0) {
+      setSelectedWires(prev => {
+        const next = new Set(prev);
+        autoSelectedWires.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  }, [selectedNodes, connections]);
+
+  // Cursor feedback for active wire drawing mode
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.style.cursor = activeWire ? 'crosshair' : '';
+    }
+  }, [activeWire]);
+
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
     if (selectedWires.size === 0) return;
@@ -1137,17 +1141,20 @@ export default function App() {
     name: projectName,
     version: '3.0',
     savedAt: new Date().toISOString(),
-    settings: { paperSize, orientation, zoom, paperEnabled },
+    settings: { paperSize, orientation, zoom, paperEnabled, customWidth, customHeight, snapToGrid },
     nodes,
     connections,
     userPresets,
-  }), [projectId, projectName, paperSize, orientation, zoom, paperEnabled, nodes, connections, userPresets]);
+  }), [projectId, projectName, paperSize, orientation, zoom, paperEnabled, customWidth, customHeight, snapToGrid, nodes, connections, userPresets]);
 
   // Apply loaded project data to all state
   const applyProject = useCallback((project) => {
-    setPaperSize(project.settings?.paperSize || 'ANSI_B');
-    setOrientation(project.settings?.orientation || 'landscape');
+    handlePaperSizeChange(project.settings?.paperSize || 'ANSI_B');
+    handleOrientationChange(project.settings?.orientation || 'landscape');
     setPaperEnabled(project.settings?.paperEnabled !== false);
+    if (project.settings?.customWidth) {
+      handleCustomSizeChange(project.settings.customWidth, project.settings.customHeight || 1200);
+    }
     setNodes(project.nodes || {});
     setConnections(project.connections || []);
     setUserPresets(project.userPresets || {});
@@ -1159,7 +1166,7 @@ export default function App() {
     setAnchorLocalOffsets({});
     // Fit view after state settles
     setTimeout(() => fitView(0.1), 50);
-  }, [fitView]);
+  }, [fitView, handlePaperSizeChange, handleOrientationChange, setPaperEnabled, handleCustomSizeChange]);
 
   // New project
   const handleNewProject = useCallback(() => {
@@ -1490,15 +1497,36 @@ export default function App() {
             </button>
             <select
               value={paperSize}
-              onChange={(e) => setPaperSize(e.target.value)}
+              onChange={(e) => handlePaperSizeChange(e.target.value)}
               className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-300"
             >
               {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>
+            {paperSize === 'Custom' && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={customWidth}
+                  onChange={(e) => handleCustomSizeChange(+e.target.value || 100, customHeight)}
+                  className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1 py-1 text-xs font-mono text-zinc-300"
+                  min="100"
+                  title="Custom width (px)"
+                />
+                <span className="text-zinc-500 text-xs">×</span>
+                <input
+                  type="number"
+                  value={customHeight}
+                  onChange={(e) => handleCustomSizeChange(customWidth, +e.target.value || 100)}
+                  className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1 py-1 text-xs font-mono text-zinc-300"
+                  min="100"
+                  title="Custom height (px)"
+                />
+              </div>
+            )}
             <button
-              onClick={() => setOrientation(o => o === 'portrait' ? 'landscape' : 'portrait')}
+              onClick={() => handleOrientationChange(orientation === 'portrait' ? 'landscape' : 'portrait')}
               className={`px-2 py-1 border rounded text-xs font-mono ${
                 orientation === 'portrait'
                   ? 'border-zinc-700 text-zinc-400'
@@ -1506,6 +1534,28 @@ export default function App() {
               }`}
             >
               {orientation === 'portrait' ? '↕ Portrait' : '↔ Landscape'}
+            </button>
+            <button
+              onClick={toggleSnapToGrid}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                snapToGrid
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-500'
+              }`}
+              title={snapToGrid ? `Snap to grid: ON (${gridSize}px)` : 'Snap to grid: OFF'}
+            >
+              Snap{snapToGrid ? ` ${gridSize}` : ''}
+            </button>
+            <button
+              onClick={toggleRatioOverlay}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showRatioOverlay
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-500'
+              }`}
+              title={showRatioOverlay ? 'Paper ratio overlay: ON' : 'Paper ratio overlay: OFF'}
+            >
+              Ratio
             </button>
           </div>
 
@@ -1687,11 +1737,11 @@ export default function App() {
           <div
             ref={canvasRef}
             data-canvas="true"
-            className={`relative bg-zinc-950 ${paperEnabled ? 'border border-zinc-700 shadow-2xl' : ''}`}
+            className="relative bg-zinc-950"
             style={{
               width: canvasDimensions.width,
               height: canvasDimensions.height,
-              overflow: paperEnabled ? undefined : 'visible',
+              overflow: 'visible',
               backgroundImage: paperEnabled ? `
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
@@ -1700,17 +1750,9 @@ export default function App() {
             }}
             onClick={handleCanvasClick}
           >
-          {/* Print margin guides (paper mode only) */}
+          {/* Page grid overlay with per-page boundaries and margin guides */}
           {paperEnabled && (
-            <div
-              className="absolute border border-dashed border-zinc-800 pointer-events-none"
-              style={{
-                top: PRINT_MARGINS.top,
-                left: PRINT_MARGINS.left,
-                width: canvasDimensions.width - PRINT_MARGINS.left - PRINT_MARGINS.right,
-                height: canvasDimensions.height - PRINT_MARGINS.top - PRINT_MARGINS.bottom
-              }}
-            />
+            <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
           )}
 
           {/* SVG Layer for Wires and Selection Box */}
@@ -1718,8 +1760,8 @@ export default function App() {
             className="absolute inset-0 w-full h-full pointer-events-none z-[110]"
             style={{ overflow: 'visible' }}
           >
-            {/* Selection Box Rectangle */}
-            {isSelecting && selectionBox && (
+            {/* Selection Box Rectangle (only shown after minimum drag distance) */}
+            {isSelecting && selectionBox && selectionBox.active && (
               <rect
                 x={Math.min(selectionBox.startX, selectionBox.endX)}
                 y={Math.min(selectionBox.startY, selectionBox.endY)}
@@ -1910,6 +1952,8 @@ export default function App() {
                 node={node}
                 zoom={zoom}
                 isSelected={isSelected}
+                snapToGrid={snapToGrid}
+                gridSize={gridSize}
                 onUpdate={(updates) => updateNode(node.id, updates)}
                 onDelete={() => deleteNode(node.id)}
                 onAnchorClick={handleAnchorClick}
@@ -1938,6 +1982,8 @@ export default function App() {
           onZoomOut={zoomOut}
           onFitView={() => fitView(0.1)}
           onReset={resetView}
+          snapToGrid={snapToGrid}
+          onToggleSnap={toggleSnapToGrid}
         />
         <input ref={fileInputRef} type="file" accept=".json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
       </main>
@@ -1954,7 +2000,7 @@ export default function App() {
               Canvas: {canvasDimensions.width} × {canvasDimensions.height}px
             </span>
             <span className="text-zinc-500">
-              Paper: {paperEnabled ? PAPER_SIZES[paperSize].label : 'Off'}
+              Paper: {paperEnabled ? `${PAPER_SIZES[paperSize].label} (${pages.length} page${pages.length !== 1 ? 's' : ''})` : 'Off'}
             </span>
             <span className="text-zinc-500">
               Zoom: {Math.round(zoom * 100)}%

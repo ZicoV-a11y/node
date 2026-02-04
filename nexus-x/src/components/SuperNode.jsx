@@ -1869,7 +1869,7 @@ const ResizeHandle = ({ onResizeStart }) => (
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -2004,14 +2004,17 @@ function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, 
       if (!canvas) return;
 
       const canvasRect = canvas.getBoundingClientRect();
-      const newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
-      const newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
+      let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
+      let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
+
+      // Snap to grid if enabled
+      if (snapToGrid && gridSize > 0) {
+        newX = Math.round(newX / gridSize) * gridSize;
+        newY = Math.round(newY / gridSize) * gridSize;
+      }
 
       onUpdate({
-        position: {
-          x: Math.max(0, newX),
-          y: Math.max(0, newY)
-        }
+        position: { x: newX, y: newY }
       });
     };
 
@@ -2023,7 +2026,7 @@ function SuperNode({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, 
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
 
   // Section drag handlers
   // Supports both HTML5 drag events (Input/Output) and mouse events (System)
@@ -2535,5 +2538,6 @@ export default memo(SuperNode, (prev, next) =>
   prev.node === next.node &&
   prev.zoom === next.zoom &&
   prev.isSelected === next.isSelected &&
-  prev.activeWire === next.activeWire
+  prev.activeWire === next.activeWire &&
+  prev.snapToGrid === next.snapToGrid
 );
