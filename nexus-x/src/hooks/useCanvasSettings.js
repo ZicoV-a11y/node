@@ -62,6 +62,15 @@ export function useCanvasSettings() {
     localStorage.setItem('nx-orientation', orient);
   }, []);
 
+  // Toggle orientation using functional update (avoids stale closure issues)
+  const toggleOrientation = useCallback(() => {
+    setOrientation(prev => {
+      const next = prev === 'portrait' ? 'landscape' : 'portrait';
+      localStorage.setItem('nx-orientation', next);
+      return next;
+    });
+  }, []);
+
   const setPaperEnabled = useCallback((valueOrFn) => {
     setPaperEnabledRaw(prev => {
       const next = typeof valueOrFn === 'function' ? valueOrFn(prev) : valueOrFn;
@@ -113,24 +122,30 @@ export function useCanvasSettings() {
     };
   }, [paperSize, orientation, customWidth, customHeight]);
 
-  // Center the origin page in the viewport at 75% zoom
+  // Center the origin page in the viewport, fitting it with padding
   // Accepts refs and setters from App.jsx to update both DOM and React state
   const centerPage = useCallback((containerRef, zoomRef, panRef, applyTransform, setZoom, setPan) => {
     const container = containerRef.current;
     if (!container) return;
 
-    const defaultZoom = 0.75;
     const rect = container.getBoundingClientRect();
-    const newPanX = (rect.width - canvasDimensions.width * defaultZoom) / 2;
-    const newPanY = (rect.height - canvasDimensions.height * defaultZoom) / 2;
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const padding = 0.85; // 85% of viewport — leaves breathing room around the page
+    const fitZoomX = (rect.width * padding) / canvasDimensions.width;
+    const fitZoomY = (rect.height * padding) / canvasDimensions.height;
+    const fitZoom = Math.min(fitZoomX, fitZoomY, 1.0); // fit to viewport, never exceed 100%
+
+    const newPanX = (rect.width - canvasDimensions.width * fitZoom) / 2;
+    const newPanY = (rect.height - canvasDimensions.height * fitZoom) / 2;
 
     // Update refs directly for immediate visual feedback
-    zoomRef.current = defaultZoom;
+    zoomRef.current = fitZoom;
     panRef.current = { x: newPanX, y: newPanY };
     applyTransform();
 
     // Sync to React state
-    setZoom(defaultZoom);
+    setZoom(fitZoom);
     setPan({ x: newPanX, y: newPanY });
   }, [canvasDimensions]);
 
@@ -146,6 +161,7 @@ export function useCanvasSettings() {
     canvasDimensions,
     handlePaperSizeChange,
     handleOrientationChange,
+    toggleOrientation,
     setPaperEnabled,
     handleCustomSizeChange,
     toggleSnapToGrid,

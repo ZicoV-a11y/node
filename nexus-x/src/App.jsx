@@ -9,15 +9,9 @@ import { saveProject as dbSave, exportProject, importProject, loadProject as dbL
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
 import { usePageGrid } from './hooks/usePageGrid';
+import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
-
-const PRINT_MARGINS = {
-  top: 48,
-  right: 48,
-  bottom: 48,
-  left: 48
-};
 
 const SIGNAL_COLORS = [
   { id: 'emerald', hex: '#10b981' },
@@ -195,7 +189,7 @@ export default function App() {
   const {
     paperSize, orientation, paperEnabled, setPaperEnabled,
     customWidth, customHeight, snapToGrid, showRatioOverlay, gridSize,
-    canvasDimensions, handlePaperSizeChange, handleOrientationChange,
+    canvasDimensions, handlePaperSizeChange, handleOrientationChange, toggleOrientation,
     handleCustomSizeChange, toggleSnapToGrid, toggleRatioOverlay, centerPage: centerPageFn,
   } = useCanvasSettings();
 
@@ -247,6 +241,7 @@ export default function App() {
   const panStartRef = useRef({ x: 0, y: 0 });
   const transformRef = useRef(null);
   const zoomSyncTimer = useRef(null);
+  const clipboardRef = useRef([]);
 
   // Sync state → refs (only when state changes, not during direct manipulation)
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -271,6 +266,7 @@ export default function App() {
     nodes: paperEnabled ? nodeArray : [],
     pageWidth: canvasDimensions.width,
     pageHeight: canvasDimensions.height,
+    canvasRef,
   });
 
   // Compute bounding box of all pages for canvas sizing
@@ -346,11 +342,14 @@ export default function App() {
       newNode = createNode(nodeId);
     }
 
-    // Position new node in visible area
-    newNode.position = {
-      x: PRINT_MARGINS.left + Math.random() * 200,
-      y: PRINT_MARGINS.top + Math.random() * 200
-    };
+    // Position new node at center of current viewport, staggered from existing nodes
+    const center = getViewportCenter(containerRef, panRef, zoomRef);
+    newNode.position = findOpenPosition(
+      Object.values(nodes),
+      center.x,
+      center.y,
+      { isCenterTarget: true, snapToGrid, gridSize }
+    );
 
     setNodes(prev => ({ ...prev, [nodeId]: newNode }));
   };
@@ -919,10 +918,13 @@ export default function App() {
     });
   }, []);
 
-  // Center page on initial mount
+  // Center page on mount and whenever canvas dimensions change (orientation, paper size)
+  // rAF handles fast updates; timeout fallback catches initial load when flex layout isn't ready yet
   useEffect(() => {
-    centerPage();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const frame = requestAnimationFrame(() => centerPage());
+    const timer = setTimeout(() => centerPage(), 100);
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+  }, [centerPage, canvasDimensions.width, canvasDimensions.height]);
 
   // Attach wheel listener with { passive: false } so preventDefault works
   useEffect(() => {
@@ -961,6 +963,85 @@ export default function App() {
       containerRef.current.style.cursor = activeWire ? 'crosshair' : '';
     }
   }, [activeWire]);
+
+  // Keyboard shortcuts: copy, paste, delete, deselect
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Escape — always deselect all (works even when focus is in an input)
+      if (e.key === 'Escape') {
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur();
+        }
+        setSelectedNodes(new Set());
+        setSelectedWires(new Set());
+        return;
+      }
+
+      // Ignore other shortcuts when typing in inputs/textareas/selects
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+
+      const mod = e.metaKey || e.ctrlKey;
+
+      // Delete / Backspace — delete selected nodes and wires
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedNodes.size > 0) {
+          selectedNodes.forEach(nodeId => deleteNode(nodeId));
+          setSelectedNodes(new Set());
+        }
+        if (selectedWires.size > 0) {
+          setConnections(prev => prev.filter(c => !selectedWires.has(c.id)));
+          setSelectedWires(new Set());
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+C — copy selected nodes
+      if (mod && e.key === 'c') {
+        if (selectedNodes.size > 0) {
+          clipboardRef.current = Array.from(selectedNodes).map(id => nodes[id]).filter(Boolean);
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+V — paste copied nodes
+      if (mod && e.key === 'v') {
+        if (clipboardRef.current.length > 0) {
+          e.preventDefault();
+          const newSelection = new Set();
+          const now = Date.now();
+          setNodes(prev => {
+            const updated = { ...prev };
+            const existingForCollision = Object.values(prev);
+
+            clipboardRef.current.forEach((node, i) => {
+              const newId = `node-${now + i}`;
+              newSelection.add(newId);
+              const position = findOpenPosition(
+                existingForCollision,
+                node.position.x + 40,
+                node.position.y + 40,
+                { isCenterTarget: false, snapToGrid, gridSize }
+              );
+              const newNode = {
+                ...structuredClone(node),
+                id: newId,
+                position,
+              };
+              updated[newId] = newNode;
+              existingForCollision.push(newNode);
+            });
+            return updated;
+          });
+          setSelectedNodes(newSelection);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodes, selectedWires, nodes, deleteNode]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
@@ -1284,7 +1365,7 @@ export default function App() {
   }, [projectName]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col">
+    <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
       {/* Header Toolbar */}
       <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-3 relative">
         <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -1433,7 +1514,7 @@ export default function App() {
               </div>
             )}
             <button
-              onClick={() => handleOrientationChange(orientation === 'portrait' ? 'landscape' : 'portrait')}
+              onClick={toggleOrientation}
               className={`px-2 py-1 border rounded text-xs font-mono ${
                 orientation === 'portrait'
                   ? 'border-zinc-700 text-zinc-400'
@@ -1564,36 +1645,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Node Selection Toolbar */}
-        {selectedNodes.size > 0 && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-3 py-2 px-3 bg-violet-500/10 backdrop-blur-sm border border-violet-500/30 rounded shadow-lg z-50">
-            <span className="text-xs font-mono text-violet-400">
-              {selectedNodes.size} node{selectedNodes.size > 1 ? 's' : ''} selected
-            </span>
-
-            <div className="h-4 border-l border-zinc-700" />
-
-            <button
-              onClick={() => {
-                // Delete all selected nodes
-                selectedNodes.forEach(nodeId => deleteNode(nodeId));
-                setSelectedNodes(new Set());
-              }}
-              className="px-2 py-1 border border-red-600 rounded text-xs font-mono text-red-400 hover:bg-red-500/10"
-            >
-              Delete Selected
-            </button>
-
-            <div className="h-4 border-l border-zinc-700" />
-
-            <button
-              onClick={() => setSelectedNodes(new Set())}
-              className="text-xs font-mono text-zinc-500 hover:text-zinc-300 underline"
-            >
-              Deselect
-            </button>
-          </div>
-        )}
       </header>
 
       {/* Main Content Area with Side Panel */}
@@ -1660,25 +1711,11 @@ export default function App() {
             <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
           )}
 
-          {/* SVG Layer for Wires and Selection Box */}
+          {/* SVG Layer for Wires */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none z-[60]"
             style={{ overflow: 'visible' }}
           >
-            {/* Selection Box Rectangle (only shown after minimum drag distance) */}
-            {isSelecting && selectionBox && selectionBox.active && (
-              <rect
-                x={Math.min(selectionBox.startX, selectionBox.endX)}
-                y={Math.min(selectionBox.startY, selectionBox.endY)}
-                width={Math.abs(selectionBox.endX - selectionBox.startX)}
-                height={Math.abs(selectionBox.endY - selectionBox.startY)}
-                fill="rgba(34, 211, 238, 0.1)"
-                stroke="#22d3ee"
-                strokeWidth={1}
-                strokeDasharray="4 2"
-              />
-            )}
-
             {/* SVG Anchor Points - rendered for all registered anchors */}
             {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
               const isInput = pos.type === 'in';
@@ -1879,6 +1916,25 @@ export default function App() {
               />
             );
           })}
+
+          {/* Selection Box Overlay - rendered above nodes */}
+          {isSelecting && selectionBox && selectionBox.active && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ overflow: 'visible', zIndex: 9999 }}
+            >
+              <rect
+                x={Math.min(selectionBox.startX, selectionBox.endX)}
+                y={Math.min(selectionBox.startY, selectionBox.endY)}
+                width={Math.abs(selectionBox.endX - selectionBox.startX)}
+                height={Math.abs(selectionBox.endY - selectionBox.startY)}
+                fill="rgba(34, 211, 238, 0.1)"
+                stroke="#22d3ee"
+                strokeWidth={1}
+                strokeDasharray="4 2"
+              />
+            </svg>
+          )}
         </div>
         </div>
         <CanvasControls
