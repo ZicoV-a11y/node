@@ -1780,6 +1780,30 @@ export default function App() {
               const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
               const isConnected = connectedAnchorIds.has(anchorId);
 
+              // Extract node ID from anchor ID (format: nodeId-portId)
+              const nodeId = anchorId.split('-').slice(0, -1).join('-');
+              const node = nodes[nodeId];
+              const nodeColor = node?.signalColor;
+
+              // Get node's theme color (use header color)
+              const getNodeThemeColor = (signalColorId) => {
+                if (!signalColorId) return '#71717a'; // zinc-500 default
+                const colorMap = {
+                  emerald: '#10b981', cyan: '#06b6d4', blue: '#3b82f6',
+                  violet: '#8b5cf6', pink: '#ec4899', red: '#ef4444',
+                  orange: '#f97316', yellow: '#eab308'
+                };
+                return colorMap[signalColorId] || '#71717a';
+              };
+
+              const themeColor = getNodeThemeColor(nodeColor);
+              const themeLightColor = themeColor + 'cc'; // Add alpha for lighter version
+
+              // Show dim/off when not connected, lit with theme color when connected
+              const anchorColor = isConnected ? themeColor : '#52525b'; // zinc-600 when off
+              const anchorStroke = isConnected ? themeLightColor : '#71717a'; // zinc-500 when off
+              const anchorOpacity = isConnected ? 1 : 0.4;
+
               return (
                 <g key={`anchor-${anchorId}`} data-export-ignore="true">
                   {/* Glow effect for connected/active anchors */}
@@ -1788,8 +1812,8 @@ export default function App() {
                       cx={pos.x}
                       cy={pos.y}
                       r={5}
-                      fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
-                      opacity={0.3}
+                      fill={isActive ? '#22d3ee' : anchorColor}
+                      opacity={isActive ? 0.3 : 0.3}
                     />
                   )}
                   {/* Main anchor dot */}
@@ -1797,9 +1821,10 @@ export default function App() {
                     cx={pos.x}
                     cy={pos.y}
                     r={isActive ? 3 : 2.5}
-                    fill={isActive ? '#22d3ee' : isInput ? '#10b981' : '#f59e0b'}
-                    stroke={isActive ? '#67e8f9' : isInput ? '#34d399' : '#fbbf24'}
+                    fill={isActive ? '#22d3ee' : anchorColor}
+                    stroke={isActive ? '#67e8f9' : anchorStroke}
                     strokeWidth={1}
+                    opacity={anchorOpacity}
                     style={{ cursor: 'pointer', pointerEvents: 'auto' }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1959,6 +1984,7 @@ export default function App() {
                 onAnchorClick={handleAnchorClick}
                 registerAnchor={registerAnchor}
                 activeWire={activeWire}
+                connectedAnchorIds={connectedAnchorIds}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {

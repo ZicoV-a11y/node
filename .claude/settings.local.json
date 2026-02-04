@@ -25,6 +25,9 @@
       "Bash(start:*)",
       "Bash(code --install-extension:*)",
       "Bash(git ls-tree:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\zval\\Documents\\VEEessEFF3"
     ]
   }
 }

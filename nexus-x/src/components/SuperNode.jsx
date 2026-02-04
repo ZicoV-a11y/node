@@ -556,12 +556,15 @@ const TopDropZone = ({ onDrop }) => (
 // ============================================
 
 // Visible anchor point built into the node column
-const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
+const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
   const isInput = type === 'in';
 
-  // Color logic: inputs are green, outputs use signalColor or amber
-  const baseColor = isInput ? '#10b981' : (signalColor || '#f59e0b');
-  const lightColor = isInput ? '#34d399' : (signalColor ? `${signalColor}cc` : '#fbbf24');
+  // Debug log
+  console.log('NEW ANCHOR CODE:', { anchorId, themeColor, isConnected });
+
+  // Use theme color if provided, otherwise fallback to signal color or default
+  const baseColor = themeColor || (isInput ? '#71717a' : (signalColor || '#71717a')); // zinc-500 when off
+  const lightColor = themeColor ? `${themeColor}cc` : (isInput ? '#a1a1aa' : (signalColor ? `${signalColor}cc` : '#a1a1aa')); // zinc-400 when off
 
   const handleMouseDown = (e) => {
     e.stopPropagation();
@@ -569,6 +572,9 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
     // Start wire connection
     onClick && onClick(anchorId, type);
   };
+
+  // Determine if anchor should be "lit" - when connected or actively being used
+  const isLit = isConnected || isActive;
 
   return (
     <div
@@ -582,9 +588,10 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor }) => {
         style={{
           width: isActive ? '8px' : '7px',
           height: isActive ? '8px' : '7px',
-          backgroundColor: baseColor,
-          border: `1px solid ${lightColor}`,
-          boxShadow: isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`
+          backgroundColor: isLit ? baseColor : '#52525b', // zinc-600 when off
+          border: `1px solid ${isLit ? lightColor : '#71717a'}`, // zinc-500 when off
+          boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
+          opacity: isLit ? 1 : 0.4
         }}
       />
     </div>
@@ -631,11 +638,14 @@ const PortRow = ({
   onBulkUpdate,
   columnWidths = {}, // Dynamic column widths
   colors: passedColors,
+  connectedAnchorIds,
+  themeColor,
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
   // Use passed hex colors or fallback to zinc
   const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+  const isConnected = connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false;
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
@@ -657,6 +667,8 @@ const PortRow = ({
             isActive={isActive}
             signalColor={signalColor}
             onClick={onAnchorClick}
+            isConnected={isConnected}
+            themeColor={themeColor}
           />
         );
       case 'delete':
@@ -1261,6 +1273,8 @@ const IOSection = ({
   collapsed,
   onToggleCollapse,
   colors,
+  connectedAnchorIds,
+  themeColor,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -1459,6 +1473,8 @@ const IOSection = ({
         onToggleSelection={() => togglePortSelection(port.id)}
         onBulkUpdate={bulkUpdatePorts}
         colors={colors}
+        connectedAnchorIds={connectedAnchorIds}
+        themeColor={themeColor}
       />
     ))
   );
@@ -1869,7 +1885,7 @@ const ResizeHandle = ({ onResizeStart }) => (
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, connectedAnchorIds }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -1884,6 +1900,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Generate cohesive theme colors from signal color
   const themeColors = getThemeColors(node.signalColor);
+
+  // Debug
+  console.log('NODE SIGNAL COLOR:', node.signalColor, 'THEME COLORS:', themeColors);
+
+  // Extract theme color for anchors (use the header/main color)
+  const anchorThemeColor = themeColors.header?.hex || null;
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
@@ -2356,6 +2378,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             collapsed={node.layout.inputCollapsed}
             onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
             colors={themeColors.input}
+            connectedAnchorIds={connectedAnchorIds}
+            themeColor={anchorThemeColor}
           />
         );
       case 'output':
@@ -2376,6 +2400,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             collapsed={node.layout.outputCollapsed}
             onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
             colors={themeColors.output}
+            connectedAnchorIds={connectedAnchorIds}
+            themeColor={anchorThemeColor}
           />
         );
       default:
