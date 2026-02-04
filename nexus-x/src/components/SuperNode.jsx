@@ -784,7 +784,9 @@ const PortRow = ({
   };
 
   return (
-    <div className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap w-full`}>
+    <div
+      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap w-full`}
+    >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
@@ -1134,10 +1136,33 @@ const SectionHeader = ({
     </div>
   );
 
+  // Create gradient background based on signal direction towards anchor
+  const gradientStyle = (() => {
+    const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
+    // Convert hex to rgba for gradient
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    // Signal flows from anchor (reversed gradient)
+    // If anchor is on left: gradient goes left to right (heavy on left, light on right)
+    // If anchor is on right: gradient goes right to left (heavy on right, light on left)
+    const gradientDirection = anchorSide === 'left' ? 'to right' : 'to left';
+    const startColor = hexToRgba(baseColor, 0.4); // Heavier on anchor side (40%)
+    const endColor = hexToRgba(baseColor, 0); // Transparent on port side
+
+    return {
+      background: `linear-gradient(${gradientDirection}, ${startColor}, ${endColor})`
+    };
+  })();
+
   return (
     <div
       className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
-      style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
+      style={gradientStyle}
     >
       {isReversed ? (
         <>
@@ -1459,50 +1484,67 @@ const IOSection = ({
         /* When collapsed, render minimal port rows to maintain exact anchor column positions */
         <div className="w-full">
           {data.ports.map((port) => {
-            const isReversed = anchorSide === 'right';
+            // FORCE anchor positioning based on section type when collapsed:
+            // Input sections always have anchors on LEFT
+            // Output sections always have anchors on RIGHT
+            const shouldAnchorBeOnRight = type === 'output';
             const dataOrder = columnOrder || ['delete', 'port', 'connector', 'resolution', 'rate'];
-            const fullColumnOrder = canToggleAnchor
-              ? (isReversed ? [...dataOrder, 'anchor'].reverse() : ['anchor', ...dataOrder])
-              : (isReversed ? dataOrder.reverse() : ['anchor', ...dataOrder]);
+            const fullColumnOrder = shouldAnchorBeOnRight
+              ? [...dataOrder, 'anchor']  // Anchor at end = right side
+              : ['anchor', ...dataOrder];  // Anchor at start = left side
 
             return (
-              <div key={port.id} className="flex items-center py-0.5 opacity-40 hover:opacity-100 transition-opacity">
-                {fullColumnOrder.map((colId, index) => {
-                  if (colId === 'anchor') {
-                    return (
-                      <div key={colId} className="flex items-center">
-                        {index > 0 && <span className="w-px shrink-0 mx-2" />}
-                        <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
-                          <div
-                            data-anchor-id={`${nodeId}-${port.id}`}
-                            data-anchor-type={type === 'input' ? 'in' : 'out'}
-                            className="w-2 h-2 rounded-full cursor-pointer"
-                            style={{
-                              backgroundColor: type === 'input' ? '#10b981' : (signalColor || '#f59e0b'),
-                              border: `1px solid ${type === 'input' ? '#34d399' : (signalColor ? `${signalColor}cc` : '#fbbf24')}`,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, type === 'input' ? 'in' : 'out');
-                            }}
-                            title={`${port.label || port.id} (collapsed)`}
-                          />
-                        </span>
-                      </div>
-                    );
-                  } else if (colId === 'port') {
-                    const portWidth = columnWidths['port'] || 52;
-                    return (
-                      <div key={colId} className="flex items-center">
-                        {index > 0 && <span className="w-px shrink-0 mx-2" />}
-                        <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${portWidth}px` }}>
-                          {port.label || port.id}
-                        </span>
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
+              <div key={port.id} className="flex items-center justify-between py-0.5 opacity-40 hover:opacity-100 transition-opacity">
+                {/* Render anchor on left for inputs, right for outputs */}
+                {!shouldAnchorBeOnRight && (
+                  <div className="flex items-center">
+                    <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                      <div
+                        data-anchor-id={`${nodeId}-${port.id}`}
+                        data-anchor-type="in"
+                        className="w-2 h-2 rounded-full cursor-pointer"
+                        style={{
+                          backgroundColor: '#10b981',
+                          border: '1px solid #34d399',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, 'in');
+                        }}
+                        title={`${port.label || port.id} (collapsed)`}
+                      />
+                    </span>
+                    <span className="w-px shrink-0 mx-2" />
+                  </div>
+                )}
+
+                {/* Port label */}
+                <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['port'] || 52}px` }}>
+                  {port.label || port.id}
+                </span>
+
+                {/* Render anchor on right for outputs */}
+                {shouldAnchorBeOnRight && (
+                  <div className="flex items-center">
+                    <span className="w-px shrink-0 mx-2" />
+                    <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                      <div
+                        data-anchor-id={`${nodeId}-${port.id}`}
+                        data-anchor-type="out"
+                        className="w-2 h-2 rounded-full cursor-pointer"
+                        style={{
+                          backgroundColor: signalColor || '#f59e0b',
+                          border: `1px solid ${signalColor ? `${signalColor}cc` : '#fbbf24'}`,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAnchorClick && onAnchorClick(`${nodeId}-${port.id}`, 'out');
+                        }}
+                        title={`${port.label || port.id} (collapsed)`}
+                      />
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1751,28 +1793,16 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
 
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700 rounded-t-lg"
+      className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
       style={{
         borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
         backgroundColor: `${headerHex}33`, // 20% opacity
       }}
     >
-      {/* Library drag handle - LEFT side for preset saving */}
-      <div
-        draggable
-        onDragStart={(e) => {
-          e.stopPropagation();
-          e.dataTransfer.setData('nodeId', node.id);
-          e.dataTransfer.effectAllowed = 'copy';
-        }}
-        className="cursor-grab px-1 text-sm shrink-0"
-        style={{ color: headerTextHex }}
-        title="Drag to Library to save as preset"
-      >
-        ⊞
+      {/* Centered title - absolutely positioned */}
+      <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-none">
+        <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
       </div>
-
-      <span className="font-mono font-bold text-sm" style={{ color: headerTextHex }}>{displayTitle()}</span>
 
       <div className="flex items-center gap-1 ml-auto shrink-0">
         {/* Signal color picker */}
