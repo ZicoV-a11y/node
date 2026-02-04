@@ -1,12 +1,28 @@
 @import "tailwindcss";
 
-/* Wire flow animation for enhanced wires */
-@keyframes wire-flow {
-  to {
-    stroke-dashoffset: -20;
-  }
+/* ============================================ */
+/* FLAT DESIGN OVERRIDES                       */
+/* ============================================ */
+
+/* Change to highly visible font */
+* {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+  font-weight: 500 !important;
 }
 
-.wire-animated {
-  animation: wire-flow 0.8s linear infinite;
+/* Remove animations */
+* {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Remove shadows and effects */
+* {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Make everything sharp and flat (no rounded corners) */
+* {
+  border-radius: 0 !important;
 }
