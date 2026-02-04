@@ -1512,13 +1512,14 @@ const IOSection = ({
               : ['anchor', ...dataOrder];  // Anchor at start = left side
 
             return (
-              <div key={port.id} className="flex items-center justify-between py-0.5 opacity-40 hover:opacity-100 transition-opacity">
-                {/* Render anchor on left for inputs */}
+              <div key={port.id} className={`flex items-center py-0.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
+                {/* INPUT layout: [Anchor][Source] - all on left */}
                 {!shouldAnchorBeOnRight && (() => {
                   const anchorId = `${nodeId}-${port.id}`;
                   const isConnected = connectedAnchorIds?.has(anchorId);
                   return (
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-2">
+                      {/* Anchor */}
                       <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
                         <div
                           data-anchor-id={anchorId}
@@ -1535,23 +1536,25 @@ const IOSection = ({
                           title={`${port.label || port.id} (collapsed)`}
                         />
                       </span>
-                      <span className="w-px shrink-0 mx-2" />
+                      {/* Source */}
+                      <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['source'] || 90}px` }}>
+                        {port.source || ''}
+                      </span>
                     </div>
                   );
                 })()}
 
-                {/* Port label */}
-                <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['port'] || 52}px` }}>
-                  {port.label || port.id}
-                </span>
-
-                {/* Render anchor on right for outputs */}
+                {/* OUTPUT layout: [Destination][Anchor] - all on right */}
                 {shouldAnchorBeOnRight && (() => {
                   const anchorId = `${nodeId}-${port.id}`;
                   const isConnected = connectedAnchorIds?.has(anchorId);
                   return (
-                    <div className="flex items-center">
-                      <span className="w-px shrink-0 mx-2" />
+                    <div className="flex items-center gap-2">
+                      {/* Destination */}
+                      <span className="shrink-0 text-[10px] text-zinc-600 truncate text-right" style={{ width: `${columnWidths['destination'] || 90}px` }}>
+                        {port.destination || ''}
+                      </span>
+                      {/* Anchor */}
                       <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
                         <div
                           data-anchor-id={anchorId}
