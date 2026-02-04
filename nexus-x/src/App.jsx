@@ -908,21 +908,28 @@ export default function App() {
         const minY = Math.min(selectionBox.startY, selectionBox.endY);
         const maxY = Math.max(selectionBox.startY, selectionBox.endY);
 
+        // Use actual DOM measurements for accurate selection (works for any node type/size)
         const nodesInBox = new Set();
-        Object.values(nodes).forEach(node => {
-          const nodeWidth = 200 * (node.scale || 1);
-          const nodeHeight = 150 * (node.scale || 1);
-          const nodeLeft = node.position.x;
-          const nodeTop = node.position.y;
-          const nodeRight = nodeLeft + nodeWidth;
-          const nodeBottom = nodeTop + nodeHeight;
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const canvasRect = canvas.getBoundingClientRect();
+          const zf = canvasRect.width / (canvas.offsetWidth || 1);
 
-          // AABB intersection: node overlaps selection box
-          if (nodeRight >= minX && nodeLeft <= maxX &&
-              nodeBottom >= minY && nodeTop <= maxY) {
-            nodesInBox.add(node.id);
-          }
-        });
+          Object.keys(nodes).forEach(nodeId => {
+            const nodeEl = canvas.querySelector(`[data-node-id="${nodeId}"]`);
+            if (!nodeEl) return;
+            const cr = nodeEl.getBoundingClientRect();
+            const nodeLeft = (cr.left - canvasRect.left) / zf;
+            const nodeTop = (cr.top - canvasRect.top) / zf;
+            const nodeRight = (cr.right - canvasRect.left) / zf;
+            const nodeBottom = (cr.bottom - canvasRect.top) / zf;
+
+            if (nodeRight >= minX && nodeLeft <= maxX &&
+                nodeBottom >= minY && nodeTop <= maxY) {
+              nodesInBox.add(nodeId);
+            }
+          });
+        }
 
         if (event.shiftKey) {
           setSelectedNodes(prev => new Set([...prev, ...nodesInBox]));
