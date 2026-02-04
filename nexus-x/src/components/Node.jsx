@@ -834,7 +834,7 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState(null);
@@ -965,14 +965,17 @@ function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, regis
       const canvasRect = canvas.getBoundingClientRect();
 
       // Convert screen position to paper-space position (accounting for zoom)
-      const newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
-      const newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
+      let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
+      let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
+
+      // Snap to grid if enabled
+      if (snapToGrid && gridSize > 0) {
+        newX = Math.round(newX / gridSize) * gridSize;
+        newY = Math.round(newY / gridSize) * gridSize;
+      }
 
       onUpdate({
-        position: {
-          x: Math.max(0, newX),
-          y: Math.max(0, newY)
-        }
+        position: { x: newX, y: newY }
       });
     };
 
@@ -987,7 +990,7 @@ function Node({ node, zoom, isSelected, onUpdate, onDelete, onAnchorClick, regis
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
 
   // Drag handlers for section reordering in stacked mode
   const handleSectionDragStart = (e, sectionId) => {
@@ -1437,5 +1440,6 @@ export default memo(Node, (prev, next) =>
   prev.node === next.node &&
   prev.zoom === next.zoom &&
   prev.isSelected === next.isSelected &&
-  prev.activeWire === next.activeWire
+  prev.activeWire === next.activeWire &&
+  prev.snapToGrid === next.snapToGrid
 );
