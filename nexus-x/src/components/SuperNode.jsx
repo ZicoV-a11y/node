@@ -1495,7 +1495,7 @@ const IOSection = ({
 
             return (
               <div key={port.id} className="flex items-center justify-between py-0.5 opacity-40 hover:opacity-100 transition-opacity">
-                {/* Render anchor on left for inputs, right for outputs */}
+                {/* Render anchor on left for inputs */}
                 {!shouldAnchorBeOnRight && (
                   <div className="flex items-center">
                     <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
