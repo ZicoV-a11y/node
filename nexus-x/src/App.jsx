@@ -5,12 +5,14 @@ import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
 import CablePrompt from './components/CablePrompt';
-import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, downloadBlob } from './services/storage';
+import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
 import { usePageGrid } from './hooks/usePageGrid';
 import { getSubcategories } from './config/nodePresets';
 import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
+import ChangelogPopup from './components/ChangelogPopup';
+import { APP_VERSION } from './config/version';
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
 
@@ -238,6 +240,8 @@ export default function App() {
   // Recent files
   const [recentFiles, setRecentFiles] = useState(() => getRecentFiles());
   const [showRecents, setShowRecents] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [exportProgress, setExportProgress] = useState(null);
 
   // Refs for stable access in event handlers (avoids stale closures)
   const zoomRef = useRef(zoom);
@@ -267,7 +271,7 @@ export default function App() {
   // Multi-page grid (pages extend dynamically as nodes are placed)
   const nodeArray = useMemo(() => Object.values(nodes), [nodes]);
   const pages = usePageGrid({
-    nodes: paperEnabled ? nodeArray : [],
+    nodes: nodeArray,
     pageWidth: canvasDimensions.width,
     pageHeight: canvasDimensions.height,
     canvasRef,
@@ -275,7 +279,7 @@ export default function App() {
 
   // Compute bounding box of all pages for canvas sizing
   const pageBounds = useMemo(() => {
-    if (!paperEnabled || pages.length === 0) return null;
+    if (pages.length === 0) return null;
     const minX = Math.min(...pages.map(p => p.x));
     const minY = Math.min(...pages.map(p => p.y));
     const maxX = Math.max(...pages.map(p => p.x + p.width));
@@ -1220,7 +1224,7 @@ export default function App() {
   const buildProjectData = useCallback(() => ({
     id: projectId,
     name: projectName,
-    version: '3.0',
+    version: APP_VERSION,
     savedAt: new Date().toISOString(),
     settings: { paperSize, orientation, zoom, paperEnabled, customWidth, customHeight, snapToGrid },
     nodes,
@@ -1278,15 +1282,15 @@ export default function App() {
   const handleSaveAs = useCallback(async () => {
     const project = buildProjectData();
     const json = exportProject(project);
-    const fileName = `${projectName.replace(/\s+/g, '_')}.sfw.json`;
+    const fileName = `${projectName.replace(/\s+/g, '_')}.vsf`;
 
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await window.showSaveFilePicker({
           suggestedName: fileName,
           types: [{
-            description: 'Signal Flow Workspace',
-            accept: { 'application/json': ['.json'] },
+            description: 'Visual Signal Flow',
+            accept: { 'application/json': ['.vsf'] },
           }],
         });
         const writable = await handle.createWritable();
@@ -1314,8 +1318,8 @@ export default function App() {
       try {
         const [handle] = await window.showOpenFilePicker({
           types: [{
-            description: 'Signal Flow Workspace',
-            accept: { 'application/json': ['.json', '.sfw'] },
+            description: 'Visual Signal Flow',
+            accept: { 'application/json': ['.vsf', '.json', '.sfw'] },
           }],
           multiple: false,
         });
@@ -1407,38 +1411,22 @@ export default function App() {
     alert(`Exported ${Object.keys(userPresets).length} preset categories!\n\nCheck your downloads for: user-presets-export.js\n\nCopy the code and paste into nodePresets.js, then commit to Git.`);
   }, [userPresets]);
 
-  // Background pre-render PNG export blob when browser is idle
+  // Background pre-render PNG export blob when browser is idle (single page only)
   useEffect(() => {
     if (!canvasRef.current) return;
     cachedExportBlob.current = null;
+
+    // Skip pre-render for multi-page and paper-off — rendered on demand
+    if (!paperEnabled || pages.length > 1) return;
+
     let idleHandle;
     const timer = setTimeout(() => {
       idleHandle = requestIdleCallback(async () => {
         try {
-          let exportWidth, exportHeight;
-          if (paperEnabled) {
-            exportWidth = canvasDimensions.width;
-            exportHeight = canvasDimensions.height;
-          } else {
-            // Measure actual content at capture time (avoids stale closure)
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-            const canvasRect = canvas.getBoundingClientRect();
-            const zoomFactor = canvasRect.width / (canvas.offsetWidth || 1);
-            let maxRight = 0;
-            let maxBottom = 0;
-            for (const child of canvas.children) {
-              const childRect = child.getBoundingClientRect();
-              maxRight = Math.max(maxRight, (childRect.right - canvasRect.left) / zoomFactor);
-              maxBottom = Math.max(maxBottom, (childRect.bottom - canvasRect.top) / zoomFactor);
-            }
-            exportWidth = Math.max(Math.ceil(maxRight) + 60, 800);
-            exportHeight = Math.max(Math.ceil(maxBottom) + 60, 600);
-          }
           const blob = await renderExportBlob(canvasRef.current, {
               scale: 1,
-              width: exportWidth,
-              height: exportHeight,
+              width: canvasDimensions.width,
+              height: canvasDimensions.height,
             });
           if (blob) cachedExportBlob.current = blob;
         } catch {}
@@ -1448,14 +1436,65 @@ export default function App() {
       clearTimeout(timer);
       if (idleHandle) cancelIdleCallback(idleHandle);
     };
-  }, [nodes, connections, paperSize, orientation, paperEnabled]);
+  }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length]);
 
-  // Export canvas to PNG — instant from cached blob
-  const handleExportPNG = useCallback(() => {
-    if (cachedExportBlob.current) {
-      downloadBlob(cachedExportBlob.current, projectName || 'untitled');
+  // Export canvas to PNG (single page) or ZIP (multi-page)
+  const handleExportPNG = useCallback(async () => {
+    const name = projectName || 'untitled';
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    // Multi-page ZIP export (render once, crop per page)
+    if (paperEnabled && pages.length > 1 && canvasRef.current) {
+      const total = pages.length + 1; // +1 for layout render step
+      setExportProgress({ current: 0, total });
+      try {
+        const canvas = canvasRef.current;
+
+        // Render full layout ONCE (single expensive domToBlob)
+        setExportProgress({ current: 1, total });
+        await new Promise(r => setTimeout(r, 0));
+        const layoutBlob = await renderLayoutBlob(canvas, pageBounds);
+
+        // Crop each page from the layout image (cheap canvas ops)
+        setExportProgress({ current: 2, total });
+        await new Promise(r => setTimeout(r, 0));
+        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds);
+        const namedBlobs = cropped.map(({ page, blob }) => ({
+          name: `${name}-${page.label.replace(/\s+/g, '-')}.png`, blob,
+        }));
+
+        // Add layout image
+        namedBlobs.push({ name: `${name}-Layout.png`, blob: layoutBlob });
+
+        await downloadZip(namedBlobs, `${name}-${stamp}.zip`);
+      } catch (err) {
+        console.error('Multi-page export failed:', err);
+      } finally {
+        setExportProgress(null);
+      }
+      return;
     }
-  }, [projectName]);
+
+    // Paper-off export — reuse same approach as Layout PNG
+    if (!paperEnabled && canvasRef.current && pageBounds) {
+      setExportProgress({ current: 1, total: 1 });
+      try {
+        await new Promise(r => setTimeout(r, 0));
+        const blob = await renderLayoutBlob(canvasRef.current, pageBounds);
+        if (blob) downloadBlob(blob, name);
+      } catch (err) {
+        console.error('Export failed:', err);
+      } finally {
+        setExportProgress(null);
+      }
+      return;
+    }
+
+    // Single page paper-on export (use cached blob)
+    if (cachedExportBlob.current) {
+      downloadBlob(cachedExportBlob.current, name);
+    }
+  }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions]);
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
@@ -1521,10 +1560,22 @@ export default function App() {
             </button>
             <button
               onClick={handleExportPNG}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="Export canvas as PNG image"
+              disabled={exportProgress !== null}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                exportProgress !== null
+                  ? 'border-cyan-500 text-cyan-400 cursor-wait'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title={
+                paperEnabled && pages.length > 1
+                  ? `Export ${pages.length} pages as ZIP`
+                  : 'Export canvas as PNG image'
+              }
             >
-              Export PNG
+              {exportProgress !== null
+                ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
+                : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
+              }
             </button>
             <div className="relative">
               <button
@@ -1681,6 +1732,25 @@ export default function App() {
             >
               + SuperNode
             </button>
+          </div>
+
+          {/* Version & Changelog */}
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={() => setShowChangelog(prev => !prev)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showChangelog
+                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="View changelog"
+            >
+              v{APP_VERSION}
+            </button>
+            <ChangelogPopup
+              isOpen={showChangelog}
+              onClose={() => setShowChangelog(false)}
+            />
           </div>
         </div>
 
@@ -2067,7 +2137,7 @@ export default function App() {
           snapToGrid={snapToGrid}
           onToggleSnap={toggleSnapToGrid}
         />
-        <input ref={fileInputRef} type="file" accept=".json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
+        <input ref={fileInputRef} type="file" accept=".vsf,.json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
       </main>
       </div>
 
@@ -2075,7 +2145,7 @@ export default function App() {
       <footer className="border-t border-zinc-800 bg-zinc-900/95 px-4 py-2">
         <div className="flex items-center justify-between text-xs font-mono">
           <span className="text-zinc-600">
-            Signal Flow Workspace v1.0
+            Signal Flow Workspace v{APP_VERSION}
           </span>
           <div className="flex items-center gap-4">
             <span className="text-zinc-500">
