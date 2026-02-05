@@ -79,6 +79,25 @@ const DROP_ZONE_STYLE = { zIndex: 10000 };
 // Spacing column width style (static)
 const SPACING_COLUMN_STYLE = { width: '24px' };
 
+// Spacing drag handle style (static)
+const SPACING_HANDLE_STYLE = {
+  width: '20px',
+  height: '20px',
+  background: '#27272a',
+  border: '1px solid #3f3f46',
+  borderRadius: '3px',
+  color: HEX_COLORS.zinc[500],
+  fontSize: '16px',
+  fontWeight: 'bold',
+  cursor: 'ns-resize',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  lineHeight: '1',
+  transition: 'all 0.2s',
+  userSelect: 'none',
+};
+
 // Utility function to convert hex color to rgba (extracted to avoid duplication)
 const hexToRgba = (hex, alpha) => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -800,23 +819,7 @@ const PortRow = memo(({
             className="spacing-drag-handle nodrag"
             onMouseDown={(e) => onSpacingMouseDown && onSpacingMouseDown(e, port.id, port.spacing || 0)}
             title="Drag down to move row and create space above"
-            style={{
-              width: '20px',
-              height: '20px',
-              background: '#27272a',
-              border: '1px solid #3f3f46',
-              borderRadius: '3px',
-              color: HEX_COLORS.zinc[500],
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'ns-resize',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: '1',
-              transition: 'all 0.2s',
-              userSelect: 'none',
-            }}
+            style={SPACING_HANDLE_STYLE}
           >
             ⋮
           </div>
