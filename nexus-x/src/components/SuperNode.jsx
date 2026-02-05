@@ -109,6 +109,9 @@ const hexToRgba = (hex, alpha) => {
 // Dark color scheme style for select elements (static)
 const DARK_COLOR_SCHEME_STYLE = { colorScheme: 'dark' };
 
+// White text color style (static)
+const WHITE_TEXT_STYLE = { color: '#ffffff' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -2001,7 +2004,7 @@ const SystemHeader = memo(({
       <div className="flex items-center gap-1">
         <span
           className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
-          style={{ color: '#ffffff' }}
+          style={WHITE_TEXT_STYLE}
         >
           SYSTEM
         </span>
