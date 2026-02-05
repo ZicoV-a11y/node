@@ -2353,6 +2353,18 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
   }), [signalColorHex]);
 
+  // Memoized title position (divider-centered when side-by-side, otherwise 50%)
+  const titleLeftPosition = useMemo(() => {
+    // Only use special divider-centered positioning when both sections are expanded and side-by-side
+    if (areIOSideBySide && !inputCollapsed && !outputCollapsed && inputSectionWidth) {
+      // Position at the divider between INPUT and OUTPUT sections
+      // inputSectionWidth already includes buffer, just add gap between sections
+      return `${inputSectionWidth + 8}px`;
+    }
+    // All other cases: use standard 50% centering (collapsed, stacked, or mixed states)
+    return '50%';
+  }, [areIOSideBySide, inputCollapsed, outputCollapsed, inputSectionWidth]);
+
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
@@ -2401,18 +2413,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
       {/* Centered title - positioned at divider when side-by-side, otherwise centered */}
       <div
         className="absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
-        style={{
-          left: (() => {
-            // Only use special divider-centered positioning when both sections are expanded and side-by-side
-            if (areIOSideBySide && !inputCollapsed && !outputCollapsed && inputSectionWidth) {
-              // Position at the divider between INPUT and OUTPUT sections
-              // inputSectionWidth already includes buffer, just add gap between sections
-              return `${inputSectionWidth + 8}px`;
-            }
-            // All other cases: use standard 50% centering (collapsed, stacked, or mixed states)
-            return '50%';
-          })()
-        }}
+        style={{ left: titleLeftPosition }}
       >
         <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
       </div>
