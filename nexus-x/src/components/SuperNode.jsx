@@ -2946,8 +2946,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // Check if Input and Output are in the same row (side-by-side)
   const areIOSideBySide = areInSameRow('input', 'output');
 
-  // Render section content
-  const renderSectionContent = (sectionId, anchorSide, canToggleAnchor) => {
+  // Render section content (memoized to prevent recreation on every render)
+  const renderSectionContent = useCallback((sectionId, anchorSide, canToggleAnchor) => {
     switch (sectionId) {
       case 'system':
         return (
@@ -3013,7 +3013,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       default:
         return null;
     }
-  };
+  }, [
+    node.system, node.inputSection, node.outputSection, node.layout.systemCollapsed,
+    node.layout.inputCollapsed, node.layout.outputCollapsed, node.id, node.signalColor,
+    handleSystemUpdate, handleInputUpdate, handleOutputUpdate,
+    handleSystemCollapseToggle, handleInputCollapseToggle, handleOutputCollapseToggle,
+    toggleInputAnchorSide, toggleOutputAnchorSide,
+    handleSectionDragStart, handleSectionDragEnd,
+    themeColors, activeWire, onAnchorClick, connectedAnchorIds, anchorThemeColor,
+    sharedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide
+  ]);
 
   // Handle click to select (shift+click to add to selection)
   const handleClick = useCallback((e) => {
@@ -3023,14 +3032,59 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     }
   }, [onSelect, isDragging, node.id]);
 
-  // Calculate dynamic minWidth based on collapsed state
-  const allSectionsCollapsed = node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed;
-  const dynamicMinWidth = allSectionsCollapsed ? 'auto' : 320;
+  // Calculate dynamic minWidth based on collapsed state (memoized)
+  const allSectionsCollapsed = useMemo(
+    () => node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed,
+    [node.layout.inputCollapsed, node.layout.outputCollapsed, node.layout.systemCollapsed]
+  );
+  const dynamicMinWidth = useMemo(
+    () => allSectionsCollapsed ? 'auto' : 320,
+    [allSectionsCollapsed]
+  );
 
-  // Calculate explicit width when sections are side-by-side
-  const explicitWidth = areIOSideBySide && !node.layout.inputCollapsed && !node.layout.outputCollapsed
-    ? inputSectionWidth + 12 + outputSectionWidth + 16  // sections + gap + padding
-    : 'auto';
+  // Calculate explicit width when sections are side-by-side (memoized)
+  const explicitWidth = useMemo(
+    () => areIOSideBySide && !node.layout.inputCollapsed && !node.layout.outputCollapsed
+      ? inputSectionWidth + 12 + outputSectionWidth + 16  // sections + gap + padding
+      : 'auto',
+    [areIOSideBySide, node.layout.inputCollapsed, node.layout.outputCollapsed, inputSectionWidth, outputSectionWidth]
+  );
+
+  // Memoized helper functions for wrapper styling (prevent recreation on every render)
+  const getWrapperClassName = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
+    if (isSingleSectionRow) return 'w-full';
+    // When collapsed, don't use flex-1 (let it shrink to content)
+    if (isCollapsed) return '';
+    // When expanded, don't use flex-1 if we have a fixed width
+    const hasFixedWidth = (sectionId === 'input' || sectionId === 'output') && (inputSectionWidth || outputSectionWidth);
+    if (hasFixedWidth) return '';
+    // Fallback: use flex-1
+    return 'flex-1';
+  }, [inputSectionWidth, outputSectionWidth]);
+
+  const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
+    if (isSingleSectionRow) return {};
+    // Only apply fixed widths when expanded
+    if (isCollapsed) return {};
+    // When expanded and side-by-side, use calculated widths with overflow constraints
+    if (sectionId === 'input' && inputSectionWidth) {
+      return {
+        width: `${inputSectionWidth}px`,
+        maxWidth: `${inputSectionWidth}px`,
+        flexShrink: 0,
+        overflow: 'visible'
+      };
+    }
+    if (sectionId === 'output' && outputSectionWidth) {
+      return {
+        width: `${outputSectionWidth}px`,
+        maxWidth: `${outputSectionWidth}px`,
+        flexShrink: 0,
+        overflow: 'visible'
+      };
+    }
+    return {}; // Fallback for other sections
+  }, [inputSectionWidth, outputSectionWidth]);
 
   return (
     <div
@@ -3166,51 +3220,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                   ? node.layout.outputCollapsed
                   : node.layout.systemCollapsed;
 
-                // Calculate wrapper width and className for side-by-side layout
-                const getWrapperClassName = () => {
-                  if (isSingleSectionRow) return 'w-full';
-                  // When collapsed, don't use flex-1 (let it shrink to content)
-                  if (isCollapsed) return '';
-                  // When expanded, don't use flex-1 if we have a fixed width
-                  const hasFixedWidth = (sectionId === 'input' || sectionId === 'output') && (inputSectionWidth || outputSectionWidth);
-                  if (hasFixedWidth) return '';
-                  // Fallback: use flex-1
-                  return 'flex-1';
-                };
-
-                const getWrapperStyle = () => {
-                  if (isSingleSectionRow) return {};
-
-                  // Only apply fixed widths when expanded
-                  if (isCollapsed) {
-                    return {};
-                  }
-
-                  // When expanded and side-by-side, use calculated widths with overflow constraints
-                  if (sectionId === 'input' && inputSectionWidth) {
-                    return {
-                      width: `${inputSectionWidth}px`,
-                      maxWidth: `${inputSectionWidth}px`,
-                      flexShrink: 0,
-                      overflow: 'visible'
-                    };
-                  }
-                  if (sectionId === 'output' && outputSectionWidth) {
-                    return {
-                      width: `${outputSectionWidth}px`,
-                      maxWidth: `${outputSectionWidth}px`,
-                      flexShrink: 0,
-                      overflow: 'visible'
-                    };
-                  }
-                  return {}; // Fallback for other sections
-                };
-
                 return (
                   <Fragment key={sectionId}>
                     <div
-                      className={getWrapperClassName()}
-                      style={getWrapperStyle()}
+                      className={getWrapperClassName(sectionId, isSingleSectionRow, isCollapsed)}
+                      style={getWrapperStyle(sectionId, isSingleSectionRow, isCollapsed)}
                     >
                       <DraggableSection
                         sectionId={sectionId}
