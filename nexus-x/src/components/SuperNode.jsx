@@ -112,6 +112,9 @@ const DARK_COLOR_SCHEME_STYLE = { colorScheme: 'dark' };
 // White text color style (static)
 const WHITE_TEXT_STYLE = { color: '#ffffff' };
 
+// Checkmark button dimensions (static)
+const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -2320,7 +2323,7 @@ const SystemSection = memo(({
                   }}
                   className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
                   title="Approve and add to header (or press Enter)"
-                  style={{ width: '28px', height: '28px' }}
+                  style={CHECKMARK_BUTTON_STYLE}
                 >
                   ✓
                 </button>
