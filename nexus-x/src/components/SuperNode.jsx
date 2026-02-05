@@ -106,6 +106,9 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+// Dark color scheme style for select elements (static)
+const DARK_COLOR_SCHEME_STYLE = { colorScheme: 'dark' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -2429,9 +2432,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             onClick={(e) => e.stopPropagation()}
             className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
             title="Signal color"
-            style={{
-              colorScheme: 'dark'
-            }}
+            style={DARK_COLOR_SCHEME_STYLE}
           >
             <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
             {SIGNAL_COLORS.map(color => (
