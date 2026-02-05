@@ -1681,6 +1681,41 @@ const IOSection = memo(({
     [sharedColumnWidths, data.ports]
   );
 
+  // Pre-calculate collapsed port data to avoid IIFE recalculation on every render
+  const collapsedPortData = useMemo(() =>
+    data.ports.map(port => {
+      const anchorId = `${nodeId}-${port.id}`;
+      const isConnected = connectedAnchorIds?.has(anchorId);
+      const sourceColumnWidth = columnWidths['source'] || 90;
+      const destColumnWidth = columnWidths['destination'] || 90;
+      const portTitle = `${port.label || port.id} (collapsed)`;
+
+      // Pre-calculate anchor styles for INPUT (left anchor)
+      const inputAnchorStyle = {
+        backgroundColor: isConnected ? (themeColor || HEX_COLORS.zinc[500]) : HEX_COLORS.zinc[500],
+        border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : HEX_COLORS.zinc[400]) : HEX_COLORS.zinc[400]}`,
+      };
+
+      // Pre-calculate anchor styles for OUTPUT (right anchor)
+      const outputAnchorStyle = {
+        backgroundColor: isConnected ? (themeColor || (signalColor || HEX_COLORS.zinc[500])) : HEX_COLORS.zinc[500],
+        border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])) : HEX_COLORS.zinc[400]}`,
+      };
+
+      return {
+        port,
+        anchorId,
+        isConnected,
+        sourceColumnWidth,
+        destColumnWidth,
+        portTitle,
+        inputAnchorStyle,
+        outputAnchorStyle
+      };
+    }),
+    [data.ports, nodeId, connectedAnchorIds, columnWidths, themeColor, signalColor]
+  );
+
   // Helper to render port rows with spacing support
   const renderPortRows = (ports) => (
     ports.map(port => (
@@ -1731,87 +1766,74 @@ const IOSection = memo(({
       {collapsed ? (
         /* When collapsed, render minimal port rows to maintain exact anchor column positions */
         <div className="w-full">
-          {data.ports.map((port) => {
+          {collapsedPortData.map((portData) => {
             // FORCE anchor positioning based on section type when collapsed:
             // Input sections always have anchors on LEFT
             // Output sections always have anchors on RIGHT
             const shouldAnchorBeOnRight = type === 'output';
+            const { port, anchorId, inputAnchorStyle, outputAnchorStyle, portTitle, sourceColumnWidth, destColumnWidth } = portData;
 
             return (
               <div key={port.id} className={`flex items-center py-1.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
                 {/* INPUT layout: [Anchor][Source] - all on left */}
-                {!shouldAnchorBeOnRight && (() => {
-                  const anchorId = `${nodeId}-${port.id}`;
-                  const isConnected = connectedAnchorIds?.has(anchorId);
-                  return (
-                    <div className="flex items-center gap-2">
-                      {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                        <div
-                          data-anchor-id={anchorId}
-                          data-anchor-type="in"
-                          className="w-2 h-2 rounded-full cursor-pointer"
-                          style={{
-                            backgroundColor: isConnected ? (themeColor || HEX_COLORS.zinc[500]) : HEX_COLORS.zinc[500],
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : HEX_COLORS.zinc[400]) : HEX_COLORS.zinc[400]}`,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAnchorClick && onAnchorClick(anchorId, 'in');
-                          }}
-                          title={`${port.label || port.id} (collapsed)`}
-                        />
-                      </span>
-                      {/* Source */}
-                      <span
-                        className="shrink-0 text-[10px] text-white truncate overflow-hidden"
-                        style={{
-                          width: `${columnWidths['source'] || 90}px`,
-                          maxWidth: `${columnWidths['source'] || 90}px`
+                {!shouldAnchorBeOnRight && (
+                  <div className="flex items-center gap-2">
+                    {/* Anchor */}
+                    <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
+                      <div
+                        data-anchor-id={anchorId}
+                        data-anchor-type="in"
+                        className="w-2 h-2 rounded-full cursor-pointer"
+                        style={inputAnchorStyle}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAnchorClick && onAnchorClick(anchorId, 'in');
                         }}
-                      >
-                        {port.source || ''}
-                      </span>
-                    </div>
-                  );
-                })()}
+                        title={portTitle}
+                      />
+                    </span>
+                    {/* Source */}
+                    <span
+                      className="shrink-0 text-[10px] text-white truncate overflow-hidden"
+                      style={{
+                        width: `${sourceColumnWidth}px`,
+                        maxWidth: `${sourceColumnWidth}px`
+                      }}
+                    >
+                      {port.source || ''}
+                    </span>
+                  </div>
+                )}
 
                 {/* OUTPUT layout: [Destination][Anchor] - all on right */}
-                {shouldAnchorBeOnRight && (() => {
-                  const anchorId = `${nodeId}-${port.id}`;
-                  const isConnected = connectedAnchorIds?.has(anchorId);
-                  return (
-                    <div className="flex items-center gap-2">
-                      {/* Destination */}
-                      <span
-                        className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden"
-                        style={{
-                          width: `${columnWidths['destination'] || 90}px`,
-                          maxWidth: `${columnWidths['destination'] || 90}px`
+                {shouldAnchorBeOnRight && (
+                  <div className="flex items-center gap-2">
+                    {/* Destination */}
+                    <span
+                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden"
+                      style={{
+                        width: `${destColumnWidth}px`,
+                        maxWidth: `${destColumnWidth}px`
+                      }}
+                    >
+                      {port.destination || ''}
+                    </span>
+                    {/* Anchor */}
+                    <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
+                      <div
+                        data-anchor-id={anchorId}
+                        data-anchor-type="out"
+                        className="w-2 h-2 rounded-full cursor-pointer"
+                        style={outputAnchorStyle}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAnchorClick && onAnchorClick(anchorId, 'out');
                         }}
-                      >
-                        {port.destination || ''}
-                      </span>
-                      {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                        <div
-                          data-anchor-id={anchorId}
-                          data-anchor-type="out"
-                          className="w-2 h-2 rounded-full cursor-pointer"
-                          style={{
-                            backgroundColor: isConnected ? (themeColor || (signalColor || HEX_COLORS.zinc[500])) : HEX_COLORS.zinc[500],
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])) : HEX_COLORS.zinc[400]}`,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAnchorClick && onAnchorClick(anchorId, 'out');
-                          }}
-                          title={`${port.label || port.id} (collapsed)`}
-                        />
-                      </span>
-                    </div>
-                  );
-                })()}
+                        title={portTitle}
+                      />
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
