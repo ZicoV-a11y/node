@@ -1405,7 +1405,7 @@ const IOSection = ({
   const dragStartSpacing = useRef(0);
 
   // Toggle individual port selection
-  const togglePortSelection = (portId) => {
+  const togglePortSelection = useCallback((portId) => {
     setSelectedPorts(prev => {
       const next = new Set(prev);
       if (next.has(portId)) {
@@ -1415,16 +1415,16 @@ const IOSection = ({
       }
       return next;
     });
-  };
+  }, []);
 
   // Select all / deselect all
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedPorts.size === data.ports.length && data.ports.length > 0) {
       setSelectedPorts(new Set()); // Deselect all
     } else {
       setSelectedPorts(new Set(data.ports.map(p => p.id))); // Select all
     }
-  };
+  }, [selectedPorts.size, data.ports]);
 
   // Spacing drag handler with half-row snapping
   const handleSpacingMouseDown = useCallback(
@@ -1574,33 +1574,38 @@ const IOSection = ({
 
   // Get column order from data or use default
   // Conditionally include 'source' for inputs or 'destination' for outputs
-  const baseColumns = sectionType === 'input'
-    ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
-    : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
+  const columnOrder = useMemo(() => {
+    const baseColumns = sectionType === 'input'
+      ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
+      : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
 
-  // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
-  const savedOrder = data.columnOrder || [];
-  const columnOrder = baseColumns.map(col => col).sort((a, b) => {
-    const aIdx = savedOrder.indexOf(a);
-    const bIdx = savedOrder.indexOf(b);
-    // If both are in saved order, use that order
-    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-    // If only one is in saved order, it comes first
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-    // Neither in saved order, use baseColumns order
-    return baseColumns.indexOf(a) - baseColumns.indexOf(b);
-  });
+    // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
+    const savedOrder = data.columnOrder || [];
+    return baseColumns.map(col => col).sort((a, b) => {
+      const aIdx = savedOrder.indexOf(a);
+      const bIdx = savedOrder.indexOf(b);
+      // If both are in saved order, use that order
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      // If only one is in saved order, it comes first
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      // Neither in saved order, use baseColumns order
+      return baseColumns.indexOf(a) - baseColumns.indexOf(b);
+    });
+  }, [sectionType, data.columnOrder]);
 
   // Group ports: by cardId or standalone (null cardId)
-  const standalonePorts = data.ports.filter(p => !p.cardId);
-  const portsByCard = cards.map(card => ({
+  const standalonePorts = useMemo(() => data.ports.filter(p => !p.cardId), [data.ports]);
+  const portsByCard = useMemo(() => cards.map(card => ({
     card,
     ports: data.ports.filter(p => p.cardId === card.id)
-  }));
+  })), [cards, data.ports]);
 
   // Calculate dynamic column widths based on port content (use shared widths if provided)
-  const columnWidths = sharedColumnWidths || calculateColumnWidths(data.ports);
+  const columnWidths = useMemo(() =>
+    sharedColumnWidths || calculateColumnWidths(data.ports),
+    [sharedColumnWidths, data.ports]
+  );
 
   // Helper to render port rows with spacing support
   const renderPortRows = (ports) => (
@@ -1934,7 +1939,7 @@ const SystemSection = ({
   const SYSTEM_OFFSET = 6;
 
   // Handler for approving field/value (used by checkmark button and Enter key)
-  const handleApprove = () => {
+  const handleApprove = useCallback(() => {
     const field = data.selectedField || 'Manufacturer';
     const value = data.selectedValue || '';
 
@@ -1946,7 +1951,7 @@ const SystemSection = ({
       approvedFields: approvedFields,
       selectedValue: '' // Clear value after approve
     });
-  };
+  }, [data.selectedField, data.selectedValue, data.approvedFields, onUpdate]);
 
   return (
     <div
