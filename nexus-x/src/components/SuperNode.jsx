@@ -2282,6 +2282,19 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     backgroundColor: `${headerHex}33`, // 20% opacity
   }), [signalColorHex, headerHex]);
 
+  // Memoized signal label for title attribute
+  const signalLabel = useMemo(
+    () => node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color',
+    [node.signalColor]
+  );
+
+  // Memoized color picker style
+  const colorPickerStyle = useMemo(() => ({
+    backgroundColor: signalColorHex || HEX_COLORS.zinc[600],
+    boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
+    borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
+  }), [signalColorHex]);
+
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
@@ -2321,12 +2334,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
           </select>
           <div
             className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
-            style={{
-              backgroundColor: signalColorHex || HEX_COLORS.zinc[600],
-              boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
-              borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
-            }}
-            title={node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color'}
+            style={colorPickerStyle}
+            title={signalLabel}
           />
         </div>
       </div>
