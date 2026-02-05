@@ -1665,6 +1665,7 @@ const SystemSection = ({
   useFixedWidths = false, // When true, use fixed widths to align with INPUT/OUTPUT
   inputSectionWidth, // content width for left column
   outputSectionWidth, // content width for right column
+  ioSectionsCollapsed = false, // When true, INPUT/OUTPUT are both collapsed
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1754,14 +1755,18 @@ const SystemSection = ({
       </div>
 
       {!collapsed && (
-        <div className="p-2 text-[11px] w-full">
+        <div className={`${isSideBySideView ? '' : 'px-1.5'} py-2 text-[11px] w-full`}>
+          {isSideBySideView && <div style={{ color: 'lime', fontSize: '9px', marginBottom: '4px' }}>DEBUG: useFixed={String(useFixedWidths)} | inputW={inputSectionWidth} | outputW={outputSectionWidth} | ioCollapsed={String(ioSectionsCollapsed)}</div>}
           {/* Two dropdown system with checkmark in same row */}
           <div className="relative w-full">
             {/* Flex layout with specific widths when side-by-side to match INPUT/OUTPUT sections */}
-            <div className={isSideBySideView ? "flex items-center gap-3" : "flex gap-2 items-center w-full"}>
-              {/* Left: Field Type dropdown - matches INPUT section width when using fixed widths */}
-              <div className="flex items-center"
-                   style={useFixedWidths && inputSectionWidth ? { width: `${inputSectionWidth}px` } : { flex: 1 }}>
+            <div className={isSideBySideView ? "flex items-center gap-[2.5px]" : "flex gap-2 items-center w-full"}>
+              {/* Left: Field Type dropdown */}
+              <div className="flex items-center" style={
+                useFixedWidths && inputSectionWidth
+                  ? { width: `${inputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  : (isSideBySideView ? { width: 'calc(50% - 1.25px)', flexShrink: 0 } : { flex: 1 })
+              }>
                 <SelectWithCustom
                   value={data.selectedField || 'Manufacturer'}
                   options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
@@ -1772,9 +1777,12 @@ const SystemSection = ({
                 />
               </div>
 
-              {/* Right: Value dropdown/input + checkmark - matches OUTPUT section width when using fixed widths */}
-              <div className="flex items-center gap-1"
-                   style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth}px` } : { flex: 1 }}>
+              {/* Right: Value dropdown/input + checkmark */}
+              <div className={`flex items-center gap-1 ${isSideBySideView && !useFixedWidths ? 'flex-1' : ''}`} style={
+                useFixedWidths && outputSectionWidth
+                  ? { width: `${outputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  : (!isSideBySideView ? { flex: 1 } : undefined)
+              }>
                 <div style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth - 32}px` } : undefined} className={!useFixedWidths ? "flex-1" : ""}>
                   {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                     <SelectWithCustom
@@ -1836,8 +1844,8 @@ const SystemSection = ({
                   )}
                 </div>
 
-                {/* Checkmark Button - in side-by-side view, show inline */}
-                {isSideBySideView && (
+                {/* Checkmark Button */}
+                {(
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2568,9 +2576,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
             isSideBySideView={areIOSideBySide}
-            useFixedWidths={areIOSideBySide && (node.layout.inputCollapsed === node.layout.outputCollapsed)}
-            inputSectionWidth={node.layout.inputCollapsed && node.layout.outputCollapsed ? inputCollapsedWidth : inputSectionWidth}
-            outputSectionWidth={node.layout.inputCollapsed && node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
+            useFixedWidths={areIOSideBySide}
+            inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
+            outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
+            ioSectionsCollapsed={node.layout.inputCollapsed && node.layout.outputCollapsed}
           />
         );
       case 'input':
