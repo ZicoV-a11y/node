@@ -64,6 +64,9 @@ const HEX_COLORS = {
   lime:    { 500: '#84cc16', 400: '#a3e635' },
 };
 
+// Common input field className for consistency
+const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600";
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -2013,7 +2016,7 @@ const SystemSection = ({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       placeholder="Enter..."
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                      className={INPUT_FIELD_CLASS}
                     />
                   )}
                   {data.selectedField === 'Platform' && (
@@ -2057,7 +2060,7 @@ const SystemSection = ({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       placeholder="Enter..."
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                      className={INPUT_FIELD_CLASS}
                     />
                   )}
                 </div>
@@ -2135,7 +2138,7 @@ const SystemSection = ({
                     }}
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Enter..."
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                    className={INPUT_FIELD_CLASS}
                   />
                 )}
                 {data.selectedField === 'Platform' && (
@@ -2179,7 +2182,7 @@ const SystemSection = ({
                     }}
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Enter..."
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                    className={INPUT_FIELD_CLASS}
                   />
                 )}
               </div>
