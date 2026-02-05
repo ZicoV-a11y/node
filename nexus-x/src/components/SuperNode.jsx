@@ -1947,7 +1947,6 @@ const SystemSection = ({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
-  isSideBySideView = false,
   useFixedWidths = false,
   inputSectionWidth,
   outputSectionWidth,
@@ -1956,11 +1955,9 @@ const SystemSection = ({
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
 
-  // Calculate divider position (center of gap between INPUT/OUTPUT sections)
-  // Only used in 'aligned' mode
-  const dividerPosition = systemSectionStyle === 'aligned' && isSideBySideView && useFixedWidths && inputSectionWidth
-    ? inputSectionWidth + 6  // 6px = half of gap-3 (12px gap between sections)
-    : null;
+  // Symmetric offset for both left and right dropdowns in aligned mode
+  // This accounts for padding and gap spacing to align with INPUT/OUTPUT sections
+  const SYSTEM_OFFSET = 6;
 
   // Handler for approving field/value (used by checkmark button and Enter key)
   const handleApprove = () => {
@@ -2109,8 +2106,8 @@ const SystemSection = ({
               <div
                 className="flex items-stretch overflow-hidden"
                 style={
-                  useFixedWidths && dividerPosition
-                    ? { width: `${dividerPosition - 12}px`, flexShrink: 0, minWidth: 0 }
+                  useFixedWidths && inputSectionWidth
+                    ? { width: `${inputSectionWidth - SYSTEM_OFFSET}px`, flexShrink: 0, minWidth: 0 }
                     : { flex: 1 }
                 }
               >
@@ -2129,7 +2126,7 @@ const SystemSection = ({
                 className="flex items-stretch gap-2 overflow-hidden"
                 style={
                   useFixedWidths && outputSectionWidth
-                    ? { width: `${outputSectionWidth - 6}px`, flexShrink: 0, minWidth: 0 }
+                    ? { width: `${outputSectionWidth - SYSTEM_OFFSET}px`, flexShrink: 0, minWidth: 0 }
                     : { flex: 1 }
                 }
               >
@@ -2945,7 +2942,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
-            isSideBySideView={areIOSideBySide}
             useFixedWidths={areIOSideBySide}
             inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
             outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
