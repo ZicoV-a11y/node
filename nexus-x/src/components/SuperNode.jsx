@@ -115,6 +115,9 @@ const WHITE_TEXT_STYLE = { color: '#ffffff' };
 // Checkmark button dimensions (static)
 const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
 
+// Shared event handlers (prevents anonymous function creation)
+const stopPropagation = (e) => e.stopPropagation();
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -294,7 +297,7 @@ const SelectWithCustom = memo(({
               setCustomText(value || '');
             }
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={stopPropagation}
           placeholder="Type custom..."
           className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
         />
@@ -329,7 +332,7 @@ const SelectWithCustom = memo(({
           onChange(newValue);
         }
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={stopPropagation}
       className={`${baseStyle} ${className}`}
     >
       <option value="">{placeholder}</option>
@@ -2141,7 +2144,7 @@ const SystemSection = memo(({
                           handleApprove();
                         }
                       }}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={stopPropagation}
                       placeholder="Enter..."
                       className={INPUT_FIELD_CLASS}
                     />
@@ -2185,7 +2188,7 @@ const SystemSection = memo(({
                           handleApprove();
                         }
                       }}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={stopPropagation}
                       placeholder="Enter..."
                       className={INPUT_FIELD_CLASS}
                     />
@@ -2263,7 +2266,7 @@ const SystemSection = memo(({
                         handleApprove();
                       }
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={stopPropagation}
                     placeholder="Enter..."
                     className={INPUT_FIELD_CLASS}
                   />
@@ -2307,7 +2310,7 @@ const SystemSection = memo(({
                         handleApprove();
                       }
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={stopPropagation}
                     placeholder="Enter..."
                     className={INPUT_FIELD_CLASS}
                   />
@@ -2440,7 +2443,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
           <select
             value={node.signalColor || ''}
             onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
-            onClick={(e) => e.stopPropagation()}
+            onClick={stopPropagation}
             className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
             title="Signal color"
             style={DARK_COLOR_SCHEME_STYLE}
@@ -2485,7 +2488,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
         {showSettings && (
           <div
             className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-50 py-1 min-w-[160px]"
-            onClick={(e) => e.stopPropagation()}
+            onClick={stopPropagation}
           >
             <button
               onClick={(e) => {
