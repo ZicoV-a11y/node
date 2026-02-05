@@ -3129,6 +3129,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [nodeScale]
   );
 
+  // Memoized System section event handlers (prevent inline arrow function recreation)
+  const handleSystemDragOver = useCallback((e) => handleSectionDragOver(e, 'system'), [handleSectionDragOver]);
+  const handleSystemDrop = useCallback((e) => handleSectionDrop(e, 'system'), [handleSectionDrop]);
+  const handleSystemMouseUp = useCallback(() => handleSectionDrop(null, 'system'), [handleSectionDrop]);
+
   return (
     <div
       ref={nodeRef}
@@ -3227,10 +3232,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       <div
                         className={isSingleSectionRow ? 'w-full' : 'flex-1'}
                         style={SYSTEM_WRAPPER_STYLE}
-                        onDragOver={(e) => handleSectionDragOver(e, 'system')}
-                        onDrop={(e) => handleSectionDrop(e, 'system')}
+                        onDragOver={handleSystemDragOver}
+                        onDrop={handleSystemDrop}
                         // Also support mouse-based drops
-                        onMouseUp={() => handleSectionDrop(null, 'system')}
+                        onMouseUp={handleSystemMouseUp}
                       >
                         {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                       </div>
