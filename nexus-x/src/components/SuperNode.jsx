@@ -73,6 +73,9 @@ const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 9999, isolation: 'i
 // Checkmark button size (static)
 const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
 
+// Drop zone z-index style (static)
+const DROP_ZONE_STYLE = { zIndex: 10000 };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -509,7 +512,7 @@ const SideDropZone = memo(({ side, onDrop, fullWidth = false }) => (
     className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} ${fullWidth ? 'w-full' : 'w-16'}
       border-4 border-dashed transition-all flex items-center justify-center
       border-emerald-400 bg-emerald-400/30 hover:bg-emerald-400/50 animate-pulse cursor-pointer px-1`}
-    style={{ zIndex: 10000 }}
+    style={DROP_ZONE_STYLE}
   >
     <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
       {fullWidth
@@ -527,7 +530,7 @@ SideDropZone.displayName = 'SideDropZone';
 // ============================================
 
 const ThreeZoneDropArea = memo(({ onDropToSide, onDropToSwap }) => (
-  <div className="absolute inset-0 flex" style={{ zIndex: 10000 }}>
+  <div className="absolute inset-0 flex" style={DROP_ZONE_STYLE}>
     {/* LEFT ZONE */}
     <div
       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -601,7 +604,7 @@ const BottomDropZone = memo(({ onDrop }) => (
     className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
       flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer
       animate-pulse px-2"
-    style={{ zIndex: 10000 }}
+    style={DROP_ZONE_STYLE}
   >
     <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">
       ▼▼▼ DROP TO BOTTOM ▼▼▼
@@ -638,7 +641,7 @@ const TopDropZone = memo(({ onDrop }) => (
     className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
       flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer mb-2
       animate-pulse px-2"
-    style={{ zIndex: 10000 }}
+    style={DROP_ZONE_STYLE}
   >
     <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">▲▲▲ DROP TO TOP ▲▲▲</span>
   </div>
