@@ -1170,13 +1170,13 @@ const SectionHeader = ({
     .filter(([_, preset]) => preset.category === type)
     .map(([id, preset]) => ({ id, ...preset }));
 
-  const handlePresetSelect = (presetId) => {
+  const handlePresetSelect = useCallback((presetId) => {
     const preset = CARD_PRESETS[presetId];
     if (preset && onApplyPreset) {
       onApplyPreset(preset.ports, presetId);
     }
     setShowPresetMenu(false);
-  };
+  }, [onApplyPreset]);
 
   // Shared button style for consistency (color applied via inline style)
   const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
@@ -2217,22 +2217,18 @@ const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideByS
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
     : null;
 
-  const getSoftwareLabel = () => {
+  const displayTitle = useCallback(() => {
     const softwareId = node.system?.software;
-    if (!softwareId || softwareId === 'none') return null;
+    if (!softwareId || softwareId === 'none') return node.title;
     const software = SOFTWARE_PRESETS.find(s => s.id === softwareId);
-    return software ? software.label : null;
-  };
-
-  const displayTitle = () => {
-    const softwareLabel = getSoftwareLabel();
+    const softwareLabel = software ? software.label : null;
     if (softwareLabel) {
       return `${softwareLabel} ${node.title}`.toUpperCase();
     }
     return node.title;
-  };
+  }, [node.system?.software, node.title]);
 
-  const handleResetSystemSettings = () => {
+  const handleResetSystemSettings = useCallback(() => {
     onUpdate({
       system: {
         ...node.system,
@@ -2242,7 +2238,7 @@ const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideByS
       }
     });
     setShowSettings(false);
-  };
+  }, [node.system, onUpdate]);
 
   // Use theme header colors (hex values for inline styles)
   const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
@@ -2472,16 +2468,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // ===========================================
 
   // Get rows from layout (default: all sections stacked)
-  const getRows = () => {
+  const layoutRows = useMemo(() => {
     if (node.layout.rows) {
       return node.layout.rows;
     }
     // Fallback: convert sectionOrder to rows
     const sectionOrder = node.layout.sectionOrder || ['system', 'input', 'output'];
     return sectionOrder.map(s => [s]);
-  };
-
-  const layoutRows = getRows();
+  }, [node.layout.rows, node.layout.sectionOrder]);
 
   // Compute anchor local offsets via scoped DOM queries (only when layout changes)
   useLayoutEffect(() => {
