@@ -975,6 +975,16 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
   // Get full column order (anchor, delete, data, flip) with proper reversal
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
 
+  // Pre-compute column width styles (prevents calling getColumnWidth twice per column)
+  const columnStyles = useMemo(() => {
+    const styles = {};
+    fullColumnOrder.forEach(colId => {
+      const width = getColumnWidth(colId);
+      styles[colId] = { width: `${width}px`, maxWidth: `${width}px` };
+    });
+    return styles;
+  }, [fullColumnOrder, getColumnWidth]);
+
   const handleDragStart = useCallback((e, colId) => {
     e.stopPropagation();
     setDraggedColumn(colId);
@@ -1060,7 +1070,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                 className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors overflow-hidden ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
+                style={columnStyles[colId]}
                 title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
@@ -1078,7 +1088,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                 className={`shrink-0 flex items-center justify-center transition-opacity overflow-hidden
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
+                style={columnStyles[colId]}
                 title={isDraggable ? "Drag to reorder" : undefined}
               >
                 {colDef.label}
