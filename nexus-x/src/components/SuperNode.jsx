@@ -76,6 +76,9 @@ const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
 // Drop zone z-index style (static)
 const DROP_ZONE_STYLE = { zIndex: 10000 };
 
+// Spacing column width style (static)
+const SPACING_COLUMN_STYLE = { width: '24px' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -1743,7 +1746,7 @@ const IOSection = memo(({
                   return (
                     <div className="flex items-center gap-2">
                       {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                      <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                         <div
                           data-anchor-id={anchorId}
                           data-anchor-type="in"
@@ -1790,7 +1793,7 @@ const IOSection = memo(({
                         {port.destination || ''}
                       </span>
                       {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
+                      <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                         <div
                           data-anchor-id={anchorId}
                           data-anchor-type="out"
