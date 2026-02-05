@@ -2363,7 +2363,7 @@ const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideByS
 // RESIZE HANDLE COMPONENT
 // ============================================
 
-const ResizeHandle = ({ onResizeStart }) => (
+const ResizeHandle = memo(({ onResizeStart }) => (
   <div
     style={{
       position: 'absolute',
@@ -2384,7 +2384,7 @@ const ResizeHandle = ({ onResizeStart }) => (
     }}
     className="hover:opacity-100 hover:scale-110 transition-all"
   />
-);
+));
 
 // ============================================
 // SUPERNODE COMPONENT
