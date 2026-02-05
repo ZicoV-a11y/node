@@ -115,9 +115,6 @@ const DARK_COLOR_SCHEME_STYLE = { colorScheme: 'dark' };
 // White text color style (static)
 const WHITE_TEXT_STYLE = { color: '#ffffff' };
 
-// Checkmark button dimensions (static)
-const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
-
 // Shared event handlers (prevents anonymous function creation)
 const stopPropagation = (e) => e.stopPropagation();
 
