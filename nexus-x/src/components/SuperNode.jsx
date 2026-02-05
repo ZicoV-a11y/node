@@ -187,7 +187,7 @@ const CARD_PRESETS = {
 // Dropdown that switches to text input for custom values
 // ============================================
 
-const SelectWithCustom = ({
+const SelectWithCustom = memo(({
   value,
   options,
   onChange,
@@ -293,7 +293,8 @@ const SelectWithCustom = ({
       ))}
     </select>
   );
-};
+});
+SelectWithCustom.displayName = 'SelectWithCustom';
 
 // ============================================
 // CARD WRAPPER COMPONENT
@@ -695,7 +696,7 @@ DeleteButton.displayName = 'DeleteButton';
 // ALL columns render in same order with markers between
 // ============================================
 
-const PortRow = ({
+const PortRow = memo(({
   port,
   type,
   anchorSide,
@@ -923,7 +924,8 @@ const PortRow = ({
       })}
     </div>
   );
-};
+});
+PortRow.displayName = 'PortRow';
 
 // ============================================
 // COLUMN HEADERS COMPONENT
@@ -1075,7 +1077,7 @@ ColumnHeaders.displayName = 'ColumnHeaders';
 // Wraps sections with drag handle and drop zones
 // ============================================
 
-const DraggableSection = ({
+const DraggableSection = memo(({
   sectionId,
   children,
   onDragOver,
@@ -1147,14 +1149,15 @@ const DraggableSection = ({
       <div className="w-full">{children}</div>
     </div>
   );
-};
+});
+DraggableSection.displayName = 'DraggableSection';
 
 // ============================================
 // SECTION HEADER COMPONENT
 // Template: Title on anchor side, + button centered
 // ============================================
 
-const SectionHeader = ({
+const SectionHeader = memo(({
   type,
   title,
   anchorSide,
@@ -1371,7 +1374,8 @@ const SectionHeader = ({
       )}
     </div>
   );
-};
+});
+SectionHeader.displayName = 'SectionHeader';
 
 // ============================================
 // IO SECTION COMPONENT (Input or Output)
@@ -1803,7 +1807,7 @@ IOSection.displayName = 'IOSection';
 // Specialized header for System section with approved fields display
 // ============================================
 
-const SystemHeader = ({
+const SystemHeader = memo(({
   collapsed,
   onToggleCollapse,
   onDragStart,
@@ -1920,7 +1924,8 @@ const SystemHeader = ({
       )}
     </div>
   );
-};
+});
+SystemHeader.displayName = 'SystemHeader';
 
 // ============================================
 // SYSTEM SECTION COMPONENT
