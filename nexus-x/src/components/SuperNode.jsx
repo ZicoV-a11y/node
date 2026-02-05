@@ -640,19 +640,35 @@ TopDropZone.displayName = 'TopDropZone';
 const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
   const isInput = type === 'in';
 
-  // Use theme color if provided, otherwise fallback to signal color or default
-  const baseColor = themeColor || (isInput ? HEX_COLORS.zinc[500] : (signalColor || HEX_COLORS.zinc[500])); // zinc-500 when off
-  const lightColor = themeColor ? `${themeColor}cc` : (isInput ? HEX_COLORS.zinc[400] : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])); // zinc-400 when off
+  // Use theme color if provided, otherwise fallback to signal color or default (memoized)
+  const baseColor = useMemo(
+    () => themeColor || (isInput ? HEX_COLORS.zinc[500] : (signalColor || HEX_COLORS.zinc[500])),
+    [themeColor, isInput, signalColor]
+  );
+  const lightColor = useMemo(
+    () => themeColor ? `${themeColor}cc` : (isInput ? HEX_COLORS.zinc[400] : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])),
+    [themeColor, isInput, signalColor]
+  );
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     e.stopPropagation();
     e.preventDefault(); // Prevent the subsequent click event
     // Start wire connection
     onClick && onClick(anchorId, type);
-  };
+  }, [onClick, anchorId, type]);
 
   // Determine if anchor should be "lit" - when connected or actively being used
   const isLit = isConnected || isActive;
+
+  // Memoized style object (prevents recreation on every render)
+  const anchorStyle = useMemo(() => ({
+    width: isActive ? '8px' : '7px',
+    height: isActive ? '8px' : '7px',
+    backgroundColor: isLit ? baseColor : HEX_COLORS.zinc[600], // zinc-600 when off
+    border: `1px solid ${isLit ? lightColor : HEX_COLORS.zinc[500]}`, // zinc-500 when off
+    boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
+    opacity: isLit ? 1 : 0.4
+  }), [isActive, isLit, baseColor, lightColor]);
 
   return (
     <div
@@ -660,14 +676,7 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnect
       data-anchor-type={type}
       className="rounded-full transition-all cursor-pointer select-none"
       onMouseDown={handleMouseDown}
-      style={{
-        width: isActive ? '8px' : '7px',
-        height: isActive ? '8px' : '7px',
-        backgroundColor: isLit ? baseColor : HEX_COLORS.zinc[600], // zinc-600 when off
-        border: `1px solid ${isLit ? lightColor : HEX_COLORS.zinc[500]}`, // zinc-500 when off
-        boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
-        opacity: isLit ? 1 : 0.4
-      }}
+      style={anchorStyle}
     />
   );
 });
