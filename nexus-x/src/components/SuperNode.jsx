@@ -2422,7 +2422,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
   // Gaps between columns: 8px each (via mx-2 on separator)
-  const calculateSectionWidth = (includeDest = false) => {
+  const calculateSectionWidth = useCallback((includeDest = false) => {
     const columns = [
       sharedColumnWidths.spacing,     // 20 (spacing drag handle - ALWAYS included)
       sharedColumnWidths.anchor,      // 24
@@ -2436,10 +2436,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     const numGaps = columns.length - 1; // gaps between columns
     const gapWidth = SEPARATOR_WIDTH; // 9px (1px content + 8px mx-2 margins)
     return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
-  };
+  }, [sharedColumnWidths]);
 
-  const inputContentWidth = useMemo(() => calculateSectionWidth(false), [sharedColumnWidths]); // uses source
-  const outputContentWidth = useMemo(() => calculateSectionWidth(true), [sharedColumnWidths]); // uses destination
+  const inputContentWidth = useMemo(() => calculateSectionWidth(false), [calculateSectionWidth]); // uses source
+  const outputContentWidth = useMemo(() => calculateSectionWidth(true), [calculateSectionWidth]); // uses destination
 
   // Container widths include buffer for borders, CardWrapper stripe (4px), anchors, and spacing
   const inputSectionWidth = useMemo(() => inputContentWidth + 20, [inputContentWidth]);
