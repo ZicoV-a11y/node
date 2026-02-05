@@ -1480,7 +1480,7 @@ const IOSection = ({
     [data.ports, onUpdate]
   );
 
-  const addPort = () => {
+  const addPort = useCallback(() => {
     const prefix = type === 'input' ? 'in' : 'out';
     const newPort = {
       id: `${prefix}-${Date.now()}`,
@@ -1496,25 +1496,25 @@ const IOSection = ({
     if (collapsed && onToggleCollapse) {
       onToggleCollapse();
     }
-  };
+  }, [type, data.ports, collapsed, onToggleCollapse, onUpdate]);
 
-  const updatePort = (portId, updates) => {
+  const updatePort = useCallback((portId, updates) => {
     onUpdate({
       ports: data.ports.map(p => p.id === portId ? { ...p, ...updates } : p)
     });
-  };
+  }, [data.ports, onUpdate]);
 
   // Bulk update ONLY selected ports with a specific field value
-  const bulkUpdatePorts = (field, value) => {
+  const bulkUpdatePorts = useCallback((field, value) => {
     if (selectedPorts.size === 0) return;
     onUpdate({
       ports: data.ports.map(p =>
         selectedPorts.has(p.id) ? { ...p, [field]: value } : p
       )
     });
-  };
+  }, [data.ports, selectedPorts, onUpdate]);
 
-  const deletePort = (portId) => {
+  const deletePort = useCallback((portId) => {
     const port = data.ports.find(p => p.id === portId);
     const remainingPorts = data.ports.filter(p => p.id !== portId);
 
@@ -1532,14 +1532,14 @@ const IOSection = ({
     const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
 
     onUpdate({ ports: renumberedPorts, cards: updatedCards });
-  };
+  }, [data.ports, cards, onUpdate]);
 
-  const reorderColumns = (newOrder) => {
+  const reorderColumns = useCallback((newOrder) => {
     onUpdate({ columnOrder: newOrder });
-  };
+  }, [onUpdate]);
 
   // Apply a preset - creates a card with grouped ports
-  const applyPreset = (presetPorts, presetId) => {
+  const applyPreset = useCallback((presetPorts, presetId) => {
     const prefix = type === 'input' ? 'in' : 'out';
     const preset = CARD_PRESETS[presetId];
     const cardId = `card-${Date.now()}`;
@@ -1574,24 +1574,24 @@ const IOSection = ({
     if (collapsed && onToggleCollapse) {
       onToggleCollapse();
     }
-  };
+  }, [type, data.ports, cards, collapsed, onToggleCollapse, onUpdate]);
 
   // Toggle card collapse
-  const toggleCardCollapse = (cardId) => {
+  const toggleCardCollapse = useCallback((cardId) => {
     onUpdate({
       cards: cards.map(c => c.id === cardId ? { ...c, collapsed: !c.collapsed } : c)
     });
-  };
+  }, [cards, onUpdate]);
 
   // Remove entire card and its ports
-  const removeCard = (cardId) => {
+  const removeCard = useCallback((cardId) => {
     const remainingPorts = data.ports.filter(p => p.cardId !== cardId);
     const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
     onUpdate({
       ports: renumberedPorts,
       cards: cards.filter(c => c.id !== cardId)
     });
-  };
+  }, [data.ports, cards, onUpdate]);
 
   // Get column order from data or use default
   // Conditionally include 'source' for inputs or 'destination' for outputs
@@ -2907,24 +2907,50 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return layoutRows.some(row => row.includes(section1) && row.includes(section2));
   };
 
-  // Anchor side toggles
-  const toggleInputAnchorSide = () => {
+  // Anchor side toggles (memoized)
+  const toggleInputAnchorSide = useCallback(() => {
     onUpdate({
       layout: {
         ...node.layout,
         inputAnchorSide: node.layout.inputAnchorSide === 'right' ? 'left' : 'right'
       }
     });
-  };
+  }, [onUpdate, node.layout]);
 
-  const toggleOutputAnchorSide = () => {
+  const toggleOutputAnchorSide = useCallback(() => {
     onUpdate({
       layout: {
         ...node.layout,
         outputAnchorSide: node.layout.outputAnchorSide === 'left' ? 'right' : 'left'
       }
     });
-  };
+  }, [onUpdate, node.layout]);
+
+  // Section update handlers (memoized to prevent re-renders)
+  const handleSystemUpdate = useCallback((updates) => {
+    onUpdate({ system: { ...node.system, ...updates } });
+  }, [onUpdate, node.system]);
+
+  const handleInputUpdate = useCallback((updates) => {
+    onUpdate({ inputSection: { ...node.inputSection, ...updates } });
+  }, [onUpdate, node.inputSection]);
+
+  const handleOutputUpdate = useCallback((updates) => {
+    onUpdate({ outputSection: { ...node.outputSection, ...updates } });
+  }, [onUpdate, node.outputSection]);
+
+  // Section collapse handlers (memoized)
+  const handleSystemCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, systemCollapsed: !node.layout.systemCollapsed } });
+  }, [onUpdate, node.layout]);
+
+  const handleInputCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } });
+  }, [onUpdate, node.layout]);
+
+  const handleOutputCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } });
+  }, [onUpdate, node.layout]);
 
   // Check if Input and Output are in the same row (side-by-side)
   const areIOSideBySide = areInSameRow('input', 'output');
@@ -2936,9 +2962,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         return (
           <SystemSection
             data={node.system}
-            onUpdate={(updates) => onUpdate({ system: { ...node.system, ...updates } })}
+            onUpdate={handleSystemUpdate}
             collapsed={node.layout.systemCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, systemCollapsed: !node.layout.systemCollapsed } })}
+            onToggleCollapse={handleSystemCollapseToggle}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
@@ -2957,13 +2983,13 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             nodeId={node.id}
             activeWire={activeWire}
             onAnchorClick={onAnchorClick}
-            onUpdate={(updates) => onUpdate({ inputSection: { ...node.inputSection, ...updates } })}
+            onUpdate={handleInputUpdate}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchorSide={toggleInputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.inputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
+            onToggleCollapse={handleInputCollapseToggle}
             colors={themeColors.input}
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
@@ -2979,14 +3005,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             nodeId={node.id}
             activeWire={activeWire}
             onAnchorClick={onAnchorClick}
-            onUpdate={(updates) => onUpdate({ outputSection: { ...node.outputSection, ...updates } })}
+            onUpdate={handleOutputUpdate}
             signalColor={node.signalColor}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchorSide={toggleOutputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.outputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
+            onToggleCollapse={handleOutputCollapseToggle}
             colors={themeColors.output}
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
