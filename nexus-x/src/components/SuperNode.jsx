@@ -1870,8 +1870,8 @@ const SystemHeader = memo(({
   colors: passedColors,
   approvedFields,
 }) => {
-  // Use passed hex colors or fallback to zinc
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
 
   // Track drag state for visual feedback
   const [isDragging, setIsDragging] = useState(false);
@@ -1923,12 +1923,15 @@ const SystemHeader = memo(({
     };
   }, [passedColors?.hexLight]);
 
-  // Check if there are any approved fields to display
-  const hasDisplayFields = approvedFields && (
-    approvedFields['Platform'] ||
-    approvedFields['Software'] ||
-    approvedFields['Capture'] ||
-    approvedFields['IP Address']
+  // Check if there are any approved fields to display (memoized)
+  const hasDisplayFields = useMemo(
+    () => approvedFields && (
+      approvedFields['Platform'] ||
+      approvedFields['Software'] ||
+      approvedFields['Capture'] ||
+      approvedFields['IP Address']
+    ),
+    [approvedFields]
   );
 
   return (
