@@ -14,27 +14,6 @@ const SIZES = {
 };
 
 // Colors per section type
-const SECTION_COLORS = {
-  input: {
-    accent: 'emerald',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500',
-  },
-  output: {
-    accent: 'amber',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
-    border: 'border-amber-500',
-  },
-  system: {
-    accent: 'purple',
-    bg: 'bg-purple-500/10',
-    text: 'text-purple-400',
-    border: 'border-purple-500',
-  },
-};
-
 // Dropdown options
 const RESOLUTIONS = [
   '640x480', '800x600', '1024x768',
@@ -319,7 +298,6 @@ const SelectWithCustom = ({
 const CardWrapper = ({
   card,
   children,
-  type,
   onToggleCollapse,
   onRemoveCard,
   anchorSide,
@@ -488,7 +466,7 @@ const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
 // - Edge mode for adding to side (small edge indicator)
 // ============================================
 
-const SideDropZone = ({ side, onDrop, isActive, fullWidth = false }) => (
+const SideDropZone = ({ side, onDrop, fullWidth = false }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -1086,17 +1064,13 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
 const DraggableSection = ({
   sectionId,
   children,
-  anchorSide,
-  onDragStart,
   onDragOver,
-  onDragEnd,
   onDrop,
   onDropToSide,
   isDraggedOver,
   isDragging,
   showLeftDropZone,
   showRightDropZone,
-  isSingleSectionRow,
   draggedSection, // What section is currently being dragged
 }) => {
   // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
@@ -1171,7 +1145,6 @@ const SectionHeader = ({
   title,
   anchorSide,
   onAdd,
-  onTitleChange,
   onDragStart,
   onDragEnd,
   sectionId,
@@ -1183,7 +1156,6 @@ const SectionHeader = ({
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
   // Use passed hex colors or fallback to zinc
-  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
   const colorHexLight = '#ffffff'; // White text for section headers
 
   // Filter presets by section type (input/output)
@@ -1678,10 +1650,6 @@ const IOSection = ({
             // Input sections always have anchors on LEFT
             // Output sections always have anchors on RIGHT
             const shouldAnchorBeOnRight = type === 'output';
-            const dataOrder = columnOrder || ['delete', 'port', 'connector', 'resolution', 'rate'];
-            const fullColumnOrder = shouldAnchorBeOnRight
-              ? [...dataOrder, 'anchor']  // Anchor at end = right side
-              : ['anchor', ...dataOrder];  // Anchor at start = left side
 
             return (
               <div key={port.id} className={`flex items-center py-1.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
@@ -1825,7 +1793,6 @@ const SystemHeader = ({
   approvedFields,
 }) => {
   // Use passed hex colors or fallback to zinc
-  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
   const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
 
   // Track drag state for visual feedback
@@ -2232,7 +2199,7 @@ const SystemSection = ({
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = ({ node, onUpdate, onDelete, themeColors, inputSectionWidth, outputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
+const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
   const signalColorHex = node.signalColor
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
@@ -2891,7 +2858,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   };
 
   // Get anchor side for a section based on its position
-  const getAnchorSide = (sectionId, rowIndex, colIndex, isSingleSectionRow) => {
+  const getAnchorSide = (sectionId, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
       // In columns: left col = left anchors, right col = right anchors
       return colIndex === 0 ? 'left' : 'right';
@@ -3102,7 +3069,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                 const isLastInRow = colIndex === row.length - 1;
                 if (!sectionId) return null;
 
-                const anchorSide = getAnchorSide(sectionId, rowIndex, colIndex, isSingleSectionRow);
+                const anchorSide = getAnchorSide(sectionId, colIndex, isSingleSectionRow);
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
 
                 // Calculate which side drop zones to show based on layout
