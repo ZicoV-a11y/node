@@ -2471,9 +2471,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputContentWidth = calculateSectionWidth(false); // uses source
   const outputContentWidth = calculateSectionWidth(true); // uses destination
 
-  // Container widths include buffer for borders, CardWrapper stripe (4px), and spacing
-  const inputSectionWidth = inputContentWidth + 10;
-  const outputSectionWidth = outputContentWidth + 10;
+  // Container widths include buffer for borders, CardWrapper stripe (4px), anchors, and spacing
+  const inputSectionWidth = inputContentWidth + 20;
+  const outputSectionWidth = outputContentWidth + 20;
 
   // Collapsed section widths (spacing + anchor + gap + source/destination only)
   const inputCollapsedWidth = sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source; // spacing + gap + anchor + gap + source
