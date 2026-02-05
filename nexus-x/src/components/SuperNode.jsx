@@ -79,6 +79,14 @@ const DROP_ZONE_STYLE = { zIndex: 10000 };
 // Spacing column width style (static)
 const SPACING_COLUMN_STYLE = { width: '24px' };
 
+// Utility function to convert hex color to rgba (extracted to avoid duplication)
+const hexToRgba = (hex, alpha) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -1330,13 +1338,6 @@ const SectionHeader = memo(({
   // Create gradient background based on signal direction towards anchor
   const gradientStyle = useMemo(() => {
     const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
-    // Convert hex to rgba for gradient
-    const hexToRgba = (hex, alpha) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
 
     // Signal flows from anchor (reversed gradient)
     // If anchor is on left: gradient goes left to right (heavy on left, light on right)
@@ -1932,12 +1933,6 @@ const SystemHeader = memo(({
   // Create gradient background
   const gradientStyle = useMemo(() => {
     const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
-    const hexToRgba = (hex, alpha) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
 
     const startColor = hexToRgba(baseColor, 0.4);
     const endColor = hexToRgba(baseColor, 0);
