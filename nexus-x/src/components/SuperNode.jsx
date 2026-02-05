@@ -767,6 +767,15 @@ const PortRow = memo(({
     [dataOrder, canToggleAnchor, isReversed]
   );
 
+  // Generic memoized handler for field changes (bulk or single update)
+  const handleFieldChange = useCallback((field, value) => {
+    if (isSelected && onBulkUpdate) {
+      onBulkUpdate(field, value);
+    } else {
+      onUpdate({ [field]: value });
+    }
+  }, [isSelected, onBulkUpdate, onUpdate]);
+
   // Render column content based on column ID
   const renderColumnContent = (colId) => {
     const colDef = COLUMN_DEFS[colId];
@@ -853,13 +862,7 @@ const PortRow = memo(({
             options={CONNECTOR_TYPES}
             placeholder="Type"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('connector', value);
-              } else {
-                onUpdate({ connector: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('connector', value)}
           />
         );
       case 'resolution':
@@ -869,13 +872,7 @@ const PortRow = memo(({
             options={RESOLUTIONS}
             placeholder="Choose"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('resolution', value);
-              } else {
-                onUpdate({ resolution: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('resolution', value)}
           />
         );
       case 'rate':
@@ -885,13 +882,7 @@ const PortRow = memo(({
             options={REFRESH_RATES}
             placeholder="Choose"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('refreshRate', value);
-              } else {
-                onUpdate({ refreshRate: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('refreshRate', value)}
           />
         );
       case 'source':
@@ -901,13 +892,7 @@ const PortRow = memo(({
             options={['Custom...']}
             placeholder="Source"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('source', value);
-              } else {
-                onUpdate({ source: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('source', value)}
           />
         );
       case 'destination':
@@ -917,13 +902,7 @@ const PortRow = memo(({
             options={['Custom...']}
             placeholder="Destination"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('destination', value);
-              } else {
-                onUpdate({ destination: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('destination', value)}
           />
         );
       default:
