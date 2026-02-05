@@ -1666,6 +1666,8 @@ const SystemSection = ({
   inputSectionWidth, // content width for left column
   outputSectionWidth, // content width for right column
   ioSectionsCollapsed = false, // When true, INPUT/OUTPUT are both collapsed
+  inputCollapsed = false, // When true, INPUT section is collapsed
+  outputCollapsed = false, // When true, OUTPUT section is collapsed
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1764,7 +1766,7 @@ const SystemSection = ({
               {/* Left: Field Type dropdown */}
               <div className="flex items-center" style={
                 useFixedWidths && inputSectionWidth
-                  ? { width: `${inputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  ? { width: `${inputSectionWidth + (inputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
                   : (isSideBySideView ? { width: 'calc(50% - 1.25px)', flexShrink: 0 } : { flex: 1 })
               }>
                 <SelectWithCustom
@@ -1780,10 +1782,10 @@ const SystemSection = ({
               {/* Right: Value dropdown/input + checkmark */}
               <div className={`flex items-center gap-1 ${isSideBySideView && !useFixedWidths ? 'flex-1' : ''}`} style={
                 useFixedWidths && outputSectionWidth
-                  ? { width: `${outputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  ? { width: `${outputSectionWidth + (outputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
                   : (!isSideBySideView ? { flex: 1 } : undefined)
               }>
-                <div style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth - 32}px` } : undefined} className={!useFixedWidths ? "flex-1" : ""}>
+                <div className="flex-1">
                   {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                     <SelectWithCustom
                       value={data.selectedValue || ''}
@@ -2578,6 +2580,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
             outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
             ioSectionsCollapsed={node.layout.inputCollapsed && node.layout.outputCollapsed}
+            inputCollapsed={node.layout.inputCollapsed}
+            outputCollapsed={node.layout.outputCollapsed}
           />
         );
       case 'input':
