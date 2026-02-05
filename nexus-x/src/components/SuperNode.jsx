@@ -42,6 +42,9 @@ const SIGNAL_COLORS = [
   { id: 'yellow', hex: '#eab308', label: 'Yellow' },
 ];
 
+// Signal colors lookup Map for O(1) access by id
+const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
+
 // Hex color values for theming (Tailwind 500/400 equivalents)
 const HEX_COLORS = {
   zinc:    { 500: '#71717a', 400: '#a1a1aa', 600: '#52525b', 700: '#3f3f46' },
@@ -203,6 +206,9 @@ const CAPTURE_CARDS = [
 // Pre-mapped label arrays (computed once at module load)
 const SOFTWARE_PRESET_LABELS = SOFTWARE_PRESETS.map(s => s.label);
 const CAPTURE_CARD_LABELS = CAPTURE_CARDS.map(c => c.label);
+
+// Pre-mapped lookup Maps for O(1) access by id
+const SOFTWARE_PRESETS_BY_ID = new Map(SOFTWARE_PRESETS.map(s => [s.id, s]));
 
 // Barco Tri-Combo Cards (DP, HDMI, 4x 12G SDI)
 const CARD_PRESETS = {
@@ -2348,9 +2354,9 @@ SystemSection.displayName = 'SystemSection';
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
 
-  // Memoize signal color object lookup (single find for both hex and label)
+  // Memoize signal color object lookup (O(1) Map access instead of O(n) find)
   const signalColorObj = useMemo(
-    () => node.signalColor ? SIGNAL_COLORS.find(c => c.id === node.signalColor) : null,
+    () => node.signalColor ? SIGNAL_COLORS_BY_ID.get(node.signalColor) || null : null,
     [node.signalColor]
   );
 
@@ -2362,7 +2368,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
   const displayTitle = useMemo(() => {
     const softwareId = node.system?.software;
     if (!softwareId || softwareId === 'none') return node.title;
-    const software = SOFTWARE_PRESETS.find(s => s.id === softwareId);
+    const software = SOFTWARE_PRESETS_BY_ID.get(softwareId);
     const softwareLabel = software ? software.label : null;
     if (softwareLabel) {
       return `${softwareLabel} ${node.title}`.toUpperCase();
