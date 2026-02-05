@@ -1666,6 +1666,8 @@ const SystemSection = ({
   inputSectionWidth, // content width for left column
   outputSectionWidth, // content width for right column
   ioSectionsCollapsed = false, // When true, INPUT/OUTPUT are both collapsed
+  inputCollapsed = false, // When true, INPUT section is collapsed
+  outputCollapsed = false, // When true, OUTPUT section is collapsed
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
@@ -1764,7 +1766,7 @@ const SystemSection = ({
               {/* Left: Field Type dropdown */}
               <div className="flex items-center" style={
                 useFixedWidths && inputSectionWidth
-                  ? { width: `${inputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  ? { width: `${inputSectionWidth + (inputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
                   : (isSideBySideView ? { width: 'calc(50% - 1.25px)', flexShrink: 0 } : { flex: 1 })
               }>
                 <SelectWithCustom
@@ -1780,10 +1782,10 @@ const SystemSection = ({
               {/* Right: Value dropdown/input + checkmark */}
               <div className={`flex items-center gap-1 ${isSideBySideView && !useFixedWidths ? 'flex-1' : ''}`} style={
                 useFixedWidths && outputSectionWidth
-                  ? { width: `${outputSectionWidth + (ioSectionsCollapsed ? 43 : 12)}px`, flexShrink: 0 }
+                  ? { width: `${outputSectionWidth + (outputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
                   : (!isSideBySideView ? { flex: 1 } : undefined)
               }>
-                <div style={useFixedWidths && outputSectionWidth ? { width: `${outputSectionWidth - 32}px` } : undefined} className={!useFixedWidths ? "flex-1" : ""}>
+                <div className="flex-1">
                   {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                     <SelectWithCustom
                       value={data.selectedValue || ''}
@@ -1845,29 +1847,27 @@ const SystemSection = ({
                 </div>
 
                 {/* Checkmark Button */}
-                {(
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const field = data.selectedField || 'Manufacturer';
-                      const value = data.selectedValue || '';
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const field = data.selectedField || 'Manufacturer';
+                    const value = data.selectedValue || '';
 
-                      // Add to approved fields
-                      const approvedFields = data.approvedFields || {};
-                      approvedFields[field] = value;
+                    // Add to approved fields
+                    const approvedFields = data.approvedFields || {};
+                    approvedFields[field] = value;
 
-                      onUpdate({
-                        approvedFields: approvedFields,
-                        selectedValue: '' // Clear value after approve
-                      });
-                    }}
-                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                    title="Approve and add to header"
-                    style={{ width: '28px', height: '28px' }}
-                  >
-                    ✓
-                  </button>
-                )}
+                    onUpdate({
+                      approvedFields: approvedFields,
+                      selectedValue: '' // Clear value after approve
+                    });
+                  }}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                  title="Approve and add to header"
+                  style={{ width: '28px', height: '28px' }}
+                >
+                  ✓
+                </button>
               </div>
             </div>
           </div>
@@ -2073,12 +2073,10 @@ const ResizeHandle = ({ onResizeStart }) => (
 // ============================================
 
 function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, connectedAnchorIds }) {
-  const isDraggingRef = useRef(false);
-  const hasDraggedRef = useRef(false);
-  const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
-  const [isDraggingVisual, setIsDraggingVisual] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Section drag state
   const [draggedSection, setDraggedSection] = useState(null);
@@ -2211,14 +2209,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [isResizing, resizeStart, onUpdate]);
 
   // Node drag handling
-  // Uses refs + document listeners (not useState/useEffect) for reliable click-vs-drag detection
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
-
     // Check if click is within a column-drag zone (allows column reordering)
+    // This must be FIRST because closest() only searches ancestors, not descendants
+    // and the draggable span is a child of wrapper divs within the zone
     if (e.target.closest('[data-column-zone="true"]')) return;
 
     // Allow any draggable element to initiate its own drag behavior
+    // Check: DOM property, draggable attribute, section drag handle, or column-drag marker
     if (e.target.draggable ||
         e.target.getAttribute?.('draggable') === 'true' ||
         e.target.closest('[draggable="true"]') ||
@@ -2229,56 +2227,45 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     if (isResizing) return;
 
     e.preventDefault();
-    e.stopPropagation();
-
-    setIsDraggingVisual(true);
-
+    setIsDragging(true);
     const rect = nodeRef.current.getBoundingClientRect();
-    dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
+    setDragStart({
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top
-    };
-    isDraggingRef.current = true;
-    hasDraggedRef.current = false;
+    });
+  };
 
-    const handleMouseMove = (moveEvent) => {
-      if (!isDraggingRef.current) return;
+  useEffect(() => {
+    if (!isDragging) return;
 
-      // Track if mouse moved enough to suppress click-to-select (3px)
-      if (!hasDraggedRef.current) {
-        const dx = Math.abs(moveEvent.clientX - dragStartRef.current.x);
-        const dy = Math.abs(moveEvent.clientY - dragStartRef.current.y);
-        if (dx >= 3 || dy >= 3) hasDraggedRef.current = true;
-      }
-
-      // Always update position (instant drag, no threshold)
+    const handleMouseMove = (e) => {
       const canvas = nodeRef.current?.closest('[data-canvas]');
       if (!canvas) return;
+
       const canvasRect = canvas.getBoundingClientRect();
+      let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
+      let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
 
-      let newX = (moveEvent.clientX - canvasRect.left - dragStartRef.current.offsetX) / zoom;
-      let newY = (moveEvent.clientY - canvasRect.top - dragStartRef.current.offsetY) / zoom;
-
+      // Snap to grid if enabled
       if (snapToGrid && gridSize > 0) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }
 
-      onUpdate({ position: { x: newX, y: newY } });
+      onUpdate({
+        position: { x: newX, y: newY }
+      });
     };
 
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      setIsDraggingVisual(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+    const handleMouseUp = () => setIsDragging(false);
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
 
   // Section drag handlers
   // Supports both HTML5 drag events (Input/Output) and mouse events (System)
@@ -2593,6 +2580,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
             outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
             ioSectionsCollapsed={node.layout.inputCollapsed && node.layout.outputCollapsed}
+            inputCollapsed={node.layout.inputCollapsed}
+            outputCollapsed={node.layout.outputCollapsed}
           />
         );
       case 'input':
@@ -2647,8 +2636,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Handle click to select (shift+click to add to selection)
   const handleClick = (e) => {
-    e.stopPropagation();
-    if (onSelect && !hasDraggedRef.current) {
+    if (onSelect && !isDragging) {
+      e.stopPropagation();
       onSelect(node.id, e.shiftKey);
     }
   };
@@ -2660,18 +2649,17 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   return (
     <div
       ref={nodeRef}
-      data-node-id={node.id}
       className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
         isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
       } ${
-        isDraggingVisual ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
+        isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
       }`}
       style={{
         left: node.position.x,
         top: node.position.y,
         width: 'auto',
         minWidth: dynamicMinWidth,
-        zIndex: isDraggingVisual || isResizing ? 100 : isSelected ? 80 : 70,
+        zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
         isolation: 'isolate', // Create new stacking context
