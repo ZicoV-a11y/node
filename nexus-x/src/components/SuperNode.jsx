@@ -70,6 +70,9 @@ const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-
 // System section wrapper style (static)
 const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 9999, isolation: 'isolate' };
 
+// Checkmark button size (static)
+const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -2144,7 +2147,7 @@ const SystemSection = memo(({
                     }}
                     className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
                     title="Approve and add to header (or press Enter)"
-                    style={{ width: '28px', height: '28px' }}
+                    style={CHECKMARK_BUTTON_STYLE}
                   >
                     ✓
                   </button>
