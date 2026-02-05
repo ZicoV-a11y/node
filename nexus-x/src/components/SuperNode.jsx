@@ -929,37 +929,37 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
   const [draggedColumn, setDraggedColumn] = useState(null);
 
   // Get width for a column (use dynamic width if available, else minWidth)
-  const getColumnWidth = (colId) => {
+  const getColumnWidth = useCallback((colId) => {
     return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
-  };
+  }, [columnWidths]);
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
 
   // Selection state indicator
-  const getSelectionIndicator = () => {
+  const getSelectionIndicator = useCallback(() => {
     if (totalCount === 0) return '☐';
     if (selectedCount === 0) return '☐';
     if (selectedCount === totalCount) return '☑';
     return '▣'; // Partial selection
-  };
+  }, [totalCount, selectedCount]);
 
   // Get full column order (anchor, delete, data, flip) with proper reversal
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
 
-  const handleDragStart = (e, colId) => {
+  const handleDragStart = useCallback((e, colId) => {
     e.stopPropagation();
     setDraggedColumn(colId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('column-reorder', colId);
-  };
+  }, []);
 
-  const handleDragOver = (e) => {
+  const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-  };
+  }, []);
 
-  const handleDrop = (e, targetColId) => {
+  const handleDrop = useCallback((e, targetColId) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -983,11 +983,11 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
 
     onReorderColumns(newOrder);
     setDraggedColumn(null);
-  };
+  }, [draggedColumn, dataOrder, onReorderColumns]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDraggedColumn(null);
-  };
+  }, []);
 
   return (
     <div
@@ -1812,7 +1812,7 @@ const SystemHeader = ({
 
   // Use MOUSE EVENTS for drag (not HTML5 drag API)
   // This is needed for System section to work properly with drop zones
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     // Only left mouse button
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -1837,7 +1837,7 @@ const SystemHeader = ({
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  };
+  }, [onDragStart, sectionId, onDragEnd]);
 
   // Create gradient background
   const gradientStyle = useMemo(() => {
