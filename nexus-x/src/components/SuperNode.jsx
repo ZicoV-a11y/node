@@ -2345,7 +2345,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     [signalColorObj]
   );
 
-  const displayTitle = useCallback(() => {
+  const displayTitle = useMemo(() => {
     const softwareId = node.system?.software;
     if (!softwareId || softwareId === 'none') return node.title;
     const software = SOFTWARE_PRESETS.find(s => s.id === softwareId);
@@ -2454,7 +2454,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
         className="absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
         style={{ left: titleLeftPosition }}
       >
-        <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
+        <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
       </div>
 
       {/* Settings button - top right */}
