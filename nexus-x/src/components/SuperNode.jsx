@@ -3079,8 +3079,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } });
   }, [onUpdate, node.layout]);
 
-  // Check if Input and Output are in the same row (side-by-side)
-  const areIOSideBySide = areInSameRow('input', 'output');
+  // Check if Input and Output are in the same row (side-by-side) - memoized
+  const areIOSideBySide = useMemo(
+    () => areInSameRow('input', 'output'),
+    [areInSameRow]
+  );
 
   // Render section content (memoized to prevent recreation on every render)
   const renderSectionContent = useCallback((sectionId, anchorSide, canToggleAnchor) => {
