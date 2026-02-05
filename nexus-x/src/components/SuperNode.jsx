@@ -310,17 +310,30 @@ const CardWrapper = memo(({
   anchorSide,
   colors: passedColors
 }) => {
-  // Use passed hex colors or fallback to zinc
-  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHex = useMemo(() => passedColors?.hex || HEX_COLORS.zinc[500], [passedColors?.hex]);
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
   const isReversed = anchorSide === 'right';
+
+  // Memoized style objects (prevent recreation on every render)
+  const stripeStyle = useMemo(() => ({ backgroundColor: `${colorHex}66` }), [colorHex]);
+  const labelBarStyle = useMemo(() => ({ backgroundColor: `${colorHex}1a` }), [colorHex]);
+  const iconStyle = useMemo(() => ({ color: colorHexLight }), [colorHexLight]);
+  const nameStyle = useMemo(() => ({ color: colorHexLight }), [colorHexLight]);
+
+  // Memoized event handlers
+  const handleToggle = useCallback(() => onToggleCollapse && onToggleCollapse(card.id), [onToggleCollapse, card.id]);
+  const handleRemove = useCallback((e) => {
+    e.stopPropagation();
+    onRemoveCard && onRemoveCard(card.id);
+  }, [onRemoveCard, card.id]);
 
   return (
     <div className="relative">
       {/* Colored stripe indicator on anchor side */}
       <div
         className={`absolute top-0 bottom-0 w-1 ${isReversed ? 'right-0' : 'left-0'}`}
-        style={{ backgroundColor: `${colorHex}66` }} // ~40% opacity
+        style={stripeStyle}
       />
 
       {/* Card label bar - minimal, symmetric */}
@@ -332,18 +345,18 @@ const CardWrapper = memo(({
           px-1
           ${isReversed ? 'flex-row-reverse' : ''}
         `}
-        style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
-        onClick={() => onToggleCollapse && onToggleCollapse(card.id)}
+        style={labelBarStyle}
+        onClick={handleToggle}
       >
         {/* Left/anchor side: collapse + name */}
         <div className={`flex items-center gap-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
           <span
             className={`transition-transform ${card.collapsed ? '' : 'rotate-90'}`}
-            style={{ color: colorHexLight }}
+            style={iconStyle}
           >
             ▶
           </span>
-          <span className="font-bold tracking-wider" style={{ color: colorHexLight }}>
+          <span className="font-bold tracking-wider" style={nameStyle}>
             {card.name}
           </span>
           <span className="text-zinc-500 bg-zinc-700/50 px-1 rounded">
@@ -353,10 +366,7 @@ const CardWrapper = memo(({
 
         {/* Right side: remove button */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveCard && onRemoveCard(card.id);
-          }}
+          onClick={handleRemove}
           className="text-zinc-500 hover:text-red-400 px-1"
           title="Remove card"
         >
