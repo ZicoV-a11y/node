@@ -2858,7 +2858,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   };
 
   // Get anchor side for a section based on its position
-  const getAnchorSide = (sectionId, colIndex, isSingleSectionRow) => {
+  const getAnchorSide = useCallback((sectionId, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
       // In columns: left col = left anchors, right col = right anchors
       return colIndex === 0 ? 'left' : 'right';
@@ -2867,12 +2867,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     if (sectionId === 'input') return node.layout.inputAnchorSide || 'left';
     if (sectionId === 'output') return node.layout.outputAnchorSide || 'right';
     return 'left';
-  };
+  }, [node.layout.inputAnchorSide, node.layout.outputAnchorSide]);
 
   // Check if two sections are in the same row (side-by-side)
-  const areInSameRow = (section1, section2) => {
+  const areInSameRow = useCallback((section1, section2) => {
     return layoutRows.some(row => row.includes(section1) && row.includes(section2));
-  };
+  }, [layoutRows]);
 
   // Anchor side toggles (memoized)
   const toggleInputAnchorSide = useCallback(() => {
