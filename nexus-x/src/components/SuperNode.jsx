@@ -927,7 +927,7 @@ const PortRow = ({
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
+const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
 
@@ -1064,7 +1064,8 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
       })}
     </div>
   );
-};
+});
+ColumnHeaders.displayName = 'ColumnHeaders';
 
 // ============================================
 // DRAGGABLE SECTION WRAPPER
@@ -1373,7 +1374,7 @@ const SectionHeader = ({
 // IO SECTION COMPONENT (Input or Output)
 // ============================================
 
-const IOSection = ({
+const IOSection = memo(({
   type,
   data,
   anchorSide,
@@ -1791,7 +1792,8 @@ const IOSection = ({
       )}
     </div>
   );
-};
+});
+IOSection.displayName = 'IOSection';
 
 // ============================================
 // SYSTEM HEADER COMPONENT
@@ -1921,7 +1923,7 @@ const SystemHeader = ({
 // SYSTEM SECTION COMPONENT
 // ============================================
 
-const SystemSection = ({
+const SystemSection = memo(({
   data,
   onUpdate,
   collapsed,
@@ -2208,13 +2210,14 @@ const SystemSection = ({
       )}
     </div>
   );
-};
+});
+SystemSection.displayName = 'SystemSection';
 
 // ============================================
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
   const signalColorHex = node.signalColor
     ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
@@ -2368,7 +2371,8 @@ const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideByS
       </div>
     </div>
   );
-};
+});
+TitleBar.displayName = 'TitleBar';
 
 // ============================================
 // RESIZE HANDLE COMPONENT
