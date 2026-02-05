@@ -2465,6 +2465,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source, [sharedColumnWidths]); // spacing + gap + anchor + gap + source
   const outputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + sharedColumnWidths.destination + 8 + 24, [sharedColumnWidths]); // spacing + gap + destination + gap + anchor
 
+  // Computed widths based on collapsed state (memoized to avoid recalculation)
+  const computedInputSectionWidth = useMemo(() =>
+    node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth,
+    [node.layout.inputCollapsed, inputCollapsedWidth, inputSectionWidth]
+  );
+  const computedOutputSectionWidth = useMemo(() =>
+    node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth,
+    [node.layout.outputCollapsed, outputCollapsedWidth, outputSectionWidth]
+  );
+
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
   // ===========================================
@@ -2950,8 +2960,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
             useFixedWidths={areIOSideBySide}
-            inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
-            outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
+            inputSectionWidth={computedInputSectionWidth}
+            outputSectionWidth={computedOutputSectionWidth}
             systemSectionStyle={node.system.systemSectionStyle || 'aligned'}
           />
         );
