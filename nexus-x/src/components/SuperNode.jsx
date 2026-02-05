@@ -2468,16 +2468,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
   };
 
-  const inputContentWidth = calculateSectionWidth(false); // uses source
-  const outputContentWidth = calculateSectionWidth(true); // uses destination
+  const inputContentWidth = useMemo(() => calculateSectionWidth(false), [sharedColumnWidths]); // uses source
+  const outputContentWidth = useMemo(() => calculateSectionWidth(true), [sharedColumnWidths]); // uses destination
 
   // Container widths include buffer for borders, CardWrapper stripe (4px), anchors, and spacing
-  const inputSectionWidth = inputContentWidth + 20;
-  const outputSectionWidth = outputContentWidth + 20;
+  const inputSectionWidth = useMemo(() => inputContentWidth + 20, [inputContentWidth]);
+  const outputSectionWidth = useMemo(() => outputContentWidth + 20, [outputContentWidth]);
 
   // Collapsed section widths (spacing + anchor + gap + source/destination only)
-  const inputCollapsedWidth = sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source; // spacing + gap + anchor + gap + source
-  const outputCollapsedWidth = sharedColumnWidths.spacing + 8 + sharedColumnWidths.destination + 8 + 24; // spacing + gap + destination + gap + anchor
+  const inputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source, [sharedColumnWidths]); // spacing + gap + anchor + gap + source
+  const outputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + sharedColumnWidths.destination + 8 + 24, [sharedColumnWidths]); // spacing + gap + destination + gap + anchor
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
