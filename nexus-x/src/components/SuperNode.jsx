@@ -362,6 +362,7 @@ const CardWrapper = memo(({
     </div>
   );
 });
+CardWrapper.displayName = 'CardWrapper';
 
 // Column definitions - ALL row elements as columns for template layout
 // minWidth is the minimum, but columns can grow based on content
@@ -498,6 +499,7 @@ const SideDropZone = memo(({ side, onDrop, fullWidth = false }) => (
     </span>
   </div>
 ));
+SideDropZone.displayName = 'SideDropZone';
 
 // ============================================
 // THREE ZONE DROP AREA COMPONENT
@@ -549,6 +551,7 @@ const ThreeZoneDropArea = memo(({ onDropToSide, onDropToSwap }) => (
     </div>
   </div>
 ));
+ThreeZoneDropArea.displayName = 'ThreeZoneDropArea';
 
 // ============================================
 // BOTTOM DROP ZONE COMPONENT
@@ -585,6 +588,7 @@ const BottomDropZone = memo(({ onDrop }) => (
     </span>
   </div>
 ));
+BottomDropZone.displayName = 'BottomDropZone';
 
 // ============================================
 // TOP DROP ZONE COMPONENT
@@ -619,6 +623,7 @@ const TopDropZone = memo(({ onDrop }) => (
     <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">▲▲▲ DROP TO TOP ▲▲▲</span>
   </div>
 ));
+TopDropZone.displayName = 'TopDropZone';
 
 // ============================================
 // ANCHOR COMPONENT
@@ -659,6 +664,7 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnect
     />
   );
 });
+Anchor.displayName = 'Anchor';
 
 // ============================================
 // DELETE BUTTON COMPONENT
@@ -675,6 +681,7 @@ const DeleteButton = memo(({ onClick }) => (
     ×
   </button>
 ));
+DeleteButton.displayName = 'DeleteButton';
 
 // ============================================
 // PORT ROW COMPONENT
@@ -2385,6 +2392,7 @@ const ResizeHandle = memo(({ onResizeStart }) => (
     className="hover:opacity-100 hover:scale-110 transition-all"
   />
 ));
+ResizeHandle.displayName = 'ResizeHandle';
 
 // ============================================
 // SUPERNODE COMPONENT
