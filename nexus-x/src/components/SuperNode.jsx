@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, Fragment } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react';
 
 // ============================================
 // CONSTANTS - Single source of truth for sizes
@@ -1778,9 +1778,6 @@ const IOSection = ({
           )}
 
           <div className="flex-1 relative">
-            {/* DEBUG: Left edge divider */}
-            <div className="absolute left-0 top-0 bottom-0 w-px bg-green-500/60 z-10" />
-
             {data.ports.length === 0 ? (
               <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[11px]`}>
                 No {type}s
@@ -1806,9 +1803,6 @@ const IOSection = ({
                 {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
               </>
             )}
-
-            {/* DEBUG: Right edge divider */}
-            <div className="absolute right-0 top-0 bottom-0 w-px bg-green-500/60 z-10" />
           </div>
         </>
       )}
@@ -1896,7 +1890,7 @@ const SystemHeader = ({
     <div
       data-section-drag="true"
       onMouseDown={handleMouseDown}
-      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`flex items-center justify-between gap-2 px-2 py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
       style={{
         ...gradientStyle,
       }}
@@ -2446,14 +2440,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const nodeScale = node.scale || 1;
 
   // Generate cohesive theme colors from signal color
-  const themeColors = getThemeColors(node.signalColor);
+  const themeColors = useMemo(() => getThemeColors(node.signalColor), [node.signalColor]);
 
   // Extract theme color for anchors (use the header/main color)
   const anchorThemeColor = themeColors.header?.hex || null;
 
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
-  const sharedColumnWidths = calculateColumnWidths(allPorts);
+  const sharedColumnWidths = useMemo(() => calculateColumnWidths(allPorts), [allPorts]);
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
