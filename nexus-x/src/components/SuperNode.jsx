@@ -634,8 +634,8 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnect
   const isInput = type === 'in';
 
   // Use theme color if provided, otherwise fallback to signal color or default
-  const baseColor = themeColor || (isInput ? '#71717a' : (signalColor || '#71717a')); // zinc-500 when off
-  const lightColor = themeColor ? `${themeColor}cc` : (isInput ? '#a1a1aa' : (signalColor ? `${signalColor}cc` : '#a1a1aa')); // zinc-400 when off
+  const baseColor = themeColor || (isInput ? HEX_COLORS.zinc[500] : (signalColor || HEX_COLORS.zinc[500])); // zinc-500 when off
+  const lightColor = themeColor ? `${themeColor}cc` : (isInput ? HEX_COLORS.zinc[400] : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])); // zinc-400 when off
 
   const handleMouseDown = (e) => {
     e.stopPropagation();
@@ -656,8 +656,8 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnect
       style={{
         width: isActive ? '8px' : '7px',
         height: isActive ? '8px' : '7px',
-        backgroundColor: isLit ? baseColor : '#52525b', // zinc-600 when off
-        border: `1px solid ${isLit ? lightColor : '#71717a'}`, // zinc-500 when off
+        backgroundColor: isLit ? baseColor : HEX_COLORS.zinc[600], // zinc-600 when off
+        border: `1px solid ${isLit ? lightColor : HEX_COLORS.zinc[500]}`, // zinc-500 when off
         boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
         opacity: isLit ? 1 : 0.4
       }}
@@ -741,7 +741,7 @@ const PortRow = ({
               background: '#27272a',
               border: '1px solid #3f3f46',
               borderRadius: '3px',
-              color: '#71717a',
+              color: HEX_COLORS.zinc[500],
               fontSize: '16px',
               fontWeight: 'bold',
               cursor: 'ns-resize',
@@ -1673,8 +1673,8 @@ const IOSection = ({
                           data-anchor-type="in"
                           className="w-2 h-2 rounded-full cursor-pointer"
                           style={{
-                            backgroundColor: isConnected ? (themeColor || '#71717a') : '#71717a',
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : '#a1a1aa') : '#a1a1aa'}`,
+                            backgroundColor: isConnected ? (themeColor || HEX_COLORS.zinc[500]) : HEX_COLORS.zinc[500],
+                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : HEX_COLORS.zinc[400]) : HEX_COLORS.zinc[400]}`,
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1720,8 +1720,8 @@ const IOSection = ({
                           data-anchor-type="out"
                           className="w-2 h-2 rounded-full cursor-pointer"
                           style={{
-                            backgroundColor: isConnected ? (themeColor || (signalColor || '#71717a')) : '#71717a',
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : '#a1a1aa')) : '#a1a1aa'}`,
+                            backgroundColor: isConnected ? (themeColor || (signalColor || HEX_COLORS.zinc[500])) : HEX_COLORS.zinc[500],
+                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])) : HEX_COLORS.zinc[400]}`,
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2286,9 +2286,9 @@ const TitleBar = ({ node, onUpdate, themeColors, inputSectionWidth, areIOSideByS
           <div
             className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
             style={{
-              backgroundColor: signalColorHex || '#52525b',
+              backgroundColor: signalColorHex || HEX_COLORS.zinc[600],
               boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
-              borderColor: signalColorHex ? `${signalColorHex}cc` : '#71717a'
+              borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
             }}
             title={node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color'}
           />
@@ -2379,7 +2379,7 @@ const ResizeHandle = memo(({ onResizeStart }) => (
       width: 12,
       height: 12,
       borderRadius: '50%',
-      backgroundColor: '#3b82f6',
+      backgroundColor: HEX_COLORS.blue[500],
       opacity: 0.7,
       cursor: 'nwse-resize',
       zIndex: 20,
