@@ -2302,10 +2302,15 @@ SystemSection.displayName = 'SystemSection';
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
 
-  // Memoize signal color lookup (prevents repeated find on every render)
-  const signalColorHex = useMemo(
-    () => node.signalColor ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex : null,
+  // Memoize signal color object lookup (single find for both hex and label)
+  const signalColorObj = useMemo(
+    () => node.signalColor ? SIGNAL_COLORS.find(c => c.id === node.signalColor) : null,
     [node.signalColor]
+  );
+
+  const signalColorHex = useMemo(
+    () => signalColorObj?.hex || null,
+    [signalColorObj]
   );
 
   const displayTitle = useCallback(() => {
@@ -2346,8 +2351,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
 
   // Memoized signal label for title attribute
   const signalLabel = useMemo(
-    () => node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color',
-    [node.signalColor]
+    () => signalColorObj ? `Signal: ${signalColorObj.label || 'None'}` : 'No Signal Color',
+    [signalColorObj]
   );
 
   // Memoized color picker style
