@@ -1953,8 +1953,8 @@ const SystemSection = memo(({
   outputSectionWidth,
   systemSectionStyle = 'aligned', // 'aligned' or 'simplified'
 }) => {
-  // Use passed hex colors or fallback to zinc
-  const colorHex = colors?.hex || HEX_COLORS.zinc[500];
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHex = useMemo(() => colors?.hex || HEX_COLORS.zinc[500], [colors?.hex]);
 
   // Symmetric offset for both left and right dropdowns in aligned mode
   // This accounts for padding and gap spacing to align with INPUT/OUTPUT sections
@@ -1975,10 +1975,13 @@ const SystemSection = memo(({
     });
   }, [data.selectedField, data.selectedValue, data.approvedFields, onUpdate]);
 
+  // Memoized background style (prevents object recreation)
+  const sectionStyle = useMemo(() => ({ backgroundColor: `${colorHex}0d` }), [colorHex]);
+
   return (
     <div
       className="flex flex-col border-t border-zinc-700/50"
-      style={{ backgroundColor: `${colorHex}0d` }}
+      style={sectionStyle}
     >
       {/* Use SystemHeader component */}
       <SystemHeader
