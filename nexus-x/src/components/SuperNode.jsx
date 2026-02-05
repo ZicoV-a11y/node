@@ -2822,16 +2822,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const newRows = layoutRows.map(row => [...row]);
 
-    // Find positions
-    let draggedRowIdx = -1, draggedColIdx = -1;
-    let targetRowIdx = -1, targetColIdx = -1;
-
-    newRows.forEach((row, ri) => {
-      row.forEach((sid, ci) => {
-        if (sid === draggedSection) { draggedRowIdx = ri; draggedColIdx = ci; }
-        if (sid === targetSectionId) { targetRowIdx = ri; targetColIdx = ci; }
-      });
-    });
+    // Find positions using findIndex (exits early, more efficient than forEach)
+    const draggedRowIdx = newRows.findIndex(row => row.includes(draggedSection));
+    const draggedColIdx = draggedRowIdx >= 0 ? newRows[draggedRowIdx].indexOf(draggedSection) : -1;
+    const targetRowIdx = newRows.findIndex(row => row.includes(targetSectionId));
+    const targetColIdx = targetRowIdx >= 0 ? newRows[targetRowIdx].indexOf(targetSectionId) : -1;
 
     if (draggedRowIdx === -1 || targetRowIdx === -1) {
       setDraggedSection(null);
@@ -2887,16 +2882,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const newRows = layoutRows.map(row => [...row]);
 
-    // Find positions
-    let draggedRowIdx = -1, draggedColIdx = -1;
-    let targetRowIdx = -1, targetColIdx = -1;
-
-    newRows.forEach((row, ri) => {
-      row.forEach((sid, ci) => {
-        if (sid === draggedSection) { draggedRowIdx = ri; draggedColIdx = ci; }
-        if (sid === targetSectionId) { targetRowIdx = ri; targetColIdx = ci; }
-      });
-    });
+    // Find positions using findIndex (exits early, more efficient than forEach)
+    const draggedRowIdx = newRows.findIndex(row => row.includes(draggedSection));
+    const draggedColIdx = draggedRowIdx >= 0 ? newRows[draggedRowIdx].indexOf(draggedSection) : -1;
+    const targetRowIdx = newRows.findIndex(row => row.includes(targetSectionId));
+    const targetColIdx = targetRowIdx >= 0 ? newRows[targetRowIdx].indexOf(targetSectionId) : -1;
 
     if (draggedRowIdx === -1 || targetRowIdx === -1) {
       setDraggedSection(null);
