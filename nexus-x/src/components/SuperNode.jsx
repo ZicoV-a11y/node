@@ -71,7 +71,7 @@ const HEX_COLORS = {
 const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600";
 
 // System section wrapper style (static)
-const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 9999, isolation: 'isolate' };
+const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 1, isolation: 'isolate' };
 
 // Checkmark button size (static)
 const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
@@ -947,7 +947,7 @@ const PortRow = memo(({
 
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap`}
+      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap px-2`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -955,13 +955,13 @@ const PortRow = memo(({
 
         return (
           <div key={colId} className="flex items-center">
-            {/* Marker between ALL columns (except first) - with spacing */}
+            {/* Divider between columns (except before first) */}
             {index > 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
             <span
-              className="shrink-0 flex items-center justify-center overflow-hidden"
-              style={{ width: `${getColumnWidth(colId)}px`, maxWidth: `${getColumnWidth(colId)}px` }}
+              className="shrink-0 flex items-center justify-center"
+              style={{ minWidth: `${getColumnWidth(colId)}px` }}
             >
               {renderColumnContent(colId)}
             </span>
@@ -1006,7 +1006,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
     const styles = {};
     fullColumnOrder.forEach(colId => {
       const width = getColumnWidth(colId);
-      styles[colId] = { width: `${width}px`, maxWidth: `${width}px` };
+      styles[colId] = { minWidth: `${width}px` };
     });
     return styles;
   }, [fullColumnOrder, getColumnWidth]);
@@ -1057,7 +1057,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
     <div
       data-column-zone="true"
       className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide w-full`}
+        text-[10px] font-mono text-white uppercase tracking-wide w-full px-2`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1077,7 +1077,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
           >
-            {/* Marker between ALL columns (except first) - with spacing */}
+            {/* Divider between columns (except before first) */}
             {index > 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
@@ -1093,7 +1093,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                 }}
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors overflow-hidden ${
+                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
                 style={columnStyles[colId]}
@@ -1111,7 +1111,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                   if (isDraggable) handleDragStart(e, colId);
                 }}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center transition-opacity overflow-hidden
+                className={`shrink-0 flex items-center justify-center transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
                 style={columnStyles[colId]}
@@ -2059,17 +2059,11 @@ const SystemSection = memo(({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
-  useFixedWidths = false,
-  inputSectionWidth,
-  outputSectionWidth,
-  systemSectionStyle = 'aligned', // 'aligned' or 'simplified'
+  leftSectionWidth,
+  rightSectionWidth,
 }) => {
   // Use passed hex colors or fallback to zinc (memoized)
   const colorHex = useMemo(() => colors?.hex || HEX_COLORS.zinc[500], [colors?.hex]);
-
-  // Symmetric offset for both left and right dropdowns in aligned mode
-  // This accounts for padding and gap spacing to align with INPUT/OUTPUT sections
-  const SYSTEM_OFFSET = 6;
 
   // Handler for approving field/value (used by checkmark button and Enter key)
   const handleApprove = useCallback(() => {
@@ -2089,6 +2083,27 @@ const SystemSection = memo(({
   // Memoized background style (prevents object recreation)
   const sectionStyle = useMemo(() => ({ backgroundColor: `${colorHex}0d` }), [colorHex]);
 
+  // CSS Grid style for aligning dropdowns with left/right sections
+  // 2 columns: field dropdown (proportional to left section), value+checkmark (proportional to right section)
+  // Using fr units ensures grid fills available width while maintaining same proportions as INPUT/OUTPUT
+  // Gap matches the divider: mx-1.5 (6px each side) + 4px width = 16px
+  const gridStyle = useMemo(() => {
+    if (leftSectionWidth && rightSectionWidth) {
+      return {
+        display: 'grid',
+        gridTemplateColumns: `${leftSectionWidth}fr ${rightSectionWidth}fr`,
+        gap: '16px', // Match the gap between INPUT/OUTPUT sections (mx-1.5 + 4px divider + mx-1.5 = 16px)
+        alignItems: 'stretch',
+      };
+    }
+    return {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '16px',
+      alignItems: 'stretch',
+    };
+  }, [leftSectionWidth, rightSectionWidth]);
+
   return (
     <div
       className="flex flex-col border-t border-zinc-700/50"
@@ -2105,153 +2120,29 @@ const SystemSection = memo(({
         approvedFields={data.approvedFields}
       />
 
-      {/* Content when expanded */}
+      {/* Content when expanded - dropdowns aligned with left/right section widths using CSS Grid */}
       {!collapsed && (
-        <div className="py-2 px-2">
-          {systemSectionStyle === 'simplified' ? (
-            /* SIMPLIFIED MODE: Equal-width dropdowns, no divider alignment */
+        <div className="py-2">
+          <div style={gridStyle}>
+            {/* Column 1: Field selector - aligns with left section */}
+            <SelectWithCustom
+              value={data.selectedField || 'Manufacturer'}
+              options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
+              placeholder="Select field..."
+              onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
+              className="h-[26px]"
+            />
+
+            {/* Column 2: Value input + Checkmark - aligns with right section */}
             <div className="flex items-stretch gap-2 w-full">
-              {/* Left dropdown: Field selector */}
-              <div className="flex-1 flex items-center">
-                <SelectWithCustom
-                  value={data.selectedField || 'Manufacturer'}
-                  options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
-                  placeholder="Select field..."
-                  onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
-                />
-              </div>
-
-              {/* Right dropdown + checkmark */}
-              <div className="flex-1 flex items-stretch gap-2">
-                <div className="flex-1 flex items-center">
-                  {(!data.selectedField || data.selectedField === 'Manufacturer') && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={MANUFACTURERS}
-                      placeholder="Select..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Model' && (
-                    <input
-                      type="text"
-                      value={data.selectedValue || ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onUpdate({ selectedValue: e.target.value });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleApprove();
-                        }
-                      }}
-                      onClick={stopPropagation}
-                      placeholder="Enter..."
-                      className={INPUT_FIELD_CLASS}
-                    />
-                  )}
-                  {data.selectedField === 'Platform' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={PLATFORMS}
-                      placeholder="Select..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Software' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={SOFTWARE_PRESETS.map(s => s.label)}
-                      placeholder="Select..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Capture' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={CAPTURE_CARDS.map(c => c.label)}
-                      placeholder="Select..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'IP Address' && (
-                    <input
-                      type="text"
-                      value={data.selectedValue || ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onUpdate({ selectedValue: e.target.value });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleApprove();
-                        }
-                      }}
-                      onClick={stopPropagation}
-                      placeholder="Enter..."
-                      className={INPUT_FIELD_CLASS}
-                    />
-                  )}
-                </div>
-
-                {/* Checkmark Button */}
-                <div className="flex items-center">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleApprove();
-                    }}
-                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                    title="Approve and add to header (or press Enter)"
-                    style={CHECKMARK_BUTTON_STYLE}
-                  >
-                    ✓
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* ALIGNED MODE: Dropdowns aligned with INPUT/OUTPUT divider */
-            <div className="flex items-stretch gap-2 w-full">
-              {/* Left dropdown: Field selector - ends near divider */}
-              <div
-                className="flex items-stretch overflow-hidden"
-                style={
-                  useFixedWidths && inputSectionWidth
-                    ? { width: `${inputSectionWidth - SYSTEM_OFFSET}px`, flexShrink: 0, minWidth: 0 }
-                    : { flex: 1 }
-                }
-              >
-                <div className="w-full flex items-center">
-                  <SelectWithCustom
-                    value={data.selectedField || 'Manufacturer'}
-                    options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
-                    placeholder="Select field..."
-                    onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
-                  />
-                </div>
-              </div>
-
-              {/* Right dropdown + checkmark - starts near divider */}
-              <div
-                className="flex items-stretch gap-2 overflow-hidden"
-                style={
-                  useFixedWidths && outputSectionWidth
-                    ? { width: `${outputSectionWidth - SYSTEM_OFFSET}px`, flexShrink: 0, minWidth: 0 }
-                    : { flex: 1 }
-                }
-              >
-              <div className="flex-1 flex items-center">
+              <div className="flex-1 flex items-stretch">
                 {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                   <SelectWithCustom
                     value={data.selectedValue || ''}
                     options={MANUFACTURERS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px]"
                   />
                 )}
                 {data.selectedField === 'Model' && (
@@ -2271,7 +2162,7 @@ const SystemSection = memo(({
                     }}
                     onClick={stopPropagation}
                     placeholder="Enter..."
-                    className={INPUT_FIELD_CLASS}
+                    className={`${INPUT_FIELD_CLASS} h-[26px]`}
                   />
                 )}
                 {data.selectedField === 'Platform' && (
@@ -2280,6 +2171,7 @@ const SystemSection = memo(({
                     options={PLATFORMS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px]"
                   />
                 )}
                 {data.selectedField === 'Software' && (
@@ -2288,6 +2180,7 @@ const SystemSection = memo(({
                     options={SOFTWARE_PRESET_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px]"
                   />
                 )}
                 {data.selectedField === 'Capture' && (
@@ -2296,6 +2189,7 @@ const SystemSection = memo(({
                     options={CAPTURE_CARD_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px]"
                   />
                 )}
                 {data.selectedField === 'IP Address' && (
@@ -2315,28 +2209,24 @@ const SystemSection = memo(({
                     }}
                     onClick={stopPropagation}
                     placeholder="Enter..."
-                    className={INPUT_FIELD_CLASS}
+                    className={`${INPUT_FIELD_CLASS} h-[26px]`}
                   />
                 )}
               </div>
-
               {/* Checkmark Button */}
-              <div className="flex items-center">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApprove();
-                  }}
-                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                  title="Approve and add to header (or press Enter)"
-                  style={CHECKMARK_BUTTON_STYLE}
-                >
-                  ✓
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApprove();
+                }}
+                className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                title="Approve and add to header (or press Enter)"
+                style={CHECKMARK_BUTTON_STYLE}
+              >
+                ✓
+              </button>
             </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -2350,6 +2240,28 @@ SystemSection.displayName = 'SystemSection';
 
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showSettings) return;
+
+    const handleClickOutside = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setShowSettings(false);
+      }
+    };
+
+    // Use setTimeout to avoid closing immediately on the same click that opened it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSettings]);
 
   // Memoize signal color object lookup (O(1) Map access instead of O(n) find)
   const signalColorObj = useMemo(
@@ -2475,7 +2387,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
       </div>
 
       {/* Settings button - top right */}
-      <div className="flex items-center gap-1 ml-auto z-10 relative">
+      <div ref={settingsRef} className="flex items-center gap-1 ml-auto z-10 relative">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -2490,7 +2402,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
         {/* Settings dropdown menu */}
         {showSettings && (
           <div
-            className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-50 py-1 min-w-[160px]"
+            className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg py-1 min-w-[160px]"
+            style={{ zIndex: 9999 }}
             onClick={stopPropagation}
           >
             <button
@@ -2579,10 +2492,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const themeColors = useMemo(() => getThemeColors(node.signalColor), [node.signalColor]);
 
   // Memoize divider gradient style for side-by-side sections
-  const dividerGradientStyle = useMemo(() => ({
-    width: '2.5px',
-    background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
-  }), [themeColors.header.hex]);
+  // Gradient fades from solid at top to transparent at bottom
 
   // Extract theme color for anchors (use the header/main color)
   const anchorThemeColor = themeColors.header?.hex || null;
@@ -3109,6 +3019,34 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [areInSameRow]
   );
 
+  // Calculate left/right section widths based on actual layout position
+  // This determines which section is visually on the left vs right when side-by-side
+  const { leftSectionWidth, rightSectionWidth } = useMemo(() => {
+    if (!areIOSideBySide) {
+      // When stacked, default to input=left, output=right for System section alignment
+      return {
+        leftSectionWidth: computedInputSectionWidth,
+        rightSectionWidth: computedOutputSectionWidth
+      };
+    }
+    // Find the row containing both INPUT and OUTPUT to determine left/right order
+    const sideBySideRow = layoutRows.find(row =>
+      row.includes('input') && row.includes('output')
+    );
+    if (sideBySideRow) {
+      const leftSection = sideBySideRow[0]; // First element is on the left
+      return {
+        leftSectionWidth: leftSection === 'input'
+          ? computedInputSectionWidth
+          : computedOutputSectionWidth,
+        rightSectionWidth: leftSection === 'input'
+          ? computedOutputSectionWidth
+          : computedInputSectionWidth,
+      };
+    }
+    return { leftSectionWidth: computedInputSectionWidth, rightSectionWidth: computedOutputSectionWidth };
+  }, [areIOSideBySide, layoutRows, computedInputSectionWidth, computedOutputSectionWidth]);
+
   // Render section content (memoized to prevent recreation on every render)
   const renderSectionContent = useCallback((sectionId, anchorSide, canToggleAnchor) => {
     switch (sectionId) {
@@ -3122,10 +3060,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
-            useFixedWidths={areIOSideBySide}
-            inputSectionWidth={computedInputSectionWidth}
-            outputSectionWidth={computedOutputSectionWidth}
-            systemSectionStyle={node.system.systemSectionStyle || 'aligned'}
+            leftSectionWidth={leftSectionWidth}
+            rightSectionWidth={rightSectionWidth}
           />
         );
       case 'input':
@@ -3195,27 +3131,13 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     }
   }, [onSelect, isDragging, node.id]);
 
-  // Calculate dynamic minWidth based on collapsed state (memoized)
-  const allSectionsCollapsed = useMemo(
-    () => node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed,
-    [node.layout.inputCollapsed, node.layout.outputCollapsed, node.layout.systemCollapsed]
-  );
-  const dynamicMinWidth = useMemo(
-    () => allSectionsCollapsed ? 'auto' : 320,
-    [allSectionsCollapsed]
-  );
-
-  // Calculate explicit width when sections are side-by-side (memoized)
-  const explicitWidth = useMemo(
-    () => areIOSideBySide && !node.layout.inputCollapsed && !node.layout.outputCollapsed
-      ? inputSectionWidth + 12 + outputSectionWidth + 16  // sections + gap + padding
-      : 'auto',
-    [areIOSideBySide, node.layout.inputCollapsed, node.layout.outputCollapsed, inputSectionWidth, outputSectionWidth]
-  );
+  // Node width is now determined by content naturally (no explicit width constraints)
+  // This allows sections to size based on their content and the node wraps to fit
 
   // Memoized helper functions for wrapper styling (prevent recreation on every render)
   const getWrapperClassName = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
-    if (isSingleSectionRow) return 'w-full';
+    // When stacked, don't force full width - let content determine width
+    if (isSingleSectionRow) return '';
     // When collapsed, don't use flex-1 (let it shrink to content)
     if (isCollapsed) return '';
     // When expanded, don't use flex-1 if we have a fixed width
@@ -3227,23 +3149,19 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
     if (isSingleSectionRow) return {};
-    // Only apply fixed widths when expanded
+    // Only apply minimum widths when expanded - content determines actual width
     if (isCollapsed) return {};
-    // When expanded and side-by-side, use calculated widths with overflow constraints
+    // When expanded and side-by-side, use minWidth so content can expand
     if (sectionId === 'input' && inputSectionWidth) {
       return {
-        width: `${inputSectionWidth}px`,
-        maxWidth: `${inputSectionWidth}px`,
-        flexShrink: 0,
-        overflow: 'visible'
+        minWidth: `${inputSectionWidth}px`,
+        flexShrink: 0
       };
     }
     if (sectionId === 'output' && outputSectionWidth) {
       return {
-        width: `${outputSectionWidth}px`,
-        maxWidth: `${outputSectionWidth}px`,
-        flexShrink: 0,
-        overflow: 'visible'
+        minWidth: `${outputSectionWidth}px`,
+        flexShrink: 0
       };
     }
     return {}; // Fallback for other sections
@@ -3370,8 +3288,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       style={{
         left: node.position.x,
         top: node.position.y,
-        width: explicitWidth,
-        minWidth: dynamicMinWidth,
+        // Let content determine width - no explicit width constraints
         zIndex: wrapperZIndex,
         transform: wrapperTransform,
         transformOrigin: 'top left',
@@ -3404,7 +3321,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           const rowKey = row.join('-');
 
           return (
-            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''} items-stretch`}>
+            <div key={rowKey} className="flex items-stretch">
               {row.map((sectionId, colIndex) => {
                 const isLastInRow = colIndex === row.length - 1;
                 if (!sectionId) return null;
@@ -3430,11 +3347,15 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       >
                         {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                       </div>
-                      {/* Divider between sections when side-by-side */}
-                      {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                      {/* Divider after non-last sections when side-by-side */}
+                      {!isSingleSectionRow && !isLastInRow && (
                         <div
-                          className="self-stretch"
-                          style={dividerGradientStyle}
+                          className="mx-1.5 self-stretch shrink-0"
+                          style={{
+                            width: '4px',
+                            background: `linear-gradient(to bottom, ${themeColors?.header?.hex || '#10b981'} 0%, ${themeColors?.header?.hex || '#10b981'}80 60%, transparent 100%)`,
+                            borderRadius: '2px',
+                          }}
                         />
                       )}
                     </Fragment>
@@ -3472,11 +3393,15 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                         {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                       </DraggableSection>
                     </div>
-                    {/* Divider between sections when side-by-side */}
-                    {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                    {/* Divider after non-last sections when side-by-side */}
+                    {!isSingleSectionRow && !isLastInRow && (
                       <div
-                        className="self-stretch"
-                        style={dividerGradientStyle}
+                        className="mx-1.5 self-stretch shrink-0"
+                        style={{
+                          width: '4px',
+                          background: `linear-gradient(to bottom, ${themeColors?.header?.hex || '#10b981'} 0%, ${themeColors?.header?.hex || '#10b981'}80 60%, transparent 100%)`,
+                          borderRadius: '2px',
+                        }}
                       />
                     )}
                   </Fragment>
