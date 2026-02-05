@@ -739,15 +739,24 @@ const PortRow = memo(({
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
-  // Use passed hex colors or fallback to zinc
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
-  const isConnected = connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false;
 
-  // Use provided columnOrder or default
-  const dataOrder = columnOrder || DATA_COLUMNS;
+  // Memoized color fallback
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
 
-  // Get full column order (anchor, delete, data, flip) with proper reversal - SAME as ColumnHeaders
-  const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
+  // Memoized connection check
+  const isConnected = useMemo(
+    () => connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false,
+    [connectedAnchorIds, anchorId]
+  );
+
+  // Memoized column order
+  const dataOrder = useMemo(() => columnOrder || DATA_COLUMNS, [columnOrder]);
+
+  // Memoized full column order with reversal
+  const fullColumnOrder = useMemo(
+    () => getFullColumnOrder(dataOrder, canToggleAnchor, isReversed),
+    [dataOrder, canToggleAnchor, isReversed]
+  );
 
   // Render column content based on column ID
   const renderColumnContent = (colId) => {
