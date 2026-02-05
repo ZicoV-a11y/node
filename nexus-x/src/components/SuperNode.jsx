@@ -2732,6 +2732,13 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     };
   }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
 
+  // Helper to clean layout rows (remove nulls and empty rows)
+  const cleanLayoutRows = useCallback((rows) => {
+    return rows
+      .map(row => row.filter(s => s !== null))
+      .filter(row => row.length > 0);
+  }, []);
+
   // Section drag handlers
   // Supports both HTML5 drag events (Input/Output) and mouse events (System)
   const handleSectionDragStart = useCallback((e, sectionId) => {
@@ -2835,9 +2842,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     newRows[targetRowIdx][targetColIdx] = draggedSection;
 
     // Clean up empty rows
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
@@ -2920,9 +2925,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     }
 
     // Clean up: remove nulls and empty rows
-    const cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    const cleanedRows = cleanLayoutRows(newRows);
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
@@ -2945,9 +2948,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     });
 
     // Clean up nulls first
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     // If dragging system, it goes to very bottom
     if (draggedSection === 'system') {
@@ -2985,9 +2986,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     });
 
     // Clean up nulls first
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     // System goes to very top
     cleanedRows.unshift([draggedSection]);
