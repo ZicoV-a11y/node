@@ -1958,6 +1958,30 @@ const SystemHeader = memo(({
     [approvedFields]
   );
 
+  // Pre-calculate approved fields display elements (prevents repeated conditional checks in render)
+  const displayFieldsContent = useMemo(() => {
+    if (!hasDisplayFields) return null;
+
+    const parts = [];
+    if (approvedFields['IP Address']) {
+      parts.push(<span key="ip">IP: {approvedFields['IP Address']}</span>);
+    }
+    if (approvedFields['Platform']) {
+      parts.push(
+        <span key="platform" className={parts.length > 0 ? 'ml-1' : ''}>
+          {parts.length > 0 ? '| ' : ''}{approvedFields['Platform']}
+        </span>
+      );
+    }
+    if (approvedFields['Software']) {
+      parts.push(<span key="software" className="ml-1">| {approvedFields['Software']}</span>);
+    }
+    if (approvedFields['Capture']) {
+      parts.push(<span key="capture" className="ml-1">| {approvedFields['Capture']}</span>);
+    }
+    return parts;
+  }, [hasDisplayFields, approvedFields]);
+
   return (
     <div
       data-section-drag="true"
@@ -1994,10 +2018,7 @@ const SystemHeader = memo(({
       {hasDisplayFields ? (
         <div className="flex-1 px-2 text-[9px] font-mono opacity-70 pointer-events-none">
           <div className="truncate">
-            {approvedFields['IP Address'] && <span>IP: {approvedFields['IP Address']}</span>}
-            {approvedFields['Platform'] && <span className={approvedFields['IP Address'] ? 'ml-1' : ''}>{approvedFields['IP Address'] ? '| ' : ''}{approvedFields['Platform']}</span>}
-            {approvedFields['Software'] && <span className="ml-1">| {approvedFields['Software']}</span>}
-            {approvedFields['Capture'] && <span className="ml-1">| {approvedFields['Capture']}</span>}
+            {displayFieldsContent}
           </div>
         </div>
       ) : (
