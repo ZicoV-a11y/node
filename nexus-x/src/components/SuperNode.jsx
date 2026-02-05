@@ -295,7 +295,7 @@ const SelectWithCustom = ({
 // Minimal header that doesn't break column alignment
 // ============================================
 
-const CardWrapper = ({
+const CardWrapper = memo(({
   card,
   children,
   onToggleCollapse,
@@ -361,7 +361,7 @@ const CardWrapper = ({
       {!card.collapsed && children}
     </div>
   );
-};
+});
 
 // Column definitions - ALL row elements as columns for template layout
 // minWidth is the minimum, but columns can grow based on content
@@ -466,7 +466,7 @@ const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
 // - Edge mode for adding to side (small edge indicator)
 // ============================================
 
-const SideDropZone = ({ side, onDrop, fullWidth = false }) => (
+const SideDropZone = memo(({ side, onDrop, fullWidth = false }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -497,14 +497,14 @@ const SideDropZone = ({ side, onDrop, fullWidth = false }) => (
       }
     </span>
   </div>
-);
+));
 
 // ============================================
 // THREE ZONE DROP AREA COMPONENT
 // For stacked mode: shows left, center (swap), and right zones
 // ============================================
 
-const ThreeZoneDropArea = ({ onDropToSide, onDropToSwap }) => (
+const ThreeZoneDropArea = memo(({ onDropToSide, onDropToSwap }) => (
   <div className="absolute inset-0 flex" style={{ zIndex: 10000 }}>
     {/* LEFT ZONE */}
     <div
@@ -548,14 +548,14 @@ const ThreeZoneDropArea = ({ onDropToSide, onDropToSwap }) => (
       </span>
     </div>
   </div>
-);
+));
 
 // ============================================
 // BOTTOM DROP ZONE COMPONENT
 // Appears at bottom when dragging to add new row
 // ============================================
 
-const BottomDropZone = ({ onDrop }) => (
+const BottomDropZone = memo(({ onDrop }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -584,14 +584,14 @@ const BottomDropZone = ({ onDrop }) => (
       ▼▼▼ DROP TO BOTTOM ▼▼▼
     </span>
   </div>
-);
+));
 
 // ============================================
 // TOP DROP ZONE COMPONENT
 // Appears at top when dragging System section to move it to top position
 // ============================================
 
-const TopDropZone = ({ onDrop }) => (
+const TopDropZone = memo(({ onDrop }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -618,14 +618,14 @@ const TopDropZone = ({ onDrop }) => (
   >
     <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">▲▲▲ DROP TO TOP ▲▲▲</span>
   </div>
-);
+));
 
 // ============================================
 // ANCHOR COMPONENT
 // ============================================
 
 // Visible anchor point built into the node column
-const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
+const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
   const isInput = type === 'in';
 
   // Use theme color if provided, otherwise fallback to signal color or default
@@ -658,13 +658,13 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, t
       }}
     />
   );
-};
+});
 
 // ============================================
 // DELETE BUTTON COMPONENT
 // ============================================
 
-const DeleteButton = ({ onClick }) => (
+const DeleteButton = memo(({ onClick }) => (
   <button
     onClick={(e) => {
       e.stopPropagation();
@@ -674,7 +674,7 @@ const DeleteButton = ({ onClick }) => (
   >
     ×
   </button>
-);
+));
 
 // ============================================
 // PORT ROW COMPONENT
