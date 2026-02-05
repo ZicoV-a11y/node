@@ -67,6 +67,9 @@ const HEX_COLORS = {
 // Common input field className for consistency
 const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600";
 
+// System section wrapper style (static)
+const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 9999, isolation: 'isolate' };
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -3120,6 +3123,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return null;
   }, [draggedSection, layoutRows, handleDropToBottom]);
 
+  // Memoized scale badge style (prevents style object recreation on every render)
+  const scaleBadgeStyle = useMemo(
+    () => ({ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }),
+    [nodeScale]
+  );
+
   return (
     <div
       ref={nodeRef}
@@ -3217,7 +3226,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                     <Fragment key={`system-row-${rowIndex}`}>
                       <div
                         className={isSingleSectionRow ? 'w-full' : 'flex-1'}
-                        style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
+                        style={SYSTEM_WRAPPER_STYLE}
                         onDragOver={(e) => handleSectionDragOver(e, 'system')}
                         onDrop={(e) => handleSectionDrop(e, 'system')}
                         // Also support mouse-based drops
@@ -3290,7 +3299,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       {nodeScale !== 1 && (
         <div
           className="absolute -bottom-5 left-0 text-[10px] font-mono text-zinc-500"
-          style={{ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }}
+          style={scaleBadgeStyle}
         >
           {Math.round(nodeScale * 100)}%
         </div>
