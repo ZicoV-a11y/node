@@ -2513,20 +2513,23 @@ TitleBar.displayName = 'TitleBar';
 // RESIZE HANDLE COMPONENT
 // ============================================
 
+// Resize handle style (static)
+const RESIZE_HANDLE_STYLE = {
+  position: 'absolute',
+  bottom: -6,
+  right: -6,
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  backgroundColor: HEX_COLORS.blue[500],
+  opacity: 0.7,
+  cursor: 'nwse-resize',
+  zIndex: 20,
+};
+
 const ResizeHandle = memo(({ onResizeStart }) => (
   <div
-    style={{
-      position: 'absolute',
-      bottom: -6,
-      right: -6,
-      width: 12,
-      height: 12,
-      borderRadius: '50%',
-      backgroundColor: HEX_COLORS.blue[500],
-      opacity: 0.7,
-      cursor: 'nwse-resize',
-      zIndex: 20,
-    }}
+    style={RESIZE_HANDLE_STYLE}
     onMouseDown={(e) => {
       e.stopPropagation();
       e.preventDefault();
