@@ -1213,10 +1213,13 @@ const SectionHeader = memo(({
   // Use passed hex colors or fallback to zinc
   const colorHexLight = '#ffffff'; // White text for section headers
 
-  // Filter presets by section type (input/output)
-  const availablePresets = Object.entries(CARD_PRESETS)
-    .filter(([_, preset]) => preset.category === type)
-    .map(([id, preset]) => ({ id, ...preset }));
+  // Filter presets by section type (input/output) - memoized
+  const availablePresets = useMemo(
+    () => Object.entries(CARD_PRESETS)
+      .filter(([_, preset]) => preset.category === type)
+      .map(([id, preset]) => ({ id, ...preset })),
+    [type]
+  );
 
   const handlePresetSelect = useCallback((presetId) => {
     const preset = CARD_PRESETS[presetId];
@@ -1226,18 +1229,31 @@ const SectionHeader = memo(({
     setShowPresetMenu(false);
   }, [onApplyPreset]);
 
+  // Memoized event handlers
+  const handleAddClick = useCallback((e) => {
+    e.stopPropagation();
+    onAdd && onAdd();
+  }, [onAdd]);
+
+  const handlePresetClick = useCallback((e) => {
+    e.stopPropagation();
+    setShowPresetMenu(prev => !prev);
+  }, []);
+
+  const handleMouseDown = useCallback((e) => e.stopPropagation(), []);
+
   // Shared button style for consistency (color applied via inline style)
   const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
 
-  // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
-  const buttonsJSX = (
+  // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS - memoized
+  const buttonsJSX = useMemo(() => (
     <div className="flex items-center gap-1.5 shrink-0 relative">
       {isReversed ? (
         <>
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleAddClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Add port"
@@ -1246,8 +1262,8 @@ const SectionHeader = memo(({
           </button>
           {/* Preset button */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handlePresetClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Load card preset"
@@ -1259,8 +1275,8 @@ const SectionHeader = memo(({
         <>
           {/* Preset button */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handlePresetClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Load card preset"
@@ -1269,8 +1285,8 @@ const SectionHeader = memo(({
           </button>
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleAddClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Add port"
@@ -1284,7 +1300,7 @@ const SectionHeader = memo(({
       {showPresetMenu && (
         <div
           className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={handleMouseDown}
         >
           <div className="px-2 py-1 text-[10px] text-zinc-500 border-b border-zinc-700 font-mono">
             CARD PRESETS
@@ -1307,7 +1323,7 @@ const SectionHeader = memo(({
         </div>
       )}
     </div>
-  );
+  ), [isReversed, handlePresetClick, handleMouseDown, handleAddClick, buttonBaseStyle, colorHexLight, showPresetMenu, availablePresets, handlePresetSelect]);
 
   // Create gradient background based on signal direction towards anchor
   const gradientStyle = useMemo(() => {
