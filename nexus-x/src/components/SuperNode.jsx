@@ -2478,8 +2478,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const outputContentWidth = calculateSectionWidth(true); // uses destination
 
   // Container widths include buffer for borders, CardWrapper stripe (4px), and spacing
-  const inputSectionWidth = inputContentWidth + 50;
-  const outputSectionWidth = outputContentWidth + 50;
+  const inputSectionWidth = inputContentWidth + 10;
+  const outputSectionWidth = outputContentWidth + 10;
 
   // Collapsed section widths (spacing + anchor + gap + source/destination only)
   const inputCollapsedWidth = sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source; // spacing + gap + anchor + gap + source
@@ -3182,7 +3182,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       width: `${inputSectionWidth}px`,
                       maxWidth: `${inputSectionWidth}px`,
                       flexShrink: 0,
-                      overflow: 'hidden'
+                      overflow: 'visible'
                     };
                   }
                   if (sectionId === 'output' && outputSectionWidth) {
@@ -3190,7 +3190,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       width: `${outputSectionWidth}px`,
                       maxWidth: `${outputSectionWidth}px`,
                       flexShrink: 0,
-                      overflow: 'hidden'
+                      overflow: 'visible'
                     };
                   }
                   return {}; // Fallback for other sections
@@ -3285,5 +3285,12 @@ export default memo(SuperNode, (prev, next) =>
   prev.zoom === next.zoom &&
   prev.isSelected === next.isSelected &&
   prev.activeWire === next.activeWire &&
-  prev.snapToGrid === next.snapToGrid
+  prev.snapToGrid === next.snapToGrid &&
+  prev.gridSize === next.gridSize &&
+  prev.onUpdate === next.onUpdate &&
+  prev.onDelete === next.onDelete &&
+  prev.onAnchorClick === next.onAnchorClick &&
+  prev.registerAnchor === next.registerAnchor &&
+  prev.onSelect === next.onSelect &&
+  prev.connectedAnchorIds === next.connectedAnchorIds
 );
