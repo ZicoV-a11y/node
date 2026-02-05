@@ -342,7 +342,8 @@ const CardWrapper = ({
           flex items-center justify-between
           py-0.5 text-[9px] font-mono
           cursor-pointer select-none
-          ${isReversed ? 'flex-row-reverse pl-2 pr-1' : 'pl-1 pr-2'}
+          px-1
+          ${isReversed ? 'flex-row-reverse' : ''}
         `}
         style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
         onClick={() => onToggleCollapse && onToggleCollapse(card.id)}
@@ -450,6 +451,11 @@ const calculateColumnWidths = (ports) => {
     }
   });
 
+  // Make source and destination use the same width for alignment
+  const maxSourceDestWidth = Math.max(widths.source, widths.destination);
+  widths.source = maxSourceDestWidth;
+  widths.destination = maxSourceDestWidth;
+
   return widths;
 };
 
@@ -470,10 +476,12 @@ const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
 
 // ============================================
 // SIDE DROP ZONE COMPONENT
-// Appears on left/right of sections when dragging
+// Two modes:
+// - Full width for side-by-side swap (covers entire section)
+// - Edge mode for adding to side (small edge indicator)
 // ============================================
 
-const SideDropZone = ({ side, onDrop, isActive }) => (
+const SideDropZone = ({ side, onDrop, isActive, fullWidth = false }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -492,13 +500,68 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
     onMouseUp={() => {
       onDrop(side);
     }}
-    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-16
-      border-2 border-dashed transition-all z-20 flex items-center justify-center
-      border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40`}
+    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} ${fullWidth ? 'w-full' : 'w-16'}
+      border-4 border-dashed transition-all flex items-center justify-center
+      border-emerald-400 bg-emerald-400/30 hover:bg-emerald-400/50 animate-pulse cursor-pointer px-1`}
+    style={{ zIndex: 10000 }}
   >
-    <span className="text-cyan-300 text-[11px] font-mono font-bold pointer-events-none">
-      {side === 'left' ? '← DROP' : 'DROP →'}
+    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+      {fullWidth
+        ? (side === 'left' ? '◄◄◄ SWAP ◄◄◄' : '►►► SWAP ►►►')
+        : (side === 'left' ? '◄ DROP' : 'DROP ►')
+      }
     </span>
+  </div>
+);
+
+// ============================================
+// THREE ZONE DROP AREA COMPONENT
+// For stacked mode: shows left, center (swap), and right zones
+// ============================================
+
+const ThreeZoneDropArea = ({ onDropToSide, onDropToSwap }) => (
+  <div className="absolute inset-0 flex" style={{ zIndex: 10000 }}>
+    {/* LEFT ZONE */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSide('left'); }}
+      onMouseUp={() => { onDropToSide('left'); }}
+      className="flex-1 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+        hover:bg-emerald-400/50 animate-pulse cursor-pointer flex items-center justify-center"
+    >
+      <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+        ◄◄◄ LEFT
+      </span>
+    </div>
+
+    {/* CENTER ZONE (SWAP) */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSwap(); }}
+      onMouseUp={() => { onDropToSwap(); }}
+      className="flex-1 border-4 border-dashed border-cyan-400 bg-cyan-400/30
+        hover:bg-cyan-400/50 animate-pulse cursor-pointer flex items-center justify-center mx-1"
+    >
+      <span className="text-cyan-200 text-[10px] font-bold pointer-events-none uppercase">
+        ⇅ SWAP ⇅
+      </span>
+    </div>
+
+    {/* RIGHT ZONE */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSide('right'); }}
+      onMouseUp={() => { onDropToSide('right'); }}
+      className="flex-1 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+        hover:bg-emerald-400/50 animate-pulse cursor-pointer flex items-center justify-center"
+    >
+      <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+        RIGHT ►►►
+      </span>
+    </div>
   </div>
 );
 
@@ -527,10 +590,14 @@ const BottomDropZone = ({ onDrop }) => (
     onMouseUp={() => {
       onDrop();
     }}
-    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
-      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer"
+    className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+      flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer
+      animate-pulse px-2"
+    style={{ zIndex: 10000 }}
   >
-    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
+    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">
+      ▼▼▼ DROP TO BOTTOM ▼▼▼
+    </span>
   </div>
 );
 
@@ -559,10 +626,12 @@ const TopDropZone = ({ onDrop }) => (
     onMouseUp={() => {
       onDrop();
     }}
-    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
-      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer mb-1"
+    className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+      flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer mb-2
+      animate-pulse px-2"
+    style={{ zIndex: 10000 }}
   >
-    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
+    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">▲▲▲ DROP TO TOP ▲▲▲</span>
   </div>
 );
 
@@ -994,7 +1063,8 @@ const DraggableSection = ({
   onDropToSide,
   isDraggedOver,
   isDragging,
-  showSideDropZones,
+  showLeftDropZone,
+  showRightDropZone,
   isSingleSectionRow,
   draggedSection, // What section is currently being dragged
 }) => {
@@ -1002,7 +1072,12 @@ const DraggableSection = ({
   // System can NEVER be side-by-side with anything
   const isIOSection = sectionId === 'input' || sectionId === 'output';
   const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-  const canShowSideZones = showSideDropZones && isIOSection && isDraggingIO;
+
+  // Determine drop zone mode:
+  // - Both left and right = stacked mode (show 3 zones: left, center/swap, right)
+  // - Only left OR only right = side-by-side swap (show full-width zone)
+  const showThreeZones = showLeftDropZone && showRightDropZone;
+  const showFullWidthSwap = (showLeftDropZone || showRightDropZone) && !showThreeZones;
 
   return (
     <div
@@ -1013,23 +1088,39 @@ const DraggableSection = ({
       className={`
         relative w-full
         transition-all duration-150
-        ${isDragging ? 'opacity-40' : ''}
-        ${isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
+        ${isDragging && sectionId !== 'system' ? 'opacity-40' : ''}
+        ${isDragging && sectionId === 'system' ? 'opacity-90' : ''}
+        ${!showThreeZones && isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
       `}
     >
-      {/* Side drop zones - ONLY for Input/Output going side-by-side (system NEVER side-by-side) */}
-      {canShowSideZones && (
+      {/* ONLY for Input/Output (system NEVER side-by-side) */}
+      {isIOSection && isDraggingIO && (
         <>
-          <SideDropZone
-            side="left"
-            onDrop={(side) => onDropToSide(sectionId, side)}
-            isActive={false}
-          />
-          <SideDropZone
-            side="right"
-            onDrop={(side) => onDropToSide(sectionId, side)}
-            isActive={false}
-          />
+          {/* THREE ZONE MODE: Stacked layout - show left, center (swap), right */}
+          {showThreeZones && (
+            <ThreeZoneDropArea
+              onDropToSide={(side) => onDropToSide(sectionId, side)}
+              onDropToSwap={() => onDrop(null, sectionId)}
+            />
+          )}
+
+          {/* FULL WIDTH SWAP MODE: Side-by-side swap */}
+          {showFullWidthSwap && showLeftDropZone && (
+            <SideDropZone
+              side="left"
+              onDrop={(side) => onDropToSide(sectionId, side)}
+              isActive={false}
+              fullWidth={true}
+            />
+          )}
+          {showFullWidthSwap && showRightDropZone && (
+            <SideDropZone
+              side="right"
+              onDrop={(side) => onDropToSide(sectionId, side)}
+              isActive={false}
+              fullWidth={true}
+            />
+          )}
         </>
       )}
 
@@ -1650,6 +1741,131 @@ const IOSection = ({
 };
 
 // ============================================
+// SYSTEM HEADER COMPONENT
+// Specialized header for System section with approved fields display
+// ============================================
+
+const SystemHeader = ({
+  collapsed,
+  onToggleCollapse,
+  onDragStart,
+  onDragEnd,
+  sectionId,
+  colors: passedColors,
+  approvedFields,
+}) => {
+  // Use passed hex colors or fallback to zinc
+  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
+  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+
+  // Track drag state for visual feedback
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Use MOUSE EVENTS for drag (not HTML5 drag API)
+  // This is needed for System section to work properly with drop zones
+  const handleMouseDown = (e) => {
+    // Only left mouse button
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    setIsDragging(true);
+
+    // Manually trigger the drag start
+    onDragStart && onDragStart(e, sectionId);
+
+    // Global mouse handlers for drag
+    const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      onDragEnd && onDragEnd();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Create gradient background
+  const gradientStyle = (() => {
+    const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    const startColor = hexToRgba(baseColor, 0.4);
+    const endColor = hexToRgba(baseColor, 0);
+
+    return {
+      background: `linear-gradient(to right, ${startColor}, ${endColor})`
+    };
+  })();
+
+  // Check if there are any approved fields to display
+  const hasDisplayFields = approvedFields && (
+    approvedFields['Platform'] ||
+    approvedFields['Software'] ||
+    approvedFields['Capture'] ||
+    approvedFields['IP Address']
+  );
+
+  return (
+    <div
+      data-section-drag="true"
+      onMouseDown={handleMouseDown}
+      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
+      style={{
+        ...gradientStyle,
+      }}
+      title="Drag to reorder section"
+    >
+      <div className="flex items-center gap-1">
+        <span
+          className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
+          style={{ color: '#ffffff' }}
+        >
+          SYSTEM
+        </span>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onToggleCollapse && onToggleCollapse();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
+          style={{ fontFamily: 'inherit', color: colorHexLight }}
+          title={collapsed ? 'Expand section' : 'Collapse section'}
+        >
+          ▸
+        </span>
+      </div>
+
+      {/* Display approved fields (excluding Manufacturer/Model which go to title bar) */}
+      {hasDisplayFields ? (
+        <div className="flex-1 px-2 text-[9px] font-mono opacity-70 pointer-events-none">
+          <div className="truncate">
+            {approvedFields['IP Address'] && <span>IP: {approvedFields['IP Address']}</span>}
+            {approvedFields['Platform'] && <span className={approvedFields['IP Address'] ? 'ml-1' : ''}>{approvedFields['IP Address'] ? '| ' : ''}{approvedFields['Platform']}</span>}
+            {approvedFields['Software'] && <span className="ml-1">| {approvedFields['Software']}</span>}
+            {approvedFields['Capture'] && <span className="ml-1">| {approvedFields['Capture']}</span>}
+          </div>
+        </div>
+      ) : (
+        <span className="flex-1 pointer-events-none" />
+      )}
+    </div>
+  );
+};
+
+// ============================================
 // SYSTEM SECTION COMPONENT
 // ============================================
 
@@ -1661,47 +1877,34 @@ const SystemSection = ({
   onSectionDragStart,
   onSectionDragEnd,
   colors,
-  isSideBySideView = false, // When true, INPUT/OUTPUT are side-by-side, show two-column layout
-  useFixedWidths = false, // When true, use fixed widths to align with INPUT/OUTPUT
-  inputSectionWidth, // content width for left column
-  outputSectionWidth, // content width for right column
-  ioSectionsCollapsed = false, // When true, INPUT/OUTPUT are both collapsed
-  inputCollapsed = false, // When true, INPUT section is collapsed
-  outputCollapsed = false, // When true, OUTPUT section is collapsed
+  isSideBySideView = false,
+  useFixedWidths = false,
+  inputSectionWidth,
+  outputSectionWidth,
+  systemSectionStyle = 'aligned', // 'aligned' or 'simplified'
 }) => {
   // Use passed hex colors or fallback to zinc
   const colorHex = colors?.hex || HEX_COLORS.zinc[500];
-  const colorHexLight = colors?.hexLight || HEX_COLORS.zinc[400];
 
-  // Track drag state for visual feedback
-  const [isDragging, setIsDragging] = useState(false);
+  // Calculate divider position (center of gap between INPUT/OUTPUT sections)
+  // Only used in 'aligned' mode
+  const dividerPosition = systemSectionStyle === 'aligned' && isSideBySideView && useFixedWidths && inputSectionWidth
+    ? inputSectionWidth + 6  // 6px = half of gap-3 (12px gap between sections)
+    : null;
 
-  // Use MOUSE EVENTS instead of HTML5 drag API
-  const handleMouseDown = (e) => {
-    // Only left mouse button
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    e.preventDefault();
+  // Handler for approving field/value (used by checkmark button and Enter key)
+  const handleApprove = () => {
+    const field = data.selectedField || 'Manufacturer';
+    const value = data.selectedValue || '';
 
-    setIsDragging(true);
+    // Add to approved fields
+    const approvedFields = data.approvedFields || {};
+    approvedFields[field] = value;
 
-    // Manually trigger the drag start
-    onSectionDragStart && onSectionDragStart(e, 'system');
-
-    // Global mouse handlers for drag
-    const handleMouseMove = (moveEvent) => {
-      moveEvent.preventDefault();
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      onSectionDragEnd && onSectionDragEnd();
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    onUpdate({
+      approvedFields: approvedFields,
+      selectedValue: '' // Clear value after approve
+    });
   };
 
   return (
@@ -1709,88 +1912,41 @@ const SystemSection = ({
       className="flex flex-col border-t border-zinc-700/50"
       style={{ backgroundColor: `${colorHex}0d` }}
     >
-      {/* Header row - Using MOUSE EVENTS for drag */}
-      <div
-        data-section-drag="true"
-        onMouseDown={handleMouseDown}
-        className="flex items-center px-2 py-1.5 border-b border-zinc-700/50 cursor-grab select-none"
-        style={{
-          backgroundColor: isDragging ? `${colorHexLight}40` : `${colorHex}1a`,
-        }}
-        title="Drag to reorder section"
-      >
-        <div className="flex items-center gap-1">
-          <span
-            className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
-            style={{ color: '#ffffff' }}
-          >
-            SYSTEM
-          </span>
-          {/* Collapse toggle */}
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onToggleCollapse && onToggleCollapse();
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
-            style={{ fontFamily: 'inherit', color: colorHexLight }}
-            title={collapsed ? 'Expand section' : 'Collapse section'}
-          >
-            ▸
-          </span>
-        </div>
+      {/* Use SystemHeader component */}
+      <SystemHeader
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onDragStart={onSectionDragStart}
+        onDragEnd={onSectionDragEnd}
+        sectionId="system"
+        colors={colors}
+        approvedFields={data.approvedFields}
+      />
 
-        {/* Display approved fields in header (excluding Manufacturer and Model which are in title bar) */}
-        {data.approvedFields && (data.approvedFields['Platform'] || data.approvedFields['Software'] || data.approvedFields['Capture'] || data.approvedFields['IP Address']) && (
-          <div className="flex-1 px-2 pointer-events-none text-[9px] font-mono opacity-70">
-            <div className="truncate">
-              {data.approvedFields['IP Address'] && <span>IP: {data.approvedFields['IP Address']}</span>}
-              {data.approvedFields['Platform'] && <span className={data.approvedFields['IP Address'] ? 'ml-1' : ''}>{data.approvedFields['IP Address'] ? '| ' : ''}{data.approvedFields['Platform']}</span>}
-              {data.approvedFields['Software'] && <span className="ml-1">| {data.approvedFields['Software']}</span>}
-              {data.approvedFields['Capture'] && <span className="ml-1">| {data.approvedFields['Capture']}</span>}
-            </div>
-          </div>
-        )}
-        {(!data.approvedFields || (!data.approvedFields['Platform'] && !data.approvedFields['Software'] && !data.approvedFields['Capture'] && !data.approvedFields['IP Address'])) && <span className="flex-1 pointer-events-none" />}
-      </div>
-
+      {/* Content when expanded */}
       {!collapsed && (
-        <div className={`${isSideBySideView ? '' : 'px-1.5'} py-2 text-[11px] w-full`}>
-          {isSideBySideView && <div style={{ color: 'lime', fontSize: '9px', marginBottom: '4px' }}>DEBUG: useFixed={String(useFixedWidths)} | inputW={inputSectionWidth} | outputW={outputSectionWidth} | ioCollapsed={String(ioSectionsCollapsed)}</div>}
-          {/* Two dropdown system with checkmark in same row */}
-          <div className="relative w-full">
-            {/* Flex layout with specific widths when side-by-side to match INPUT/OUTPUT sections */}
-            <div className={isSideBySideView ? "flex items-center gap-[2.5px]" : "flex gap-2 items-center w-full"}>
-              {/* Left: Field Type dropdown */}
-              <div className="flex items-center" style={
-                useFixedWidths && inputSectionWidth
-                  ? { width: `${inputSectionWidth + (inputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
-                  : (isSideBySideView ? { width: 'calc(50% - 1.25px)', flexShrink: 0 } : { flex: 1 })
-              }>
+        <div className="py-2 px-2">
+          {systemSectionStyle === 'simplified' ? (
+            /* SIMPLIFIED MODE: Equal-width dropdowns, no divider alignment */
+            <div className="flex items-stretch gap-2 w-full">
+              {/* Left dropdown: Field selector */}
+              <div className="flex-1 flex items-center">
                 <SelectWithCustom
                   value={data.selectedField || 'Manufacturer'}
                   options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
                   placeholder="Select field..."
-                  onChange={(value) => {
-                    onUpdate({ selectedField: value, selectedValue: '' });
-                  }}
+                  onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
                 />
               </div>
 
-              {/* Right: Value dropdown/input + checkmark */}
-              <div className={`flex items-center gap-1 ${isSideBySideView && !useFixedWidths ? 'flex-1' : ''}`} style={
-                useFixedWidths && outputSectionWidth
-                  ? { width: `${outputSectionWidth + (outputCollapsed ? 43 : 12)}px`, flexShrink: 0 }
-                  : (!isSideBySideView ? { flex: 1 } : undefined)
-              }>
-                <div className="flex-1">
+              {/* Right dropdown + checkmark */}
+              <div className="flex-1 flex items-stretch gap-2">
+                <div className="flex-1 flex items-center">
                   {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                     <SelectWithCustom
                       value={data.selectedValue || ''}
                       options={MANUFACTURERS}
-                      placeholder="Select manufacturer..."
+                      placeholder="Select..."
                       onChange={(value) => onUpdate({ selectedValue: value })}
                     />
                   )}
@@ -1802,8 +1958,15 @@ const SystemSection = ({
                         e.stopPropagation();
                         onUpdate({ selectedValue: e.target.value });
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleApprove();
+                        }
+                      }}
                       onClick={(e) => e.stopPropagation()}
-                      placeholder="Enter model..."
+                      placeholder="Enter..."
                       className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
                     />
                   )}
@@ -1811,7 +1974,7 @@ const SystemSection = ({
                     <SelectWithCustom
                       value={data.selectedValue || ''}
                       options={PLATFORMS}
-                      placeholder="Select platform..."
+                      placeholder="Select..."
                       onChange={(value) => onUpdate({ selectedValue: value })}
                     />
                   )}
@@ -1819,7 +1982,7 @@ const SystemSection = ({
                     <SelectWithCustom
                       value={data.selectedValue || ''}
                       options={SOFTWARE_PRESETS.map(s => s.label)}
-                      placeholder="Select software..."
+                      placeholder="Select..."
                       onChange={(value) => onUpdate({ selectedValue: value })}
                     />
                   )}
@@ -1827,7 +1990,7 @@ const SystemSection = ({
                     <SelectWithCustom
                       value={data.selectedValue || ''}
                       options={CAPTURE_CARDS.map(c => c.label)}
-                      placeholder="Select capture card..."
+                      placeholder="Select..."
                       onChange={(value) => onUpdate({ selectedValue: value })}
                     />
                   )}
@@ -1839,38 +2002,159 @@ const SystemSection = ({
                         e.stopPropagation();
                         onUpdate({ selectedValue: e.target.value });
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleApprove();
+                        }
+                      }}
                       onClick={(e) => e.stopPropagation()}
-                      placeholder="Enter IP address..."
+                      placeholder="Enter..."
                       className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
                     />
                   )}
                 </div>
 
                 {/* Checkmark Button */}
+                <div className="flex items-center">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApprove();
+                    }}
+                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                    title="Approve and add to header (or press Enter)"
+                    style={{ width: '28px', height: '28px' }}
+                  >
+                    ✓
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ALIGNED MODE: Dropdowns aligned with INPUT/OUTPUT divider */
+            <div className="flex items-stretch gap-2 w-full">
+              {/* Left dropdown: Field selector - ends near divider */}
+              <div
+                className="flex items-stretch overflow-hidden"
+                style={
+                  useFixedWidths && dividerPosition
+                    ? { width: `${dividerPosition - 4}px`, flexShrink: 0, minWidth: 0 }
+                    : { flex: 1 }
+                }
+              >
+                <div className="w-full flex items-center">
+                  <SelectWithCustom
+                    value={data.selectedField || 'Manufacturer'}
+                    options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
+                    placeholder="Select field..."
+                    onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
+                  />
+                </div>
+              </div>
+
+              {/* Right dropdown + checkmark - starts near divider */}
+              <div
+                className="flex items-stretch gap-2 overflow-hidden"
+                style={
+                  useFixedWidths && outputSectionWidth
+                    ? { width: `${outputSectionWidth + 8}px`, flexShrink: 0, minWidth: 0 }
+                    : { flex: 1 }
+                }
+              >
+              <div className="flex-1 flex items-center">
+                {(!data.selectedField || data.selectedField === 'Manufacturer') && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={MANUFACTURERS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                  />
+                )}
+                {data.selectedField === 'Model' && (
+                  <input
+                    type="text"
+                    value={data.selectedValue || ''}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      onUpdate({ selectedValue: e.target.value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleApprove();
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Enter..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                  />
+                )}
+                {data.selectedField === 'Platform' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={PLATFORMS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                  />
+                )}
+                {data.selectedField === 'Software' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={SOFTWARE_PRESETS.map(s => s.label)}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                  />
+                )}
+                {data.selectedField === 'Capture' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={CAPTURE_CARDS.map(c => c.label)}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                  />
+                )}
+                {data.selectedField === 'IP Address' && (
+                  <input
+                    type="text"
+                    value={data.selectedValue || ''}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      onUpdate({ selectedValue: e.target.value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleApprove();
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Enter..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
+                  />
+                )}
+              </div>
+
+              {/* Checkmark Button */}
+              <div className="flex items-center">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const field = data.selectedField || 'Manufacturer';
-                    const value = data.selectedValue || '';
-
-                    // Add to approved fields
-                    const approvedFields = data.approvedFields || {};
-                    approvedFields[field] = value;
-
-                    onUpdate({
-                      approvedFields: approvedFields,
-                      selectedValue: '' // Clear value after approve
-                    });
+                    handleApprove();
                   }}
                   className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                  title="Approve and add to header"
+                  title="Approve and add to header (or press Enter)"
                   style={{ width: '28px', height: '28px' }}
                 >
                   ✓
                 </button>
               </div>
             </div>
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2412,36 +2696,45 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       return;
     }
 
-    // Remove dragged section from its current position
-    newRows[draggedRowIdx][draggedColIdx] = null;
+    // CASE 1: Already in same row - just swap positions
+    if (draggedRowIdx === targetRowIdx) {
+      const targetRow = newRows[targetRowIdx];
+      // Simple swap
+      [targetRow[draggedColIdx], targetRow[targetColIdx]] = [targetRow[targetColIdx], targetRow[draggedColIdx]];
+    }
+    // CASE 2: Different rows
+    else {
+      // Remove dragged section from its current position
+      newRows[draggedRowIdx][draggedColIdx] = null;
 
-    // Check target row
-    const targetRow = newRows[targetRowIdx];
-    const targetSectionsCount = targetRow.filter(Boolean).length;
+      // Check target row (count BEFORE we removed the dragged section)
+      const targetRow = newRows[targetRowIdx];
+      const targetSectionsCount = targetRow.filter(Boolean).length;
 
-    if (targetSectionsCount === 2) {
-      // Row already has 2 sections - swap with the one at the drop position
-      const swapColIdx = side === 'left' ? 0 : 1;
-      const swappedSection = targetRow[swapColIdx];
+      if (targetSectionsCount === 2) {
+        // Row already has 2 sections - swap with the one at the drop position
+        const swapColIdx = side === 'left' ? 0 : 1;
+        const swappedSection = targetRow[swapColIdx];
 
-      // Put dragged section in the swap position
-      targetRow[swapColIdx] = draggedSection;
+        // Put dragged section in the swap position
+        targetRow[swapColIdx] = draggedSection;
 
-      // Put swapped section where dragged came from
-      newRows[draggedRowIdx][draggedColIdx] = swappedSection;
-    } else {
-      // Row has 1 section - add dragged section to create columns
-      if (side === 'left') {
-        // Insert at beginning
-        targetRow.unshift(draggedSection);
-      } else {
-        // Add at end
-        targetRow.push(draggedSection);
-      }
+        // Put swapped section where dragged came from
+        newRows[draggedRowIdx][draggedColIdx] = swappedSection;
+      } else if (targetSectionsCount === 1) {
+        // Row has 1 section - add dragged section to create columns
+        if (side === 'left') {
+          // Insert at beginning
+          targetRow.unshift(draggedSection);
+        } else {
+          // Add at end
+          targetRow.push(draggedSection);
+        }
 
-      // Ensure max 2
-      while (targetRow.length > 2) {
-        targetRow.pop();
+        // Ensure max 2
+        while (targetRow.length > 2) {
+          targetRow.pop();
+        }
       }
     }
 
@@ -2579,9 +2872,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             useFixedWidths={areIOSideBySide}
             inputSectionWidth={node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth}
             outputSectionWidth={node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth}
-            ioSectionsCollapsed={node.layout.inputCollapsed && node.layout.outputCollapsed}
-            inputCollapsed={node.layout.inputCollapsed}
-            outputCollapsed={node.layout.outputCollapsed}
+            systemSectionStyle={node.system.systemSectionStyle || 'aligned'}
           />
         );
       case 'input':
@@ -2709,19 +3000,43 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
                 const anchorSide = getAnchorSide(sectionId, rowIndex, colIndex, isSingleSectionRow);
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
-                // Side drop zones only when:
-                // 1. Dragging an IO section (not system)
-                // 2. Target is IO section (not system)
-                // 3. Target is not the dragged section
-                // 4. NOT already side-by-side (if same row, just swap - no zones needed)
-                // STRICT RULE: System can NEVER be side-by-side
+
+                // Calculate which side drop zones to show based on layout
                 const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
                 const isTargetIO = sectionId === 'input' || sectionId === 'output';
-                const showSideDropZones = draggedSection &&
-                  isDraggingIO &&
-                  isTargetIO &&
-                  draggedSection !== sectionId &&
-                  !areInSameRow(draggedSection, sectionId);
+                let showLeftDropZone = false;
+                let showRightDropZone = false;
+
+                if (draggedSection && isDraggingIO && isTargetIO && draggedSection !== sectionId) {
+                  // Find which rows contain the dragged and target sections
+                  const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
+                  const targetRowIndex = rowIndex;
+
+                  // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
+                  if (draggedRowIndex === targetRowIndex) {
+                    const draggedColIndex = layoutRows[draggedRowIndex].indexOf(draggedSection);
+                    const targetColIndex = colIndex;
+
+                    if (draggedColIndex < targetColIndex) {
+                      // Dragging left section, show drop zone on RIGHT side of right section
+                      showRightDropZone = true;
+                    } else {
+                      // Dragging right section, show drop zone on LEFT side of left section
+                      showLeftDropZone = true;
+                    }
+                  }
+                  // CASE 2: Stacked (different rows) - show drop zones on adjacent section
+                  else {
+                    const isRowAbove = targetRowIndex === draggedRowIndex - 1;
+                    const isRowBelow = targetRowIndex === draggedRowIndex + 1;
+
+                    if (isRowAbove || isRowBelow) {
+                      // Show three-zone drop area on section directly above or below
+                      showLeftDropZone = true;
+                      showRightDropZone = true;
+                    }
+                  }
+                }
 
                 // Force React to REMOUNT SystemSection when row position changes
                 // This ensures event handlers are freshly attached
@@ -2815,7 +3130,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                         onDropToSide={handleDropToSide}
                         isDragging={draggedSection === sectionId}
                         isDraggedOver={dragOverSection === sectionId}
-                        showSideDropZones={showSideDropZones}
+                        showLeftDropZone={showLeftDropZone}
+                        showRightDropZone={showRightDropZone}
                         isSingleSectionRow={isSingleSectionRow}
                         draggedSection={draggedSection}
                       >
@@ -2839,7 +3155,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           );
         })}
 
-        {/* Bottom drop zone - visible when dragging any section to a new bottom row */}
+        {/* Bottom drop zone - visible based on layout and dragged section */}
         {(() => {
           if (!draggedSection) return null;
 
@@ -2851,8 +3167,20 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
           }
 
-          // IO sections: always show bottom zone (they can always move to bottom)
-          return <BottomDropZone onDrop={handleDropToBottom} />;
+          // IO sections: show bottom zone ONLY when side-by-side
+          // In stacked mode, use the three-zone drop area on adjacent section instead
+          const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+          if (isDraggingIO) {
+            const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
+            const isSideBySide = layoutRows[draggedRowIndex]?.length > 1;
+
+            // Show bottom zone only if side-by-side
+            if (isSideBySide) {
+              return <BottomDropZone onDrop={handleDropToBottom} />;
+            }
+          }
+
+          return null;
         })()}
       </div>
 

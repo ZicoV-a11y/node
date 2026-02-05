@@ -157,31 +157,66 @@ const createSuperNode = (id) => ({
     software: 'none',
     captureCard: 'none',
     settings: [],
-    cards: []
+    cards: [],
+    systemSectionStyle: 'aligned' // 'aligned' or 'simplified'
   },
   inputSection: {
     columnName: 'INPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    columnOrder: ['port', 'connector', 'source', 'resolution', 'rate'],
     ports: [
       {
         id: 'in-1',
         number: 1,
-        connector: '',      // Empty = "Type" placeholder
-        resolution: '',     // Empty = "Choose" placeholder
-        refreshRate: ''     // Empty = "Choose" placeholder
+        connector: 'HDMI',
+        source: 'LAPTOP 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'in-2',
+        number: 2,
+        connector: 'HDMI',
+        source: 'MACBOOKPRO 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'in-3',
+        number: 3,
+        connector: '',
+        source: '',
+        resolution: '',
+        refreshRate: ''
       }
     ]
   },
   outputSection: {
     columnName: 'OUTPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    columnOrder: ['port', 'connector', 'destination', 'resolution', 'rate'],
     ports: [
       {
         id: 'out-1',
         number: 1,
-        connector: '',      // Empty = "Type" placeholder
-        resolution: '',     // Empty = "Choose" placeholder
-        refreshRate: ''     // Empty = "Choose" placeholder
+        connector: '12G SDI',
+        destination: 'BROMPTOM SX40',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'out-2',
+        number: 2,
+        connector: '12G SDI',
+        destination: 'PROJECTOR 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'out-3',
+        number: 3,
+        connector: '',
+        destination: '',
+        resolution: '',
+        refreshRate: ''
       }
     ]
   }
@@ -219,6 +254,26 @@ export default function App() {
 
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
+
+  // Create two initial nodes for comparison on first load
+  useEffect(() => {
+    if (Object.keys(nodes).length === 0) {
+      const alignedNode = createSuperNode('aligned-demo');
+      alignedNode.title = 'ALIGNED SYSTEM';
+      alignedNode.position = { x: 100, y: 100 };
+      alignedNode.system.systemSectionStyle = 'aligned';
+
+      const simplifiedNode = createSuperNode('simplified-demo');
+      simplifiedNode.title = 'SIMPLIFIED SYSTEM';
+      simplifiedNode.position = { x: 100, y: 500 };
+      simplifiedNode.system.systemSectionStyle = 'simplified';
+
+      setNodes({
+        [alignedNode.id]: alignedNode,
+        [simplifiedNode.id]: simplifiedNode
+      });
+    }
+  }, []); // Empty deps - only run once on mount
 
   // Subcategory order tracking (categoryId -> array of subcategory IDs)
   const [subcategoryOrder, setSubcategoryOrder] = useState({});
