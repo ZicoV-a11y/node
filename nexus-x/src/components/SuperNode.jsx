@@ -161,6 +161,10 @@ const CAPTURE_CARDS = [
   { id: 'custom', label: 'Custom...' },
 ];
 
+// Pre-mapped label arrays (computed once at module load)
+const SOFTWARE_PRESET_LABELS = SOFTWARE_PRESETS.map(s => s.label);
+const CAPTURE_CARD_LABELS = CAPTURE_CARDS.map(c => c.label);
+
 // Barco Tri-Combo Cards (DP, HDMI, 4x 12G SDI)
 const CARD_PRESETS = {
   'tri-combo-in': {
@@ -2232,7 +2236,7 @@ const SystemSection = memo(({
                 {data.selectedField === 'Software' && (
                   <SelectWithCustom
                     value={data.selectedValue || ''}
-                    options={SOFTWARE_PRESETS.map(s => s.label)}
+                    options={SOFTWARE_PRESET_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
                   />
@@ -2240,7 +2244,7 @@ const SystemSection = memo(({
                 {data.selectedField === 'Capture' && (
                   <SelectWithCustom
                     value={data.selectedValue || ''}
-                    options={CAPTURE_CARDS.map(c => c.label)}
+                    options={CAPTURE_CARD_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
                   />
