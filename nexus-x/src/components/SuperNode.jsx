@@ -1118,22 +1118,32 @@ const DraggableSection = memo(({
   draggedSection, // What section is currently being dragged
 }) => {
   // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
-  // System can NEVER be side-by-side with anything
-  const isIOSection = sectionId === 'input' || sectionId === 'output';
-  const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+  // System can NEVER be side-by-side with anything (memoized)
+  const isIOSection = useMemo(() => sectionId === 'input' || sectionId === 'output', [sectionId]);
+  const isDraggingIO = useMemo(() => draggedSection === 'input' || draggedSection === 'output', [draggedSection]);
 
-  // Determine drop zone mode:
+  // Determine drop zone mode (memoized)
   // - Both left and right = stacked mode (show 3 zones: left, center/swap, right)
   // - Only left OR only right = side-by-side swap (show full-width zone)
-  const showThreeZones = showLeftDropZone && showRightDropZone;
-  const showFullWidthSwap = (showLeftDropZone || showRightDropZone) && !showThreeZones;
+  const showThreeZones = useMemo(
+    () => showLeftDropZone && showRightDropZone,
+    [showLeftDropZone, showRightDropZone]
+  );
+  const showFullWidthSwap = useMemo(
+    () => (showLeftDropZone || showRightDropZone) && !showThreeZones,
+    [showLeftDropZone, showRightDropZone, showThreeZones]
+  );
+
+  // Memoized event handlers
+  const handleDragOver = useCallback((e) => onDragOver(e, sectionId), [onDragOver, sectionId]);
+  const handleDrop = useCallback((e) => onDrop(e, sectionId), [onDrop, sectionId]);
+  const handleMouseUp = useCallback(() => onDrop(null, sectionId), [onDrop, sectionId]);
 
   return (
     <div
-      onDragOver={(e) => onDragOver(e, sectionId)}
-      onDrop={(e) => onDrop(e, sectionId)}
-      // Also support mouse-based drops (for System section which uses mouse events)
-      onMouseUp={() => onDrop(null, sectionId)}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onMouseUp={handleMouseUp}
       className={`
         relative w-full
         transition-all duration-150
