@@ -1655,16 +1655,21 @@ const IOSection = memo(({
 
     // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
     const savedOrder = data.columnOrder || [];
+
+    // Create Maps for O(1) lookup instead of O(n) indexOf
+    const savedOrderMap = new Map(savedOrder.map((col, idx) => [col, idx]));
+    const baseColumnsMap = new Map(baseColumns.map((col, idx) => [col, idx]));
+
     return baseColumns.map(col => col).sort((a, b) => {
-      const aIdx = savedOrder.indexOf(a);
-      const bIdx = savedOrder.indexOf(b);
+      const aIdx = savedOrderMap.get(a) ?? -1;
+      const bIdx = savedOrderMap.get(b) ?? -1;
       // If both are in saved order, use that order
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
       // If only one is in saved order, it comes first
       if (aIdx !== -1) return -1;
       if (bIdx !== -1) return 1;
       // Neither in saved order, use baseColumns order
-      return baseColumns.indexOf(a) - baseColumns.indexOf(b);
+      return (baseColumnsMap.get(a) ?? 0) - (baseColumnsMap.get(b) ?? 0);
     });
   }, [sectionType, data.columnOrder]);
 
