@@ -2520,10 +2520,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
 
   // Resize handling
-  const handleResizeStart = (e) => {
+  const handleResizeStart = useCallback((e) => {
     setIsResizing(true);
     setResizeStart({ x: e.clientX, y: e.clientY, scale: node.scale || 1 });
-  };
+  }, [node.scale]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -2547,7 +2547,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [isResizing, resizeStart, onUpdate]);
 
   // Node drag handling
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     // Check if click is within a column-drag zone (allows column reordering)
     // This must be FIRST because closest() only searches ancestors, not descendants
     // and the draggable span is a child of wrapper divs within the zone
@@ -2571,7 +2571,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top
     });
-  };
+  }, [isResizing]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -2607,7 +2607,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Section drag handlers
   // Supports both HTML5 drag events (Input/Output) and mouse events (System)
-  const handleSectionDragStart = (e, sectionId) => {
+  const handleSectionDragStart = useCallback((e, sectionId) => {
     e.stopPropagation();
     setDraggedSection(sectionId);
     // Only set dataTransfer for HTML5 drag events (not mouse events)
@@ -2615,9 +2615,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('section-reorder', sectionId);
     }
-  };
+  }, []);
 
-  const handleSectionDragOver = (e, sectionId) => {
+  const handleSectionDragOver = useCallback((e, sectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
@@ -2640,16 +2640,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     if (sectionId === 'system' && draggedRowLength > 1) return;
 
     setDragOverSection(sectionId);
-  };
+  }, [draggedSection, layoutRows]);
 
-  const handleSectionDragEnd = () => {
+  const handleSectionDragEnd = useCallback(() => {
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, []);
 
   // Drop on section (swap positions in same row or move to different row)
   // STRICT RULE: System can only be at TOP or BOTTOM (never middle, never side-by-side)
-  const handleSectionDrop = (e, targetSectionId) => {
+  const handleSectionDrop = useCallback((e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
@@ -2715,11 +2715,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to side (create or join column)
   // STRICT RULE: Only Input and Output can be side-by-side
-  const handleDropToSide = (targetSectionId, side) => {
+  const handleDropToSide = useCallback((targetSectionId, side) => {
     if (!draggedSection || draggedSection === targetSectionId) {
       setDraggedSection(null);
       return;
@@ -2800,11 +2800,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to bottom (create new row at bottom)
   // CONSTRAINT: System always goes to very bottom; IO inserts above system if system is at bottom
-  const handleDropToBottom = () => {
+  const handleDropToBottom = useCallback(() => {
     if (!draggedSection) return;
 
     const newRows = layoutRows.map(row => [...row]);
@@ -2838,11 +2838,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to top (create new row at top)
   // CONSTRAINT: Only System section can drop to top position
-  const handleDropToTop = () => {
+  const handleDropToTop = useCallback(() => {
     if (!draggedSection) return;
     // Only System section can use the top drop zone
     if (draggedSection !== 'system') return;
@@ -2868,7 +2868,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Get anchor side for a section based on its position
   const getAnchorSide = useCallback((sectionId, colIndex, isSingleSectionRow) => {
@@ -3005,12 +3005,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   };
 
   // Handle click to select (shift+click to add to selection)
-  const handleClick = (e) => {
+  const handleClick = useCallback((e) => {
     if (onSelect && !isDragging) {
       e.stopPropagation();
       onSelect(node.id, e.shiftKey);
     }
-  };
+  }, [onSelect, isDragging, node.id]);
 
   // Calculate dynamic minWidth based on collapsed state
   const allSectionsCollapsed = node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed;
