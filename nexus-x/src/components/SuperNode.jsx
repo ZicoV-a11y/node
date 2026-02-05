@@ -3341,6 +3341,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return `${baseClasses} ${borderClasses} ${cursorClasses}`;
   }, [isSelected, isDragging, isResizing]);
 
+  // Memoized zIndex calculation (prevents ternary chain on every render)
+  const wrapperZIndex = useMemo(() =>
+    isDragging || isResizing ? 100 : isSelected ? 80 : 70,
+    [isDragging, isResizing, isSelected]
+  );
+
   return (
     <div
       ref={nodeRef}
@@ -3350,7 +3356,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         top: node.position.y,
         width: explicitWidth,
         minWidth: dynamicMinWidth,
-        zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
+        zIndex: wrapperZIndex,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
         isolation: 'isolate', // Create new stacking context
