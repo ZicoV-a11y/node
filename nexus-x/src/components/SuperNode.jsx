@@ -1283,7 +1283,7 @@ const SectionHeader = ({
   );
 
   // Create gradient background based on signal direction towards anchor
-  const gradientStyle = (() => {
+  const gradientStyle = useMemo(() => {
     const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
     // Convert hex to rgba for gradient
     const hexToRgba = (hex, alpha) => {
@@ -1303,7 +1303,7 @@ const SectionHeader = ({
     return {
       background: `linear-gradient(${gradientDirection}, ${startColor}, ${endColor})`
     };
-  })();
+  }, [passedColors?.hexLight, anchorSide]);
 
   return (
     <div
@@ -1861,7 +1861,7 @@ const SystemHeader = ({
   };
 
   // Create gradient background
-  const gradientStyle = (() => {
+  const gradientStyle = useMemo(() => {
     const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
     const hexToRgba = (hex, alpha) => {
       const r = parseInt(hex.slice(1, 3), 16);
@@ -1876,7 +1876,7 @@ const SystemHeader = ({
     return {
       background: `linear-gradient(to right, ${startColor}, ${endColor})`
     };
-  })();
+  }, [passedColors?.hexLight]);
 
   // Check if there are any approved fields to display
   const hasDisplayFields = approvedFields && (
@@ -2441,6 +2441,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Generate cohesive theme colors from signal color
   const themeColors = useMemo(() => getThemeColors(node.signalColor), [node.signalColor]);
+
+  // Memoize divider gradient style for side-by-side sections
+  const dividerGradientStyle = useMemo(() => ({
+    width: '2.5px',
+    background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
+  }), [themeColors.header.hex]);
 
   // Extract theme color for anchors (use the header/main color)
   const anchorThemeColor = themeColors.header?.hex || null;
@@ -3133,10 +3139,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
                         <div
                           className="self-stretch"
-                          style={{
-                            width: '2.5px',
-                            background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
-                          }}
+                          style={dividerGradientStyle}
                         />
                       )}
                     </Fragment>
@@ -3218,10 +3221,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                     {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
                       <div
                         className="self-stretch"
-                        style={{
-                          width: '2.5px',
-                          background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
-                        }}
+                        style={dividerGradientStyle}
                       />
                     )}
                   </Fragment>
