@@ -3193,6 +3193,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [draggedSection, layoutRows]
   );
 
+  // Memoized column index of dragged section within its row
+  const draggedColIndex = useMemo(
+    () => draggedSection && draggedSectionRowIndex >= 0
+      ? layoutRows[draggedSectionRowIndex].indexOf(draggedSection)
+      : -1,
+    [draggedSection, draggedSectionRowIndex, layoutRows]
+  );
+
   // Memoized top drop zone (prevents IIFE recreation on every render)
   const topDropZone = useMemo(() => {
     // Only show for System section drag
@@ -3303,7 +3311,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
                   // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
                   if (draggedRowIndex === targetRowIndex) {
-                    const draggedColIndex = layoutRows[draggedRowIndex].indexOf(draggedSection);
                     const targetColIndex = colIndex;
 
                     if (draggedColIndex < targetColIndex) {
