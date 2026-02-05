@@ -2236,9 +2236,12 @@ SystemSection.displayName = 'SystemSection';
 
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
   const [showSettings, setShowSettings] = useState(false);
-  const signalColorHex = node.signalColor
-    ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
-    : null;
+
+  // Memoize signal color lookup (prevents repeated find on every render)
+  const signalColorHex = useMemo(
+    () => node.signalColor ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex : null,
+    [node.signalColor]
+  );
 
   const displayTitle = useCallback(() => {
     const softwareId = node.system?.software;
@@ -2263,17 +2266,23 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     setShowSettings(false);
   }, [node.system, onUpdate]);
 
-  // Use theme header colors (hex values for inline styles)
-  const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
+  // Use theme header colors (hex values for inline styles) - memoized
+  const headerHex = useMemo(
+    () => themeColors?.header?.hex || HEX_COLORS.zinc[700],
+    [themeColors?.header?.hex]
+  );
   const headerTextHex = '#ffffff'; // White text for all headers
+
+  // Memoized title bar style (prevents object recreation on every render)
+  const titleBarStyle = useMemo(() => ({
+    borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
+    backgroundColor: `${headerHex}33`, // 20% opacity
+  }), [signalColorHex, headerHex]);
 
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
-      style={{
-        borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
-        backgroundColor: `${headerHex}33`, // 20% opacity
-      }}
+      style={titleBarStyle}
     >
       {/* Left corner - Manufacturer/Model and Color picker */}
       <div className="flex items-center gap-2 z-10">
