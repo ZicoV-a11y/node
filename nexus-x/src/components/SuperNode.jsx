@@ -2630,9 +2630,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
   }, [sharedColumnWidths]);
 
-  // Container widths include buffer for borders, CardWrapper stripe (4px), anchors, and spacing
-  const inputSectionWidth = useMemo(() => inputContentWidth + 20, [inputContentWidth]);
-  const outputSectionWidth = useMemo(() => outputContentWidth + 20, [outputContentWidth]);
+  // Container widths include buffer for borders, CardWrapper stripe (4px), padding, and breathing room
+  // Increased from +20 to +50 to prevent column overlap/cutoff in side-by-side mode
+  const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
+  const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
 
   // Collapsed section widths (spacing + anchor + gap + source/destination only)
   const inputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source, [sharedColumnWidths]); // spacing + gap + anchor + gap + source
