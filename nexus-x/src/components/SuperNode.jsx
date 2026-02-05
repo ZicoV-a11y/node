@@ -3086,6 +3086,40 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return {}; // Fallback for other sections
   }, [inputSectionWidth, outputSectionWidth]);
 
+  // Memoized top drop zone (prevents IIFE recreation on every render)
+  const topDropZone = useMemo(() => {
+    // Only show for System section drag
+    if (draggedSection !== 'system') return null;
+    // Check if system is already solo at top
+    const firstRow = layoutRows[0];
+    const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
+    if (systemAlreadyAtTop) return null;
+    return <TopDropZone onDrop={handleDropToTop} />;
+  }, [draggedSection, layoutRows, handleDropToTop]);
+
+  // Memoized bottom drop zone (prevents IIFE recreation on every render)
+  const bottomDropZone = useMemo(() => {
+    if (!draggedSection) return null;
+    const lastRow = layoutRows[layoutRows.length - 1];
+    const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
+    // System: show bottom zone only if not already at bottom
+    if (draggedSection === 'system') {
+      return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
+    }
+    // IO sections: show bottom zone ONLY when side-by-side
+    // In stacked mode, use the three-zone drop area on adjacent section instead
+    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+    if (isDraggingIO) {
+      const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
+      const isSideBySide = layoutRows[draggedRowIndex]?.length > 1;
+      // Show bottom zone only if side-by-side
+      if (isSideBySide) {
+        return <BottomDropZone onDrop={handleDropToBottom} />;
+      }
+    }
+    return null;
+  }, [draggedSection, layoutRows, handleDropToBottom]);
+
   return (
     <div
       ref={nodeRef}
@@ -3122,18 +3156,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       {/* Row-based layout */}
       <div className="flex flex-col">
         {/* Top drop zone - visible when dragging System and System is not already at top */}
-        {(() => {
-          // Only show for System section drag
-          if (draggedSection !== 'system') return null;
-
-          // Check if system is already solo at top
-          const firstRow = layoutRows[0];
-          const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
-
-          if (systemAlreadyAtTop) return null;
-
-          return <TopDropZone onDrop={handleDropToTop} />;
-        })()}
+        {topDropZone}
 
         {layoutRows.map((row, rowIndex) => {
           const isSingleSectionRow = row.length === 1;
@@ -3259,32 +3282,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         })}
 
         {/* Bottom drop zone - visible based on layout and dragged section */}
-        {(() => {
-          if (!draggedSection) return null;
-
-          const lastRow = layoutRows[layoutRows.length - 1];
-          const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
-
-          // System: show bottom zone only if not already at bottom
-          if (draggedSection === 'system') {
-            return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
-          }
-
-          // IO sections: show bottom zone ONLY when side-by-side
-          // In stacked mode, use the three-zone drop area on adjacent section instead
-          const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-          if (isDraggingIO) {
-            const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
-            const isSideBySide = layoutRows[draggedRowIndex]?.length > 1;
-
-            // Show bottom zone only if side-by-side
-            if (isSideBySide) {
-              return <BottomDropZone onDrop={handleDropToBottom} />;
-            }
-          }
-
-          return null;
-        })()}
+        {bottomDropZone}
       </div>
 
       <ResizeHandle onResizeStart={handleResizeStart} />
