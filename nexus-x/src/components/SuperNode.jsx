@@ -1845,29 +1845,27 @@ const SystemSection = ({
                 </div>
 
                 {/* Checkmark Button */}
-                {(
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const field = data.selectedField || 'Manufacturer';
-                      const value = data.selectedValue || '';
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const field = data.selectedField || 'Manufacturer';
+                    const value = data.selectedValue || '';
 
-                      // Add to approved fields
-                      const approvedFields = data.approvedFields || {};
-                      approvedFields[field] = value;
+                    // Add to approved fields
+                    const approvedFields = data.approvedFields || {};
+                    approvedFields[field] = value;
 
-                      onUpdate({
-                        approvedFields: approvedFields,
-                        selectedValue: '' // Clear value after approve
-                      });
-                    }}
-                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                    title="Approve and add to header"
-                    style={{ width: '28px', height: '28px' }}
-                  >
-                    ✓
-                  </button>
-                )}
+                    onUpdate({
+                      approvedFields: approvedFields,
+                      selectedValue: '' // Clear value after approve
+                    });
+                  }}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                  title="Approve and add to header"
+                  style={{ width: '28px', height: '28px' }}
+                >
+                  ✓
+                </button>
               </div>
             </div>
           </div>
