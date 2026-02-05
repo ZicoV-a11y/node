@@ -3239,6 +3239,45 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [draggedSection, draggedSectionRowIndex, layoutRows]
   );
 
+  // Calculate drop zone visibility for a section (memoized to prevent recalculation in render loop)
+  const calculateDropZones = useCallback((sectionId, rowIndex, colIndex) => {
+    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+    const isTargetIO = sectionId === 'input' || sectionId === 'output';
+    let showLeftDropZone = false;
+    let showRightDropZone = false;
+
+    if (draggedSection && isDraggingIO && isTargetIO && draggedSection !== sectionId) {
+      const draggedRowIdx = draggedSectionRowIndex;
+      const targetRowIdx = rowIndex;
+
+      // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
+      if (draggedRowIdx === targetRowIdx) {
+        const targetColIdx = colIndex;
+
+        if (draggedColIndex < targetColIdx) {
+          // Dragging left section, show drop zone on RIGHT side of right section
+          showRightDropZone = true;
+        } else {
+          // Dragging right section, show drop zone on LEFT side of left section
+          showLeftDropZone = true;
+        }
+      }
+      // CASE 2: Stacked (different rows) - show drop zones on adjacent section
+      else {
+        const isRowAbove = targetRowIdx === draggedRowIdx - 1;
+        const isRowBelow = targetRowIdx === draggedRowIdx + 1;
+
+        if (isRowAbove || isRowBelow) {
+          // Show three-zone drop area on section directly above or below
+          showLeftDropZone = true;
+          showRightDropZone = true;
+        }
+      }
+    }
+
+    return { showLeftDropZone, showRightDropZone };
+  }, [draggedSection, draggedSectionRowIndex, draggedColIndex]);
+
   // Memoized top drop zone (prevents IIFE recreation on every render)
   const topDropZone = useMemo(() => {
     // Only show for System section drag
@@ -3336,41 +3375,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                 const anchorSide = getAnchorSide(sectionId, colIndex, isSingleSectionRow);
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
 
-                // Calculate which side drop zones to show based on layout
-                const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-                const isTargetIO = sectionId === 'input' || sectionId === 'output';
-                let showLeftDropZone = false;
-                let showRightDropZone = false;
-
-                if (draggedSection && isDraggingIO && isTargetIO && draggedSection !== sectionId) {
-                  // Find which rows contain the dragged and target sections
-                  const draggedRowIndex = draggedSectionRowIndex;
-                  const targetRowIndex = rowIndex;
-
-                  // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
-                  if (draggedRowIndex === targetRowIndex) {
-                    const targetColIndex = colIndex;
-
-                    if (draggedColIndex < targetColIndex) {
-                      // Dragging left section, show drop zone on RIGHT side of right section
-                      showRightDropZone = true;
-                    } else {
-                      // Dragging right section, show drop zone on LEFT side of left section
-                      showLeftDropZone = true;
-                    }
-                  }
-                  // CASE 2: Stacked (different rows) - show drop zones on adjacent section
-                  else {
-                    const isRowAbove = targetRowIndex === draggedRowIndex - 1;
-                    const isRowBelow = targetRowIndex === draggedRowIndex + 1;
-
-                    if (isRowAbove || isRowBelow) {
-                      // Show three-zone drop area on section directly above or below
-                      showLeftDropZone = true;
-                      showRightDropZone = true;
-                    }
-                  }
-                }
+                // Calculate which side drop zones to show based on layout (memoized)
+                const { showLeftDropZone, showRightDropZone } = calculateDropZones(sectionId, rowIndex, colIndex);
 
                 // Force React to REMOUNT SystemSection when row position changes
                 // This ensures event handlers are freshly attached
