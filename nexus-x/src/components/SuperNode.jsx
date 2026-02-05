@@ -3347,6 +3347,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [isDragging, isResizing, isSelected]
   );
 
+  // Memoized transform string (prevents template literal creation on every render)
+  const wrapperTransform = useMemo(() => `scale(${nodeScale})`, [nodeScale]);
+
   return (
     <div
       ref={nodeRef}
@@ -3357,7 +3360,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         width: explicitWidth,
         minWidth: dynamicMinWidth,
         zIndex: wrapperZIndex,
-        transform: `scale(${nodeScale})`,
+        transform: wrapperTransform,
         transformOrigin: 'top left',
         isolation: 'isolate', // Create new stacking context
       }}
