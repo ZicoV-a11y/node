@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, memo, Fragment } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, Fragment } from 'react';
 
 // ============================================
 // CONSTANTS - Single source of truth for sizes
@@ -9,6 +9,8 @@ const SIZES = {
   DELETE: 'w-4',            // 16px
   PADDING_X: 'px-1.5',      // slightly tighter
   PADDING_Y: 'py-1',        // slightly tighter
+  ROW_HEIGHT: 30,           // Approximate row height in pixels
+  SPACING_SNAP: 15,         // Snap spacing to half-row increments (ROW_HEIGHT / 2)
 };
 
 // Colors per section type
@@ -386,8 +388,9 @@ const CardWrapper = ({
 // Column definitions - ALL row elements as columns for template layout
 // minWidth is the minimum, but columns can grow based on content
 const COLUMN_DEFS = {
+  spacing: { id: 'spacing', label: '', minWidth: 20, draggable: false },
   anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
-  delete: { id: 'delete', label: '🗑', minWidth: 24, draggable: true },
+  delete: { id: 'delete', label: '🗑', minWidth: 32, draggable: true },
   port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
   source: { id: 'source', label: 'Source', minWidth: 90, draggable: true },
   destination: { id: 'destination', label: 'Destination', minWidth: 90, draggable: true },
@@ -414,6 +417,7 @@ const estimateTextWidth = (text, isDropdown = false) => {
 // Calculate dynamic column widths based on port data
 const calculateColumnWidths = (ports) => {
   const widths = {
+    spacing: COLUMN_DEFS.spacing.minWidth,
     anchor: COLUMN_DEFS.anchor.minWidth,
     delete: COLUMN_DEFS.delete.minWidth,
     port: COLUMN_DEFS.port.minWidth,
@@ -463,15 +467,18 @@ const calculateColumnWidths = (ports) => {
 const DATA_COLUMNS = ['delete', 'port', 'connector', 'resolution', 'rate'];
 
 // Build full column order based on mode
-// dataOrder now includes delete and port, so we just add anchor at start and flip at end
+// Spacing positioned between anchor and port columns
 const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
   // Base order: anchor, data columns (includes delete, port, etc.), flip (if stacked)
   const baseOrder = canToggleAnchor
     ? ['anchor', ...dataOrder, 'flip']
     : ['anchor', ...dataOrder];
 
-  // Reverse entire array if anchor is on right
-  return isReversed ? [...baseOrder].reverse() : baseOrder;
+  // Insert spacing after anchor (between anchor and delete/port)
+  const withSpacing = [baseOrder[0], 'spacing', ...baseOrder.slice(1)];
+
+  // Reverse if anchor is on right
+  return isReversed ? [...withSpacing].reverse() : withSpacing;
 };
 
 // ============================================
@@ -661,21 +668,17 @@ const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, t
     <div
       data-anchor-id={anchorId}
       data-anchor-type={type}
-      className="w-3 h-3 shrink-0 flex items-center justify-center cursor-pointer select-none"
+      className="rounded-full transition-all cursor-pointer select-none"
       onMouseDown={handleMouseDown}
-    >
-      <div
-        className="rounded-full transition-all"
-        style={{
-          width: isActive ? '8px' : '7px',
-          height: isActive ? '8px' : '7px',
-          backgroundColor: isLit ? baseColor : '#52525b', // zinc-600 when off
-          border: `1px solid ${isLit ? lightColor : '#71717a'}`, // zinc-500 when off
-          boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
-          opacity: isLit ? 1 : 0.4
-        }}
-      />
-    </div>
+      style={{
+        width: isActive ? '8px' : '7px',
+        height: isActive ? '8px' : '7px',
+        backgroundColor: isLit ? baseColor : '#52525b', // zinc-600 when off
+        border: `1px solid ${isLit ? lightColor : '#71717a'}`, // zinc-500 when off
+        boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
+        opacity: isLit ? 1 : 0.4
+      }}
+    />
   );
 };
 
@@ -721,6 +724,7 @@ const PortRow = ({
   colors: passedColors,
   connectedAnchorIds,
   themeColor,
+  onSpacingMouseDown, // Handler for spacing drag
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -740,6 +744,33 @@ const PortRow = ({
     if (!colDef) return null;
 
     switch (colId) {
+      case 'spacing':
+        return (
+          <div
+            className="spacing-drag-handle nodrag"
+            onMouseDown={(e) => onSpacingMouseDown && onSpacingMouseDown(e, port.id, port.spacing || 0)}
+            title="Drag down to move row and create space above"
+            style={{
+              width: '20px',
+              height: '20px',
+              background: '#27272a',
+              border: '1px solid #3f3f46',
+              borderRadius: '3px',
+              color: '#71717a',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'ns-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: '1',
+              transition: 'all 0.2s',
+              userSelect: 'none',
+            }}
+          >
+            ⋮
+          </div>
+        );
       case 'anchor':
         return (
           <Anchor
@@ -878,7 +909,7 @@ const PortRow = ({
 
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap w-full`}
+      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1390,6 +1421,10 @@ const IOSection = ({
   // Get cards from data (or empty array)
   const cards = data.cards || [];
 
+  // Spacing drag state
+  const dragStartY = useRef(0);
+  const dragStartSpacing = useRef(0);
+
   // Toggle individual port selection
   const togglePortSelection = (portId) => {
     setSelectedPorts(prev => {
@@ -1411,6 +1446,39 @@ const IOSection = ({
       setSelectedPorts(new Set(data.ports.map(p => p.id))); // Select all
     }
   };
+
+  // Spacing drag handler with half-row snapping
+  const handleSpacingMouseDown = useCallback(
+    (e, portId, currentSpacing) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragStartY.current = e.clientY;
+      dragStartSpacing.current = currentSpacing || 0;
+
+      const handleMouseMove = (moveEvent) => {
+        const deltaY = moveEvent.clientY - dragStartY.current;
+        const rawSpacing = Math.max(0, dragStartSpacing.current + deltaY);
+
+        // Snap to half-row increments (15px)
+        const snapIncrement = SIZES.SPACING_SNAP;
+        const newSpacing = Math.round(rawSpacing / snapIncrement) * snapIncrement;
+
+        const newPorts = data.ports.map((port) =>
+          port.id === portId ? { ...port, spacing: newSpacing } : port
+        );
+        onUpdate({ ports: newPorts });
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [data.ports, onUpdate]
+  );
 
   const addPort = () => {
     const prefix = type === 'input' ? 'in' : 'out';
@@ -1555,36 +1623,38 @@ const IOSection = ({
   // Calculate dynamic column widths based on port content (use shared widths if provided)
   const columnWidths = sharedColumnWidths || calculateColumnWidths(data.ports);
 
-  // Helper to render port rows
+  // Helper to render port rows with spacing support
   const renderPortRows = (ports) => (
     ports.map(port => (
-      <PortRow
-        key={port.id}
-        port={port}
-        type={portType}
-        anchorSide={anchorSide}
-        onUpdate={(updates) => updatePort(port.id, updates)}
-        onDelete={() => deletePort(port.id)}
-        anchorId={`${nodeId}-${port.id}`}
-        isActive={activeWire?.from === `${nodeId}-${port.id}`}
-        onAnchorClick={onAnchorClick}
-        signalColor={type === 'output' ? signalColor : null}
-        canToggleAnchor={canToggleAnchor}
-        onToggleAnchor={onToggleAnchorSide}
-        columnOrder={columnOrder}
-        columnWidths={columnWidths}
-        isSelected={selectedPorts.has(port.id)}
-        onToggleSelection={() => togglePortSelection(port.id)}
-        onBulkUpdate={bulkUpdatePorts}
-        colors={colors}
-        connectedAnchorIds={connectedAnchorIds}
-        themeColor={themeColor}
-      />
+      <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
+        <PortRow
+          port={port}
+          type={portType}
+          anchorSide={anchorSide}
+          onUpdate={(updates) => updatePort(port.id, updates)}
+          onDelete={() => deletePort(port.id)}
+          anchorId={`${nodeId}-${port.id}`}
+          isActive={activeWire?.from === `${nodeId}-${port.id}`}
+          onAnchorClick={onAnchorClick}
+          signalColor={type === 'output' ? signalColor : null}
+          canToggleAnchor={canToggleAnchor}
+          onToggleAnchor={onToggleAnchorSide}
+          columnOrder={columnOrder}
+          columnWidths={columnWidths}
+          isSelected={selectedPorts.has(port.id)}
+          onToggleSelection={() => togglePortSelection(port.id)}
+          onBulkUpdate={bulkUpdatePorts}
+          colors={colors}
+          connectedAnchorIds={connectedAnchorIds}
+          themeColor={themeColor}
+          onSpacingMouseDown={handleSpacingMouseDown}
+        />
+      </div>
     ))
   );
 
   return (
-    <div className="flex flex-col w-full border-t border-zinc-700/50">
+    <div className="flex flex-col border-t border-zinc-700/50 shrink-0">
       <SectionHeader
         type={sectionType}
         title={data.columnName}
@@ -1707,7 +1777,10 @@ const IOSection = ({
             />
           )}
 
-          <div className="flex-1 w-full">
+          <div className="flex-1 relative">
+            {/* DEBUG: Left edge divider */}
+            <div className="absolute left-0 top-0 bottom-0 w-px bg-green-500/60 z-10" />
+
             {data.ports.length === 0 ? (
               <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[11px]`}>
                 No {type}s
@@ -1733,6 +1806,9 @@ const IOSection = ({
                 {standalonePorts.length > 0 && renderPortRows(standalonePorts)}
               </>
             )}
+
+            {/* DEBUG: Right edge divider */}
+            <div className="absolute right-0 top-0 bottom-0 w-px bg-green-500/60 z-10" />
           </div>
         </>
       )}
@@ -2040,7 +2116,7 @@ const SystemSection = ({
                 className="flex items-stretch overflow-hidden"
                 style={
                   useFixedWidths && dividerPosition
-                    ? { width: `${dividerPosition - 4}px`, flexShrink: 0, minWidth: 0 }
+                    ? { width: `${dividerPosition - 12}px`, flexShrink: 0, minWidth: 0 }
                     : { flex: 1 }
                 }
               >
@@ -2059,7 +2135,7 @@ const SystemSection = ({
                 className="flex items-stretch gap-2 overflow-hidden"
                 style={
                   useFixedWidths && outputSectionWidth
-                    ? { width: `${outputSectionWidth + 8}px`, flexShrink: 0, minWidth: 0 }
+                    ? { width: `${outputSectionWidth - 6}px`, flexShrink: 0, minWidth: 0 }
                     : { flex: 1 }
                 }
               >
@@ -2380,10 +2456,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const sharedColumnWidths = calculateColumnWidths(allPorts);
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
-  // When side-by-side, sections have: anchor(24) + delete(24) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
+  // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
   // Gaps between columns: 8px each (via mx-2 on separator)
   const calculateSectionWidth = (includeDest = false) => {
     const columns = [
+      sharedColumnWidths.spacing,     // 20 (spacing drag handle - ALWAYS included)
       sharedColumnWidths.anchor,      // 24
       sharedColumnWidths.delete,      // 24
       sharedColumnWidths.port,        // 52
@@ -2404,9 +2481,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputSectionWidth = inputContentWidth + 50;
   const outputSectionWidth = outputContentWidth + 50;
 
-  // Collapsed section widths (anchor + gap + source/destination only)
-  const inputCollapsedWidth = 24 + 8 + sharedColumnWidths.source; // anchor + gap-2 + source
-  const outputCollapsedWidth = sharedColumnWidths.destination + 8 + 24; // destination + gap-2 + anchor
+  // Collapsed section widths (spacing + anchor + gap + source/destination only)
+  const inputCollapsedWidth = sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source; // spacing + gap + anchor + gap + source
+  const outputCollapsedWidth = sharedColumnWidths.spacing + 8 + sharedColumnWidths.destination + 8 + 24; // spacing + gap + destination + gap + anchor
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
@@ -2937,6 +3014,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const allSectionsCollapsed = node.layout.inputCollapsed && node.layout.outputCollapsed && node.layout.systemCollapsed;
   const dynamicMinWidth = allSectionsCollapsed ? 'auto' : 320;
 
+  // Calculate explicit width when sections are side-by-side
+  const explicitWidth = areIOSideBySide && !node.layout.inputCollapsed && !node.layout.outputCollapsed
+    ? inputSectionWidth + 12 + outputSectionWidth + 16  // sections + gap + padding
+    : 'auto';
+
   return (
     <div
       ref={nodeRef}
@@ -2948,7 +3030,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       style={{
         left: node.position.x,
         top: node.position.y,
-        width: 'auto',
+        width: explicitWidth,
         minWidth: dynamicMinWidth,
         zIndex: isDragging || isResizing ? 100 : isSelected ? 80 : 70,
         transform: `scale(${nodeScale})`,

@@ -266,7 +266,7 @@ export default function App() {
       const simplifiedNode = createSuperNode('simplified-demo');
       simplifiedNode.title = 'SIMPLIFIED SYSTEM';
       simplifiedNode.position = { x: 100, y: 500 };
-      simplifiedNode.system.systemSectionStyle = 'simplified';
+      simplifiedNode.system.systemSectionStyle = 'aligned';
 
       setNodes({
         [alignedNode.id]: alignedNode,
