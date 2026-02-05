@@ -3333,14 +3333,18 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const handleSystemDrop = useCallback((e) => handleSectionDrop(e, 'system'), [handleSectionDrop]);
   const handleSystemMouseUp = useCallback(() => handleSectionDrop(null, 'system'), [handleSectionDrop]);
 
+  // Memoized main wrapper className (prevents string concatenation on every render)
+  const wrapperClassName = useMemo(() => {
+    const baseClasses = 'absolute bg-zinc-900 border rounded-lg shadow-xl select-none';
+    const borderClasses = isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700';
+    const cursorClasses = isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab';
+    return `${baseClasses} ${borderClasses} ${cursorClasses}`;
+  }, [isSelected, isDragging, isResizing]);
+
   return (
     <div
       ref={nodeRef}
-      className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
-        isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
-      } ${
-        isDragging ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
-      }`}
+      className={wrapperClassName}
       style={{
         left: node.position.x,
         top: node.position.y,
