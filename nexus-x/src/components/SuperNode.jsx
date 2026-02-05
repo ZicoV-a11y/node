@@ -3089,6 +3089,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return {}; // Fallback for other sections
   }, [inputSectionWidth, outputSectionWidth]);
 
+  // Memoized dragged section row index (prevents repeated findIndex in render loop and drop zone calculations)
+  const draggedSectionRowIndex = useMemo(
+    () => draggedSection ? layoutRows.findIndex(row => row.includes(draggedSection)) : -1,
+    [draggedSection, layoutRows]
+  );
+
   // Memoized top drop zone (prevents IIFE recreation on every render)
   const topDropZone = useMemo(() => {
     // Only show for System section drag
@@ -3113,15 +3119,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     // In stacked mode, use the three-zone drop area on adjacent section instead
     const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
     if (isDraggingIO) {
-      const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
-      const isSideBySide = layoutRows[draggedRowIndex]?.length > 1;
+      const isSideBySide = layoutRows[draggedSectionRowIndex]?.length > 1;
       // Show bottom zone only if side-by-side
       if (isSideBySide) {
         return <BottomDropZone onDrop={handleDropToBottom} />;
       }
     }
     return null;
-  }, [draggedSection, layoutRows, handleDropToBottom]);
+  }, [draggedSection, layoutRows, draggedSectionRowIndex, handleDropToBottom]);
 
   // Memoized scale badge style (prevents style object recreation on every render)
   const scaleBadgeStyle = useMemo(
@@ -3195,7 +3200,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
                 if (draggedSection && isDraggingIO && isTargetIO && draggedSection !== sectionId) {
                   // Find which rows contain the dragged and target sections
-                  const draggedRowIndex = layoutRows.findIndex(row => row.includes(draggedSection));
+                  const draggedRowIndex = draggedSectionRowIndex;
                   const targetRowIndex = rowIndex;
 
                   // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
