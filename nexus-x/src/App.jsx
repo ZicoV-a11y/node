@@ -342,6 +342,25 @@ export default function App() {
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }, [pages, paperEnabled]);
 
+  // Effective canvas bounds - extends to cover all pages (so mouse events work everywhere)
+  // Includes position offset for pages in negative space (above/left of origin)
+  const effectiveCanvasBounds = useMemo(() => {
+    if (!pageBounds) {
+      return { x: 0, y: 0, width: canvasDimensions.width, height: canvasDimensions.height };
+    }
+    // Canvas must start at the minimum coordinate and extend to cover everything
+    const minX = Math.min(0, pageBounds.x);
+    const minY = Math.min(0, pageBounds.y);
+    const maxX = Math.max(canvasDimensions.width, pageBounds.x + pageBounds.width);
+    const maxY = Math.max(canvasDimensions.height, pageBounds.y + pageBounds.height);
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [canvasDimensions, pageBounds]);
+
   // Node management
   const addNode = (typeOrConfig = 'generic') => {
     const nodeId = `node-${Date.now()}`;
@@ -1163,7 +1182,7 @@ export default function App() {
         return;
       }
 
-      // Cmd/Ctrl+V — paste copied nodes
+      // Cmd/Ctrl+V — paste copied nodes with auto-numbering
       if (mod && e.key === 'v') {
         if (clipboardRef.current.length > 0) {
           e.preventDefault();
@@ -1182,10 +1201,40 @@ export default function App() {
                 node.position.y + 40,
                 { isCenterTarget: false, snapToGrid, gridSize }
               );
+
+              // Auto-numbering: "NAME 1", "NAME 2", etc.
+              const title = node.title || 'Node';
+              const baseTitle = title.replace(/\s+\d+$/, '');
+
+              // Find highest existing number for nodes with this base title
+              let maxNum = 0;
+              Object.values(updated).forEach(n => {
+                const nTitle = n.title || '';
+                const nBase = nTitle.replace(/\s+\d+$/, '');
+                if (nBase === baseTitle) {
+                  const numMatch = nTitle.match(/\s+(\d+)$/);
+                  const num = numMatch ? parseInt(numMatch[1], 10) : 1;
+                  if (num > maxNum) maxNum = num;
+                }
+              });
+
+              // Rename original node to "NAME 1" if it doesn't have a number yet
+              const originalId = node.id;
+              const originalHasNum = updated[originalId]?.title?.match(/\s+\d+$/);
+              if (updated[originalId] && !originalHasNum) {
+                updated[originalId] = {
+                  ...updated[originalId],
+                  title: `${baseTitle} 1`,
+                };
+                if (maxNum < 1) maxNum = 1;
+              }
+
+              const copyNumber = maxNum + 1 + i;
               const newNode = {
                 ...structuredClone(node),
                 id: newId,
                 position,
+                title: `${baseTitle} ${copyNumber}`,
               };
               updated[newId] = newNode;
               existingForCollision.push(newNode);
@@ -1246,7 +1295,8 @@ export default function App() {
         positions[anchorId] = {
           x: node.position.x + offset.localX * s,
           y: node.position.y + offset.localY * s,
-          type: offset.type
+          type: offset.type,
+          side: offset.side || (offset.type === 'in' ? 'left' : 'right') // Default based on type
         };
       }
     });
@@ -1260,7 +1310,8 @@ export default function App() {
       if (existing &&
           existing.localX === offset.localX &&
           existing.localY === offset.localY &&
-          existing.type === offset.type) {
+          existing.type === offset.type &&
+          existing.side === offset.side) {
         return prev;
       }
       return { ...prev, [anchorId]: offset };
@@ -1273,13 +1324,24 @@ export default function App() {
   }, [computedAnchorPositions]);
 
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
+  // Routes wires OUTWARD from anchors based on their side (left/right) to avoid going through nodes
   const getWirePath = useCallback((fromId, toId) => {
     const from = getAnchorPosition(fromId);
     const to = getAnchorPosition(toId);
     if (!from || !to) return '';
 
-    const midX = (from.x + to.x) / 2;
-    return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+    // Calculate horizontal distance between anchors
+    const dx = Math.abs(to.x - from.x);
+    // Control point offset - minimum 50px, or 40% of distance for longer wires
+    const offset = Math.max(50, dx * 0.4);
+
+    // Determine control point X positions based on anchor sides
+    // Left-side anchors: control point extends LEFT (negative X)
+    // Right-side anchors: control point extends RIGHT (positive X)
+    const fromControlX = from.side === 'left' ? from.x - offset : from.x + offset;
+    const toControlX = to.side === 'left' ? to.x - offset : to.x + offset;
+
+    return `M ${from.x} ${from.y} C ${fromControlX} ${from.y}, ${toControlX} ${to.y}, ${to.x} ${to.y}`;
   }, [getAnchorPosition]);
 
   // Build current project data object
@@ -1912,11 +1974,25 @@ export default function App() {
         {/* Pan + Zoom container */}
         <div
           ref={transformRef}
+          className="relative"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0'
           }}
         >
+          {/* Canvas event overlay - covers all pages including negative space for selection */}
+          {/* Positioned before canvasRef so it renders below nodes (DOM order stacking) */}
+          <div
+            data-canvas="true"
+            className="absolute"
+            style={{
+              left: effectiveCanvasBounds.x,
+              top: effectiveCanvasBounds.y,
+              width: effectiveCanvasBounds.width,
+              height: effectiveCanvasBounds.height,
+            }}
+            onClick={handleCanvasClick}
+          />
           <div
             ref={canvasRef}
             data-canvas="true"
@@ -1926,10 +2002,12 @@ export default function App() {
               height: canvasDimensions.height,
               overflow: 'visible',
               backgroundImage: paperEnabled ? `
+                linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
               ` : 'none',
-              backgroundSize: paperEnabled ? '8px 8px' : undefined
+              backgroundSize: paperEnabled ? '100px 100px, 100px 100px, 10px 10px, 10px 10px' : undefined
             }}
             onClick={handleCanvasClick}
           >
@@ -2136,7 +2214,7 @@ export default function App() {
             })}
           </svg>
 
-          {/* Nodes - conditionally render SuperNode for version 2 nodes */}
+          {/* Nodes */}
           {Object.values(nodes).map(node => {
             const NodeComponent = node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);

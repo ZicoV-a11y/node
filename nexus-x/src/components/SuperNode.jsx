@@ -451,6 +451,13 @@ const COLUMN_DEFS = {
   flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
 };
 
+// Collapsed view column configuration
+const COLLAPSED_ELIGIBLE_COLUMNS = ['port', 'source', 'destination', 'connector', 'resolution', 'rate'];
+const DEFAULT_COLLAPSED_COLUMNS_INPUT = ['port', 'source'];
+const DEFAULT_COLLAPSED_COLUMNS_OUTPUT = ['port', 'destination'];
+const MAX_COLLAPSED_COLUMNS = 3;
+const MIN_COLLAPSED_COLUMNS = 1;
+
 // Width calculation constants
 const CHAR_WIDTH = 7; // Character width for text estimation
 const PADDING = 16; // Padding inside cells
@@ -1129,6 +1136,196 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
 ColumnHeaders.displayName = 'ColumnHeaders';
 
 // ============================================
+// COLLAPSED COLUMN SELECTOR
+// Dropdown to choose which columns appear in collapsed mode
+// ============================================
+
+const CollapsedColumnSelector = memo(({ sectionType, currentColumns, onColumnsChange, onClose }) => {
+  // Filter eligible columns based on section type
+  const eligibleColumns = useMemo(() =>
+    COLLAPSED_ELIGIBLE_COLUMNS.filter(col => {
+      if (sectionType === 'input' && col === 'destination') return false;
+      if (sectionType === 'output' && col === 'source') return false;
+      return true;
+    }),
+    [sectionType]
+  );
+
+  const toggleColumn = useCallback((colId) => {
+    const isSelected = currentColumns.includes(colId);
+    if (isSelected && currentColumns.length <= MIN_COLLAPSED_COLUMNS) return;
+    if (!isSelected && currentColumns.length >= MAX_COLLAPSED_COLUMNS) return;
+
+    const newColumns = isSelected
+      ? currentColumns.filter(c => c !== colId)
+      : [...currentColumns, colId];
+    onColumnsChange(newColumns);
+  }, [currentColumns, onColumnsChange]);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('[data-collapsed-selector]')) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div
+      data-collapsed-selector="true"
+      className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg py-1 min-w-[140px] z-50"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 py-1 text-[10px] text-zinc-400 border-b border-zinc-700">
+        Columns ({currentColumns.length}/{MAX_COLLAPSED_COLUMNS})
+      </div>
+      {eligibleColumns.map(colId => {
+        const isSelected = currentColumns.includes(colId);
+        const isDisabled = isSelected && currentColumns.length <= MIN_COLLAPSED_COLUMNS;
+        const isMaxed = !isSelected && currentColumns.length >= MAX_COLLAPSED_COLUMNS;
+
+        return (
+          <button
+            key={colId}
+            onClick={() => toggleColumn(colId)}
+            disabled={isDisabled || isMaxed}
+            className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2
+              ${isSelected ? 'text-cyan-400' : 'text-zinc-300'}
+              ${isDisabled || isMaxed ? 'opacity-40 cursor-not-allowed' : 'hover:bg-zinc-700 cursor-pointer'}`}
+          >
+            <span>{isSelected ? '✓' : '○'}</span>
+            <span>{COLUMN_DEFS[colId]?.label || colId.toUpperCase()}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+CollapsedColumnSelector.displayName = 'CollapsedColumnSelector';
+
+// ============================================
+// COLLAPSED COLUMN HEADERS
+// Draggable headers for collapsed mode
+// ============================================
+
+const CollapsedColumnHeaders = memo(({
+  anchorSide,
+  columnOrder,
+  sectionType,
+  onReorderColumns,
+  onOpenSettings,
+  showSettings,
+  onColumnsChange,
+  onCloseSettings,
+}) => {
+  const isReversed = anchorSide === 'right';
+  const [draggedColumn, setDraggedColumn] = useState(null);
+
+  const handleDragStart = useCallback((e, colId) => {
+    e.stopPropagation();
+    setDraggedColumn(colId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('collapsed-column-reorder', colId);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e, targetColId) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!draggedColumn || draggedColumn === targetColId || !onReorderColumns) {
+      setDraggedColumn(null);
+      return;
+    }
+
+    const newOrder = [...columnOrder];
+    const dragIdx = newOrder.indexOf(draggedColumn);
+    const targetIdx = newOrder.indexOf(targetColId);
+
+    if (dragIdx === -1 || targetIdx === -1) {
+      setDraggedColumn(null);
+      return;
+    }
+
+    newOrder.splice(dragIdx, 1);
+    newOrder.splice(targetIdx, 0, draggedColumn);
+
+    onReorderColumns(newOrder);
+    setDraggedColumn(null);
+  }, [draggedColumn, columnOrder, onReorderColumns]);
+
+  const handleDragEnd = useCallback(() => setDraggedColumn(null), []);
+
+  // Build render order with anchor position
+  const renderOrder = useMemo(() =>
+    isReversed ? [...columnOrder, 'anchor'] : ['anchor', ...columnOrder],
+    [isReversed, columnOrder]
+  );
+
+  return (
+    <div
+      className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30
+        text-[10px] font-mono text-white uppercase tracking-wide relative w-full
+        ${isReversed ? 'flex-row-reverse' : ''}`}
+    >
+      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse' : ''}`}>
+        {renderOrder.map((colId) => {
+          if (colId === 'anchor') {
+            return <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
+          }
+
+          const colDef = COLUMN_DEFS[colId];
+          const isDragging = draggedColumn === colId;
+
+          return (
+            <span
+              key={colId}
+              draggable="true"
+              onDragStart={(e) => handleDragStart(e, colId)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, colId)}
+              onDragEnd={handleDragEnd}
+              className={`cursor-grab select-none ${isDragging ? 'opacity-50' : ''}`}
+            >
+              {colDef?.label || colId.toUpperCase()}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Settings gear */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenSettings();
+        }}
+        className="text-zinc-400 hover:text-white text-[10px] px-1 ml-auto shrink-0"
+        title="Configure columns"
+      >
+        ⚙
+      </button>
+
+      {showSettings && (
+        <CollapsedColumnSelector
+          sectionType={sectionType}
+          currentColumns={columnOrder}
+          onColumnsChange={onColumnsChange}
+          onClose={onCloseSettings}
+        />
+      )}
+    </div>
+  );
+});
+CollapsedColumnHeaders.displayName = 'CollapsedColumnHeaders';
+
+// ============================================
 // DRAGGABLE SECTION WRAPPER
 // Wraps sections with drag handle and drop zones
 // ============================================
@@ -1603,6 +1800,22 @@ const IOSection = memo(({
     onUpdate({ columnOrder: newOrder });
   }, [onUpdate]);
 
+  // Collapsed column settings state
+  const [showCollapsedSettings, setShowCollapsedSettings] = useState(false);
+
+  // Get collapsed columns from data or use section-specific defaults
+  const collapsedColumns = useMemo(() => {
+    const defaultCols = sectionType === 'input'
+      ? DEFAULT_COLLAPSED_COLUMNS_INPUT
+      : DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
+    return data.collapsedColumnOrder || defaultCols;
+  }, [sectionType, data.collapsedColumnOrder]);
+
+  // Reorder collapsed columns
+  const reorderCollapsedColumns = useCallback((newOrder) => {
+    onUpdate({ collapsedColumnOrder: newOrder });
+  }, [onUpdate]);
+
   // Apply a preset - creates a card with grouped ports
   const applyPreset = useCallback((presetPorts, presetId) => {
     const prefix = type === 'input' ? 'in' : 'out';
@@ -1785,125 +1998,84 @@ const IOSection = memo(({
       />
 
       {collapsed ? (
-        /* When collapsed, render minimal port rows with header - anchor position based on anchorSide prop */
+        /* When collapsed, render configurable columns with drag-drop reordering */
         <div className="w-full">
-          {/* Collapsed header row - styled like ColumnHeaders */}
+          {/* Collapsed header with drag-drop and settings */}
           {data.ports.length > 0 && (
-            <div className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30 text-[10px] font-mono text-white uppercase tracking-wide ${anchorSide === 'right' ? 'justify-end' : 'justify-start'}`}>
-              {anchorSide !== 'right' && (
-                <div className="flex items-center gap-2">
-                  <span className="shrink-0" style={SPACING_COLUMN_STYLE}></span>
-                  <span className="shrink-0" style={{ width: `${columnWidths['port'] || 52}px` }}>PORT</span>
-                  <span className="shrink-0" style={{ width: `${type === 'output' ? (columnWidths['destination'] || 90) : (columnWidths['source'] || 90)}px` }}>
-                    {type === 'output' ? 'DESTINATION' : 'SOURCE'}
-                  </span>
-                </div>
-              )}
-              {anchorSide === 'right' && (
-                <div className="flex items-center gap-2">
-                  <span className="shrink-0 text-right" style={{ width: `${type === 'output' ? (columnWidths['destination'] || 90) : (columnWidths['source'] || 90)}px` }}>
-                    {type === 'output' ? 'DESTINATION' : 'SOURCE'}
-                  </span>
-                  <span className="shrink-0 text-right" style={{ width: `${columnWidths['port'] || 52}px` }}>PORT</span>
-                  <span className="shrink-0" style={SPACING_COLUMN_STYLE}></span>
-                </div>
-              )}
-            </div>
+            <CollapsedColumnHeaders
+              anchorSide={anchorSide}
+              columnOrder={collapsedColumns}
+              sectionType={sectionType}
+              onReorderColumns={reorderCollapsedColumns}
+              onOpenSettings={() => setShowCollapsedSettings(true)}
+              showSettings={showCollapsedSettings}
+              onColumnsChange={reorderCollapsedColumns}
+              onCloseSettings={() => setShowCollapsedSettings(false)}
+            />
           )}
-          {/* Collapsed port rows */}
+          {/* Collapsed port rows with dynamic columns */}
           {collapsedPortData.map((portData) => {
-            // Use anchorSide prop to determine anchor position (respects side-by-side layout)
             const shouldAnchorBeOnRight = anchorSide === 'right';
             const isOutput = type === 'output';
-            const { port, anchorId, inputAnchorStyle, outputAnchorStyle, portTitle, sourceColumnWidth, destColumnWidth, portColumnWidth, portLabel } = portData;
-
-            // Content is source for INPUT, destination for OUTPUT
-            const contentText = isOutput ? (port.destination || '') : (port.source || '');
-            const contentWidth = isOutput ? destColumnWidth : sourceColumnWidth;
+            const { port, anchorId, inputAnchorStyle, outputAnchorStyle, portTitle, portLabel } = portData;
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            return (
-              <div key={port.id} className={`flex items-center py-1.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
-                {/* Anchor on LEFT: [Anchor][Port][Content] */}
-                {!shouldAnchorBeOnRight && (
-                  <div className="flex items-center gap-2">
-                    {/* Anchor */}
-                    <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                      <div
-                        data-anchor-id={anchorId}
-                        data-anchor-type={anchorType}
-                        className="w-2 h-2 rounded-full cursor-pointer"
-                        style={anchorStyle}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAnchorClick && onAnchorClick(anchorId, anchorType);
-                        }}
-                        title={portTitle}
-                      />
-                    </span>
-                    {/* Port label */}
-                    <span
-                      className="shrink-0 text-[10px] text-white truncate overflow-hidden uppercase font-mono"
-                      style={{
-                        width: `${portColumnWidth}px`,
-                        maxWidth: `${portColumnWidth}px`
-                      }}
-                    >
-                      {portLabel}
-                    </span>
-                    {/* Content (source/destination) */}
-                    <span
-                      className="shrink-0 text-[10px] text-white truncate overflow-hidden uppercase font-mono"
-                      style={{
-                        width: `${contentWidth}px`,
-                        maxWidth: `${contentWidth}px`
-                      }}
-                    >
-                      {contentText}
-                    </span>
-                  </div>
-                )}
+            // Build render order based on anchor side
+            const renderCols = shouldAnchorBeOnRight
+              ? [...collapsedColumns, 'anchor']
+              : ['anchor', ...collapsedColumns];
 
-                {/* Anchor on RIGHT: [Content][Port][Anchor] */}
-                {shouldAnchorBeOnRight && (
-                  <div className="flex items-center gap-2">
-                    {/* Content (source/destination) */}
-                    <span
-                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden uppercase font-mono"
-                      style={{
-                        width: `${contentWidth}px`,
-                        maxWidth: `${contentWidth}px`
-                      }}
-                    >
-                      {contentText}
-                    </span>
-                    {/* Port label */}
-                    <span
-                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden uppercase font-mono"
-                      style={{
-                        width: `${portColumnWidth}px`,
-                        maxWidth: `${portColumnWidth}px`
-                      }}
-                    >
-                      {portLabel}
-                    </span>
-                    {/* Anchor */}
-                    <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                      <div
-                        data-anchor-id={anchorId}
-                        data-anchor-type={anchorType}
-                        className="w-2 h-2 rounded-full cursor-pointer"
-                        style={anchorStyle}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAnchorClick && onAnchorClick(anchorId, anchorType);
-                        }}
-                        title={portTitle}
-                      />
-                    </span>
-                  </div>
-                )}
+            // Helper to get cell content
+            const getCellContent = (colId) => {
+              const textAlign = shouldAnchorBeOnRight ? 'text-right' : 'text-left';
+              const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono ${textAlign}`;
+
+              switch (colId) {
+                case 'port':
+                  return <span key={colId} className={cellClass}>{portLabel}</span>;
+                case 'source':
+                  return <span key={colId} className={cellClass}>{port.source || ''}</span>;
+                case 'destination':
+                  return <span key={colId} className={cellClass}>{port.destination || ''}</span>;
+                case 'connector':
+                  return <span key={colId} className={cellClass}>{port.connector || ''}</span>;
+                case 'resolution':
+                  return <span key={colId} className={cellClass}>{port.resolution || ''}</span>;
+                case 'rate':
+                  return <span key={colId} className={cellClass}>{port.refreshRate || ''}</span>;
+                default:
+                  return null;
+              }
+            };
+
+            return (
+              <div
+                key={port.id}
+                className={`flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}
+              >
+                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}>
+                  {renderCols.map((colId) => {
+                    if (colId === 'anchor') {
+                      return (
+                        <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
+                          <div
+                            data-anchor-id={anchorId}
+                            data-anchor-type={anchorType}
+                            className="w-2 h-2 rounded-full cursor-pointer"
+                            style={anchorStyle}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAnchorClick && onAnchorClick(anchorId, anchorType);
+                            }}
+                            title={portTitle}
+                          />
+                        </span>
+                      );
+                    }
+                    return getCellContent(colId);
+                  })}
+                </div>
               </div>
             );
           })}
@@ -2139,10 +2311,20 @@ const SystemSection = memo(({
   // Memoized background style (prevents object recreation)
   const sectionStyle = useMemo(() => ({ backgroundColor: `${colorHex}0d` }), [colorHex]);
 
-  // CSS Grid style for aligning dropdowns with left/right sections
-  // Uses different strategies based on collapse states:
-  // - One collapsed: collapsed side gets fixed width, expanded side fills remaining space (1fr)
-  // - Both expanded or both collapsed: use fr units for proportional distribution
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRITICAL: SYSTEM DROPDOWN ALIGNMENT WITH IO SECTIONS - DO NOT MODIFY
+  // ═══════════════════════════════════════════════════════════════════════════
+  // This alignment between the System section dropdowns and the center divider
+  // (gap between INPUT and OUTPUT sections) is a PERMANENT architectural feature.
+  //
+  // The dropdowns MUST align with the IO section widths so that:
+  // - Left dropdown aligns with left IO section (INPUT or OUTPUT depending on layout)
+  // - Right dropdown aligns with right IO section
+  // - The gap between dropdowns aligns with the divider between IO sections
+  //
+  // This uses CSS Grid with the SAME widths as the IO section containers.
+  // Any changes to IO section width calculations MUST be reflected here.
+  // ═══════════════════════════════════════════════════════════════════════════
   const gridStyle = useMemo(() => {
     // Only align with IO sections when they are side-by-side
     if (areIOSideBySide && leftSectionWidth && rightSectionWidth) {
@@ -2315,7 +2497,7 @@ SystemSection.displayName = 'SystemSection';
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, areIOSideBySide, leftSectionWidth, rightSectionWidth }) => {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
 
@@ -2400,66 +2582,137 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
   }), [signalColorHex]);
 
-  // Memoized title position (divider-centered when side-by-side, otherwise 50%)
-  const titleLeftPosition = useMemo(() => {
-    // Only use special divider-centered positioning when both sections are expanded and side-by-side
-    if (areIOSideBySide && !inputCollapsed && !outputCollapsed && inputSectionWidth) {
-      // Position at the divider between INPUT and OUTPUT sections
-      // inputSectionWidth already includes buffer, just add gap between sections
-      return `${inputSectionWidth + 8}px`;
+  // Calculate the divider position as a percentage for centering the title
+  // The divider is the gap between left and right sections
+  const dividerPosition = useMemo(() => {
+    if (!areIOSideBySide || !leftSectionWidth || !rightSectionWidth) {
+      return null;
     }
-    // All other cases: use standard 50% centering (collapsed, stacked, or mixed states)
-    return '50%';
-  }, [areIOSideBySide, inputCollapsed, outputCollapsed, inputSectionWidth]);
+    // The divider center is at the proportion of left width to total width
+    // This matches where the gap between SystemSection dropdowns falls
+    const totalWidth = leftSectionWidth + rightSectionWidth;
+    return (leftSectionWidth / totalWidth) * 100;
+  }, [areIOSideBySide, leftSectionWidth, rightSectionWidth]);
 
+  // Shared left corner content (manufacturer/model + color picker)
+  const leftCornerContent = (
+    <div className="flex items-center gap-2">
+      {(node.system?.approvedFields?.['Manufacturer'] || node.system?.approvedFields?.['Model']) && (
+        <div className="flex flex-col gap-0 font-mono leading-tight" style={{ color: headerTextHex }}>
+          {node.system?.approvedFields?.['Manufacturer'] && (
+            <div className="opacity-90 text-[12px]">{node.system.approvedFields['Manufacturer']}</div>
+          )}
+          {node.system?.approvedFields?.['Model'] && (
+            <div className="opacity-70 text-[10px]">{node.system.approvedFields['Model']}</div>
+          )}
+        </div>
+      )}
+      {/* Signal color picker */}
+      <div className="relative">
+        <select
+          value={node.signalColor || ''}
+          onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
+          onClick={stopPropagation}
+          className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
+          title="Signal color"
+          style={DARK_COLOR_SCHEME_STYLE}
+        >
+          <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
+          {SIGNAL_COLORS.map(color => (
+            <option key={color.id} value={color.id} className="bg-zinc-800 text-zinc-300">
+              {color.label}
+            </option>
+          ))}
+        </select>
+        <div
+          className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
+          style={colorPickerStyle}
+          title={signalLabel}
+        />
+      </div>
+    </div>
+  );
+
+  // When side-by-side: Position title at the divider between sections
+  if (dividerPosition !== null) {
+    return (
+      <div
+        className="relative border-b border-zinc-700 rounded-t-lg"
+        style={titleBarStyle}
+      >
+        <div className="flex items-center justify-between py-2 px-3">
+          {/* Left corner content */}
+          {leftCornerContent}
+
+          {/* Settings button - right side */}
+          <div ref={settingsRef} className="relative z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSettings(!showSettings);
+              }}
+              className="text-zinc-300 hover:text-white text-[16px] px-1"
+              title="Node settings"
+            >
+              ⚙
+            </button>
+            {showSettings && (
+              <div
+                className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg py-1 min-w-[160px]"
+                style={{ zIndex: 9999 }}
+                onClick={stopPropagation}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                >
+                  Save Preset
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                >
+                  Set as Default
+                </button>
+                <button
+                  onClick={handleResetSystemSettings}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-red-400 hover:bg-zinc-700 hover:text-red-300"
+                >
+                  Reset System Settings
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Title centered at the divider position */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap"
+          style={{ left: `${dividerPosition}%` }}
+        >
+          <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Stacked mode: Use standard flex layout with centered title
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
       style={titleBarStyle}
     >
-      {/* Left corner - Manufacturer/Model and Color picker */}
-      <div className="flex items-center gap-2 z-10">
-        {(node.system?.approvedFields?.['Manufacturer'] || node.system?.approvedFields?.['Model']) && (
-          <div className="flex flex-col gap-0 font-mono leading-tight" style={{ color: headerTextHex }}>
-            {node.system?.approvedFields?.['Manufacturer'] && (
-              <div className="opacity-90 text-[12px]">{node.system.approvedFields['Manufacturer']}</div>
-            )}
-            {node.system?.approvedFields?.['Model'] && (
-              <div className="opacity-70 text-[10px]">{node.system.approvedFields['Model']}</div>
-            )}
-          </div>
-        )}
+      {/* Left corner */}
+      <div className="z-10">{leftCornerContent}</div>
 
-        {/* Signal color picker - rounded square style */}
-        <div className="relative">
-          <select
-            value={node.signalColor || ''}
-            onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
-            onClick={stopPropagation}
-            className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
-            title="Signal color"
-            style={DARK_COLOR_SCHEME_STYLE}
-          >
-            <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
-            {SIGNAL_COLORS.map(color => (
-              <option key={color.id} value={color.id} className="bg-zinc-800 text-zinc-300">
-                {color.label}
-              </option>
-            ))}
-          </select>
-          <div
-            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
-            style={colorPickerStyle}
-            title={signalLabel}
-          />
-        </div>
-      </div>
-
-      {/* Centered title - positioned at divider when side-by-side, otherwise centered */}
-      <div
-        className="absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
-        style={{ left: titleLeftPosition }}
-      >
+      {/* Centered title */}
+      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap">
         <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
       </div>
 
@@ -2619,10 +2872,28 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
   const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
 
-  // Collapsed section widths (anchor + gap + port + gap + source/destination + buffer)
-  // Buffer of +50 matches expanded sections for consistency
-  const inputCollapsedWidth = useMemo(() => 24 + 8 + sharedColumnWidths.port + 8 + sharedColumnWidths.source + 50, [sharedColumnWidths]); // anchor + gap + port + gap + source + buffer
-  const outputCollapsedWidth = useMemo(() => sharedColumnWidths.destination + 8 + sharedColumnWidths.port + 8 + 24 + 50, [sharedColumnWidths]); // destination + gap + port + gap + anchor + buffer
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRITICAL: COLLAPSED SECTION WIDTHS - REQUIRED FOR SYSTEM DROPDOWN ALIGNMENT
+  // These widths are used by getWrapperStyle and SystemSection.gridStyle
+  // to maintain alignment between System dropdowns and the IO center divider.
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Collapsed section widths - dynamic based on selected columns
+  // anchor (24) + columns + gaps (8px each) + buffer (50)
+  const inputCollapsedWidth = useMemo(() => {
+    const collapsedCols = node.inputSection.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
+    const columnsWidth = collapsedCols.reduce((sum, colId) =>
+      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const gapsWidth = collapsedCols.length * 8; // gap between each column
+    return 24 + gapsWidth + columnsWidth + 50; // anchor + gaps + columns + buffer
+  }, [node.inputSection.collapsedColumnOrder, sharedColumnWidths]);
+
+  const outputCollapsedWidth = useMemo(() => {
+    const collapsedCols = node.outputSection.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
+    const columnsWidth = collapsedCols.reduce((sum, colId) =>
+      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const gapsWidth = collapsedCols.length * 8;
+    return columnsWidth + gapsWidth + 24 + 50; // columns + gaps + anchor + buffer
+  }, [node.outputSection.collapsedColumnOrder, sharedColumnWidths]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -2660,6 +2931,22 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     const nodeRect = nodeRef.current.getBoundingClientRect();
     const totalScale = zoom * scale;
 
+    // Determine anchor sides based on layout
+    // Find if input/output are side-by-side and their column positions
+    const rows = node.layout.rows || (node.layout.sectionOrder || ['system', 'input', 'output']).map(s => [s]);
+    let inputSide = node.layout.inputAnchorSide || 'left';
+    let outputSide = node.layout.outputAnchorSide || 'right';
+
+    // Check for side-by-side layout - anchors face OUTWARD
+    rows.forEach(row => {
+      if (row.length === 2 && row.includes('input') && row.includes('output')) {
+        // Side-by-side: left section gets left anchors, right section gets right anchors
+        const inputColIndex = row.indexOf('input');
+        inputSide = inputColIndex === 0 ? 'left' : 'right';
+        outputSide = inputColIndex === 0 ? 'right' : 'left';
+      }
+    });
+
     node.inputSection.ports.forEach((port) => {
       const anchorId = `${node.id}-${port.id}`;
       const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
@@ -2669,7 +2956,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           nodeId: node.id,
           localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
           localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'in'
+          type: 'in',
+          side: inputSide
         });
       }
     });
@@ -2683,26 +2971,43 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           nodeId: node.id,
           localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
           localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'out'
+          type: 'out',
+          side: outputSide
         });
       }
     });
   }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
 
-  // Resize handling
+  // Resize handling - proportional scaling keeps handle under cursor
   const handleResizeStart = useCallback((e) => {
+    if (!nodeRef.current) return;
+    const nodeRect = nodeRef.current.getBoundingClientRect();
+    // Calculate initial distance from node's top-left to mouse
+    const initialDist = Math.sqrt(
+      Math.pow(e.clientX - nodeRect.left, 2) +
+      Math.pow(e.clientY - nodeRect.top, 2)
+    );
     setIsResizing(true);
-    setResizeStart({ x: e.clientX, y: e.clientY, scale: node.scale || 1 });
+    setResizeStart({
+      nodeX: nodeRect.left,
+      nodeY: nodeRect.top,
+      initialDist,
+      scale: node.scale || 0.5
+    });
   }, [node.scale]);
 
   useEffect(() => {
     if (!isResizing) return;
 
     const handleResizeMove = (e) => {
-      const deltaX = e.clientX - resizeStart.x;
-      const deltaY = e.clientY - resizeStart.y;
-      const scaleDelta = (deltaX + deltaY) / 400;
-      const newScale = Math.max(0.5, Math.min(2.0, resizeStart.scale + scaleDelta));
+      // Use stored node position (from resize start) for consistent reference point
+      const currentDist = Math.sqrt(
+        Math.pow(e.clientX - resizeStart.nodeX, 2) +
+        Math.pow(e.clientY - resizeStart.nodeY, 2)
+      );
+      // Scale proportionally: newScale = initialScale * (currentDist / initialDist)
+      const scaleFactor = currentDist / resizeStart.initialDist;
+      const newScale = Math.max(0.40, Math.min(0.60, resizeStart.scale * scaleFactor));
       onUpdate({ scale: newScale });
     };
 
@@ -3245,11 +3550,19 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return 'flex-1';
   }, [inputSectionWidth, outputSectionWidth]);
 
-  // Wrapper style for section containers in side-by-side layout
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRITICAL: IO SECTION WIDTHS - REQUIRED FOR SYSTEM DROPDOWN ALIGNMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+  // These widths MUST be fixed values (not flex) to ensure System section
+  // dropdowns align with the center divider between INPUT and OUTPUT sections.
+  // See SystemSection gridStyle for the alignment implementation.
+  // DO NOT change to flex-based sizing - it will break the alignment.
+  // ═══════════════════════════════════════════════════════════════════════════
   const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
     if (isSingleSectionRow) return {};
 
     // Use collapsed width when collapsed, minWidth when expanded
+    // CRITICAL: Fixed widths required for System section dropdown alignment
     if (isCollapsed) {
       if (sectionId === 'input') {
         return { width: `${inputCollapsedWidth}px`, flexShrink: 0 };
@@ -3374,10 +3687,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [isSelected, isDragging, isResizing]);
 
   // Memoized zIndex calculation (prevents ternary chain on every render)
-  const wrapperZIndex = useMemo(() =>
-    isDragging || isResizing ? 100 : isSelected ? 80 : 70,
-    [isDragging, isResizing, isSelected]
-  );
+  const wrapperZIndex = useMemo(() => {
+    if (isDragging || isResizing) return 1000;
+    if (isSelected) return 800;
+    return 70;
+  }, [isDragging, isResizing, isSelected]);
 
   // Memoized transform string (prevents template literal creation on every render)
   const wrapperTransform = useMemo(() => `scale(${nodeScale})`, [nodeScale]);
@@ -3403,11 +3717,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         onUpdate={onUpdate}
         onDelete={onDelete}
         themeColors={themeColors}
-        inputSectionWidth={inputSectionWidth}
-        outputSectionWidth={outputSectionWidth}
         areIOSideBySide={areIOSideBySide}
-        inputCollapsed={node.layout.inputCollapsed}
-        outputCollapsed={node.layout.outputCollapsed}
+        leftSectionWidth={leftSectionWidth}
+        rightSectionWidth={rightSectionWidth}
       />
 
       {/* Row-based layout */}

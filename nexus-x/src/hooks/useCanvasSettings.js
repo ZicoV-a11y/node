@@ -1,13 +1,20 @@
 import { useCallback, useState, useMemo } from 'react';
 
-// Paper size constants (96 DPI)
+// Paper size constants (96 DPI for print, 1:1 pixels for video)
 const PAPER_SIZES = {
-  'ANSI_A': { width: 816, height: 1056, label: 'Letter (8.5\u00d711)' },
-  'ANSI_B': { width: 1056, height: 1632, label: 'Tabloid (11\u00d717)' },
-  'ANSI_C': { width: 1632, height: 2112, label: 'ANSI C (17\u00d722)' },
-  'ANSI_D': { width: 2112, height: 3264, label: 'ANSI D (22\u00d734)' },
+  // Print sizes (96 DPI)
+  'ANSI_A': { width: 816, height: 1056, label: 'Letter (8.5×11)' },
+  'ANSI_B': { width: 1056, height: 1632, label: 'Tabloid (11×17)' },
+  'ANSI_C': { width: 1632, height: 2112, label: 'ANSI C (17×22)' },
+  'ANSI_D': { width: 2112, height: 3264, label: 'ANSI D (22×34)' },
   'A4': { width: 794, height: 1123, label: 'A4' },
   'A3': { width: 1123, height: 1588, label: 'A3' },
+  // Video resolutions (1:1 pixels)
+  'HD': { width: 1920, height: 1080, label: 'HD (1920×1080)' },
+  'UHD': { width: 3840, height: 2160, label: 'UHD 4K (3840×2160)' },
+  'DCI_2K': { width: 2048, height: 1080, label: 'DCI 2K (2048×1080)' },
+  'DCI_4K': { width: 4096, height: 2160, label: 'DCI 4K (4096×2160)' },
+  // Custom
   'Custom': { width: 1200, height: 1200, label: 'Custom' },
 };
 
