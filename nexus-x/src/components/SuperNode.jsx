@@ -1237,16 +1237,21 @@ const CollapsedColumnHeaders = memo(({
   // Drag-and-drop reordering (shared hook)
   const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(columnOrder, onReorderColumns);
 
-  // Anchor element (fixed on outside edge, never moves)
-  const anchorSpacer = <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
+  // Anchor spacer with divider (treated as its own column)
+  const leftAnchorSpacer = (
+    <span key="anchor" className="shrink-0 border-r border-zinc-600/50 mr-1" style={SPACING_COLUMN_STYLE} />
+  );
+  const rightAnchorSpacer = (
+    <span key="anchor" className="shrink-0 border-l border-zinc-600/50 ml-1" style={SPACING_COLUMN_STYLE} />
+  );
 
   return (
     <div
       className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-white uppercase tracking-wide relative w-full`}
     >
-      {/* Anchor on LEFT for input sections */}
-      {!isReversed && anchorSpacer}
+      {/* Anchor on LEFT for input sections (with divider) */}
+      {!isReversed && leftAnchorSpacer}
 
       {/* Draggable column headers with dividers */}
       <div className={`flex items-center ${isReversed ? 'justify-end' : ''}`}>
@@ -1273,8 +1278,8 @@ const CollapsedColumnHeaders = memo(({
         })}
       </div>
 
-      {/* Anchor on RIGHT for output sections */}
-      {isReversed && anchorSpacer}
+      {/* Anchor on RIGHT for output sections (with divider) */}
+      {isReversed && rightAnchorSpacer}
     </div>
   );
 });
@@ -2042,20 +2047,30 @@ const IOSection = memo(({
               }
             };
 
-            // Anchor element (fixed on outside edge)
-            const anchorElement = (
-              <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                <div
-                  data-anchor-id={anchorId}
-                  data-anchor-type={anchorType}
-                  className="w-2 h-2 rounded-full cursor-pointer"
-                  style={anchorStyle}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAnchorClick && onAnchorClick(anchorId, anchorType);
-                  }}
-                  title={portTitle}
-                />
+            // Anchor elements with dividers (treated as own column)
+            const anchorDot = (
+              <div
+                data-anchor-id={anchorId}
+                data-anchor-type={anchorType}
+                className="w-2 h-2 rounded-full cursor-pointer"
+                style={anchorStyle}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAnchorClick && onAnchorClick(anchorId, anchorType);
+                }}
+                title={portTitle}
+              />
+            );
+
+            const leftAnchorElement = (
+              <span key="anchor" className="shrink-0 flex items-center justify-center border-r border-zinc-600/50 mr-1" style={SPACING_COLUMN_STYLE}>
+                {anchorDot}
+              </span>
+            );
+
+            const rightAnchorElement = (
+              <span key="anchor" className="shrink-0 flex items-center justify-center border-l border-zinc-600/50 ml-1" style={SPACING_COLUMN_STYLE}>
+                {anchorDot}
               </span>
             );
 
@@ -2064,16 +2079,16 @@ const IOSection = memo(({
                 key={port.id}
                 className="flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity"
               >
-                {/* Anchor on LEFT for input sections */}
-                {!shouldAnchorBeOnRight && anchorElement}
+                {/* Anchor on LEFT for input sections (with divider) */}
+                {!shouldAnchorBeOnRight && leftAnchorElement}
 
                 {/* Column data with dividers */}
                 <div className={`flex items-center ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
                   {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
                 </div>
 
-                {/* Anchor on RIGHT for output sections */}
-                {shouldAnchorBeOnRight && anchorElement}
+                {/* Anchor on RIGHT for output sections (with divider) */}
+                {shouldAnchorBeOnRight && rightAnchorElement}
               </div>
             );
           })}
