@@ -1244,7 +1244,7 @@ const CollapsedColumnHeaders = memo(({
         text-[10px] font-mono text-white uppercase tracking-wide relative w-full
         ${isReversed ? 'flex-row-reverse' : ''}`}
     >
-      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse' : ''}`}>
+      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse justify-end' : ''}`}>
         {renderOrder.map((colId) => {
           if (colId === 'anchor') {
             return <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
@@ -2017,7 +2017,7 @@ const IOSection = memo(({
                 key={port.id}
                 className={`flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse justify-end' : ''}`}>
                   {renderCols.map((colId) => {
                     if (colId === 'anchor') {
                       return (
