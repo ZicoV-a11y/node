@@ -1243,11 +1243,12 @@ const CollapsedColumnHeaders = memo(({
       {/* Anchor on LEFT for input sections */}
       {!isReversed && anchorSpacer}
 
-      {/* Draggable column headers */}
-      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'justify-end' : ''}`}>
-        {columnOrder.map((colId) => {
+      {/* Draggable column headers with dividers */}
+      <div className={`flex items-center flex-1 ${isReversed ? 'justify-end' : ''}`}>
+        {columnOrder.map((colId, index) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
+          const isLast = index === columnOrder.length - 1;
 
           return (
             <span
@@ -1257,7 +1258,7 @@ const CollapsedColumnHeaders = memo(({
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, colId)}
               onDragEnd={handleDragEnd}
-              className={`cursor-grab select-none ${isDragging ? 'opacity-50' : ''}`}
+              className={`cursor-grab select-none px-2 ${isDragging ? 'opacity-50' : ''} ${!isLast ? 'border-r border-zinc-600/50' : ''}`}
             >
               {colDef?.label || colId.toUpperCase()}
             </span>
@@ -1983,9 +1984,9 @@ const IOSection = memo(({
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            // Helper to get cell content
-            const getCellContent = (colId) => {
-              const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono`;
+            // Helper to get cell content with divider
+            const getCellContent = (colId, isLast) => {
+              const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono px-2 ${!isLast ? 'border-r border-zinc-600/50' : ''}`;
 
               switch (colId) {
                 case 'port':
@@ -2030,9 +2031,9 @@ const IOSection = memo(({
                 {/* Anchor on LEFT for input sections */}
                 {!shouldAnchorBeOnRight && anchorElement}
 
-                {/* Column data */}
-                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
-                  {collapsedColumns.map((colId) => getCellContent(colId))}
+                {/* Column data with dividers */}
+                <div className={`flex items-center flex-1 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
+                  {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
                 </div>
 
                 {/* Anchor on RIGHT for output sections */}
