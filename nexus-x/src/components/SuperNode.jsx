@@ -699,12 +699,12 @@ const TopDropZone = memo(({ onDrop }) => (
     onMouseUp={() => {
       onDrop();
     }}
-    className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
-      flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer mb-2
+    className="absolute left-0 right-0 h-12 border-4 border-dashed border-emerald-400 bg-emerald-400/40
+      flex items-center justify-center hover:bg-emerald-400/60 transition-all cursor-pointer
       animate-pulse px-2"
-    style={DROP_ZONE_STYLE}
+    style={{ ...DROP_ZONE_STYLE, top: 0 }}
   >
-    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">▲▲▲ DROP TO TOP ▲▲▲</span>
+    <span className="text-emerald-200 text-[11px] font-bold pointer-events-none uppercase truncate">▲ DROP TO TOP ▲</span>
   </div>
 ));
 TopDropZone.displayName = 'TopDropZone';
@@ -1220,7 +1220,7 @@ const CollapsedColumnHeaders = memo(({
   return (
     <div
       className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide w-full px-2 ${isReversed ? 'justify-end' : ''}`}
+        text-[10px] font-mono text-white uppercase tracking-wide w-full px-1 ${isReversed ? 'justify-end' : ''}`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1236,9 +1236,13 @@ const CollapsedColumnHeaders = memo(({
             onDragOver={isDraggable ? handleDragOver : undefined}
             onDrop={isDraggable ? (e) => handleDrop(e, colId) : undefined}
           >
+            {/* Leading divider before first column when reversed (data side) */}
+            {isReversed && index === 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+            )}
             {/* Divider between columns (except before first) */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
             )}
             <span
               draggable={isDraggable ? "true" : undefined}
@@ -1253,6 +1257,10 @@ const CollapsedColumnHeaders = memo(({
             >
               {colDef.label}
             </span>
+            {/* Trailing divider after last column when NOT reversed (data side) */}
+            {!isReversed && index === fullColumnOrder.length - 1 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+            )}
           </div>
         );
       })}
@@ -1355,16 +1363,20 @@ const CollapsedPortRow = memo(({
   };
 
   return (
-    <div className={`flex items-center py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-2 opacity-60 hover:opacity-100 transition-opacity ${isReversed ? 'justify-end' : ''}`}>
+    <div className={`flex items-center py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity ${isReversed ? 'justify-end' : ''}`}>
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
 
         return (
           <div key={colId} className="flex items-center">
+            {/* Leading divider before first column when reversed (data side) */}
+            {isReversed && index === 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+            )}
             {/* Divider between columns (except before first) */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
             )}
             <span
               className="shrink-0 flex items-center justify-center"
@@ -1372,6 +1384,10 @@ const CollapsedPortRow = memo(({
             >
               {renderColumnContent(colId)}
             </span>
+            {/* Trailing divider after last column when NOT reversed (data side) */}
+            {!isReversed && index === fullColumnOrder.length - 1 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+            )}
           </div>
         );
       })}
@@ -2851,10 +2867,30 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
   const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
 
-  // Collapsed section widths (anchor + gap + port + gap + source/destination + buffer)
-  // Buffer of +50 matches expanded sections for consistency
-  const inputCollapsedWidth = useMemo(() => 24 + 8 + sharedColumnWidths.port + 8 + sharedColumnWidths.source + 50, [sharedColumnWidths]); // anchor + gap + port + gap + source + buffer
-  const outputCollapsedWidth = useMemo(() => sharedColumnWidths.destination + 8 + sharedColumnWidths.port + 8 + 24 + 50, [sharedColumnWidths]); // destination + gap + port + gap + anchor + buffer
+  // Get actual collapsed columns (or defaults)
+  const inputCollapsedColumns = node.inputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
+  const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
+
+  // Collapsed section widths - calculated from actual selected columns
+  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3)
+  const COLLAPSED_OUTER_PADDING = 8;  // px-1 on each side
+  const COLLAPSED_DIVIDER = 5;        // 1px line + mx-0.5 margins (2px each side)
+  const COLLAPSED_EDGE_DIVIDER = 3;   // 1px line + ml-0.5 or mr-0.5 (2px)
+  const ANCHOR_WIDTH = 24;
+
+  const inputCollapsedWidth = useMemo(() => {
+    const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
+      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
+    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER;
+  }, [sharedColumnWidths, inputCollapsedColumns]);
+
+  const outputCollapsedWidth = useMemo(() => {
+    const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
+      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
+    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER;
+  }, [sharedColumnWidths, outputCollapsedColumns]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -3105,6 +3141,21 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       setDraggedSection(null);
       setDragOverSection(null);
       return;
+    }
+
+    // ENFORCE: System must stay at TOP or BOTTOM row (never middle)
+    // After swap, System goes to targetRowIdx if System is being dragged,
+    // or to draggedRowIdx if something is swapping with System
+    if (draggedSection === 'system' || targetSectionId === 'system') {
+      const systemDestRowIdx = draggedSection === 'system' ? targetRowIdx : draggedRowIdx;
+      const rowCount = newRows.length;
+
+      // Middle row = not first (0) and not last (rowCount - 1)
+      if (rowCount > 2 && systemDestRowIdx > 0 && systemDestRowIdx < rowCount - 1) {
+        setDraggedSection(null);
+        setDragOverSection(null);
+        return;
+      }
     }
 
     // Swap positions
@@ -3643,8 +3694,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       />
 
       {/* Row-based layout */}
-      <div className="flex flex-col">
-        {/* Top drop zone - visible when dragging System and System is not already at top */}
+      <div className="flex flex-col relative">
+        {/* Top drop zone - overlays first row when dragging System to top */}
         {topDropZone}
 
         {layoutRows.map((row, rowIndex) => {
