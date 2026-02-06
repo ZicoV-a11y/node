@@ -541,6 +541,52 @@ const calculateColumnWidths = (ports) => {
   return widths;
 };
 
+// Calculate COMPACT column widths for collapsed view only (no dropdown padding, tighter fit)
+const calculateCollapsedColumnWidths = (ports) => {
+  // Smaller minimums for collapsed view - display only, no dropdowns
+  const COLLAPSED_MIN_WIDTHS = {
+    spacing: COLUMN_DEFS.spacing.minWidth,
+    anchor: COLUMN_DEFS.anchor.minWidth,
+    delete: COLUMN_DEFS.delete.minWidth,
+    port: 44,         // Tighter: "IN 99" or "OUT 99" fits in ~44px
+    source: 60,       // Tighter minimum for text display
+    destination: 60,  // Tighter minimum for text display
+    connector: 60,    // Tighter minimum for text display
+    resolution: 60,   // Tighter minimum for text display
+    rate: 44,         // Tighter: rates are short like "60Hz"
+    flip: COLUMN_DEFS.flip.minWidth,
+  };
+
+  const widths = { ...COLLAPSED_MIN_WIDTHS };
+
+  // Scan ports and calculate width WITHOUT dropdown arrow padding
+  // (collapsed view just displays text, no dropdowns)
+  ports.forEach(port => {
+    if (port.source) {
+      widths.source = Math.max(widths.source, estimateTextWidth(port.source, false));
+    }
+    if (port.destination) {
+      widths.destination = Math.max(widths.destination, estimateTextWidth(port.destination, false));
+    }
+    if (port.connector) {
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector, false));
+    }
+    if (port.resolution) {
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution, false));
+    }
+    if (port.refreshRate) {
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate, false));
+    }
+  });
+
+  // Keep source and destination aligned with each other
+  const maxSourceDestWidth = Math.max(widths.source, widths.destination);
+  widths.source = maxSourceDestWidth;
+  widths.destination = maxSourceDestWidth;
+
+  return widths;
+};
+
 // Data columns that can be reordered by dragging (includes delete)
 const DATA_COLUMNS = ['delete', 'port', 'connector', 'resolution', 'rate'];
 
@@ -1877,6 +1923,7 @@ const IOSection = memo(({
   connectedAnchorIds,
   themeColor,
   sharedColumnWidths,
+  sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
   isSideBySide = false, // Whether IO sections are displayed side-by-side
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
@@ -2109,9 +2156,15 @@ const IOSection = memo(({
   })), [cards, data.ports]);
 
   // Calculate dynamic column widths based on port content (use shared widths if provided)
+  // Expanded view: full widths with dropdown padding
   const columnWidths = useMemo(() =>
     sharedColumnWidths || calculateColumnWidths(data.ports),
     [sharedColumnWidths, data.ports]
+  );
+  // Collapsed view: tighter widths without dropdown padding
+  const collapsedColumnWidths = useMemo(() =>
+    sharedCollapsedColumnWidths || calculateCollapsedColumnWidths(data.ports),
+    [sharedCollapsedColumnWidths, data.ports]
   );
 
   // Helper to render port rows with spacing support
@@ -2165,13 +2218,13 @@ const IOSection = memo(({
       {collapsed ? (
         /* When collapsed, render using same structure as expanded mode but with selected columns only */
         <div className="w-full relative">
-          {/* Collapsed column headers - matches expanded ColumnHeaders structure */}
+          {/* Collapsed column headers - uses COMPACT widths */}
           {data.ports.length > 0 && (
             <CollapsedColumnHeaders
               anchorSide={anchorSide}
               selectedColumns={collapsedColumns}
               onReorderColumns={updateCollapsedColumns}
-              columnWidths={columnWidths}
+              columnWidths={collapsedColumnWidths}
             />
           )}
 
@@ -2185,7 +2238,7 @@ const IOSection = memo(({
             />
           )}
 
-          {/* Collapsed port rows - matches expanded PortRow structure */}
+          {/* Collapsed port rows - uses COMPACT widths */}
           {data.ports.map(port => (
             <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
               <CollapsedPortRow
@@ -2196,7 +2249,7 @@ const IOSection = memo(({
                 onAnchorClick={onAnchorClick}
                 signalColor={type === 'output' ? signalColor : null}
                 selectedColumns={collapsedColumns}
-                columnWidths={columnWidths}
+                columnWidths={collapsedColumnWidths}
                 connectedAnchorIds={connectedAnchorIds}
                 themeColor={themeColor}
                 isSideBySide={isSideBySide}
@@ -2332,20 +2385,32 @@ const SystemHeader = memo(({
 
     const parts = [];
     if (approvedFields['IP Address']) {
-      parts.push(<span key="ip">IP: {approvedFields['IP Address']}</span>);
-    }
-    if (approvedFields['Platform']) {
       parts.push(
-        <span key="platform" className={parts.length > 0 ? 'ml-1' : ''}>
-          {parts.length > 0 ? '| ' : ''}{approvedFields['Platform']}
+        <span key="ip" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <span style={{ opacity: 0.6 }}>IP:</span> {approvedFields['IP Address']}
         </span>
       );
     }
     if (approvedFields['Software']) {
-      parts.push(<span key="software" className="ml-1">| {approvedFields['Software']}</span>);
+      parts.push(
+        <span key="software" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <span style={{ opacity: 0.6 }}>SW:</span> {approvedFields['Software']}
+        </span>
+      );
+    }
+    if (approvedFields['Platform']) {
+      parts.push(
+        <span key="platform" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          {approvedFields['Platform']}
+        </span>
+      );
     }
     if (approvedFields['Capture']) {
-      parts.push(<span key="capture" className="ml-1">| {approvedFields['Capture']}</span>);
+      parts.push(
+        <span key="capture" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          {approvedFields['Capture']}
+        </span>
+      );
     }
     return parts;
   }, [hasDisplayFields, approvedFields]);
@@ -2384,8 +2449,8 @@ const SystemHeader = memo(({
 
       {/* Display approved fields (excluding Manufacturer/Model which go to title bar) */}
       {hasDisplayFields ? (
-        <div className="flex-1 px-2 text-[9px] font-mono opacity-70 pointer-events-none">
-          <div className="truncate">
+        <div className="flex-1 px-2 text-[10px] font-mono pointer-events-none overflow-hidden" style={{ color: '#ffffff' }}>
+          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {displayFieldsContent}
           </div>
         </div>
@@ -2423,9 +2488,16 @@ const SystemSection = memo(({
     const field = data.selectedField || 'Manufacturer';
     const value = data.selectedValue || '';
 
-    // Add to approved fields
-    const approvedFields = data.approvedFields || {};
-    approvedFields[field] = value;
+    // Don't approve empty values
+    if (!value || !value.trim()) {
+      return;
+    }
+
+    // Add to approved fields - create NEW object to trigger React re-render
+    const approvedFields = {
+      ...(data.approvedFields || {}),
+      [field]: value
+    };
 
     onUpdate({
       approvedFields: approvedFields,
@@ -2614,7 +2686,10 @@ SystemSection.displayName = 'SystemSection';
 
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed, usedSignalColors }) => {
   const [showSettings, setShowSettings] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
   const settingsRef = useRef(null);
+  const renameInputRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -2684,6 +2759,42 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     });
     setShowSettings(false);
   }, [node.system, onUpdate]);
+
+  // Rename handlers
+  const startRename = useCallback(() => {
+    setNewTitle(node.title);
+    setIsRenaming(true);
+    setShowSettings(false);
+    // Focus input after state updates
+    setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+  }, [node.title]);
+
+  const cancelRename = useCallback(() => {
+    setIsRenaming(false);
+    setNewTitle('');
+  }, []);
+
+  const confirmRename = useCallback(() => {
+    const trimmedTitle = newTitle.trim();
+    if (trimmedTitle && trimmedTitle !== node.title) {
+      onUpdate({ title: trimmedTitle });
+    }
+    setIsRenaming(false);
+    setNewTitle('');
+  }, [newTitle, node.title, onUpdate]);
+
+  const handleRenameKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  }, [confirmRename, cancelRename]);
 
   // Section visibility toggles
   const toggleSectionVisibility = useCallback((section) => {
@@ -2780,10 +2891,46 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
 
       {/* Centered title - positioned at divider when side-by-side, otherwise centered */}
       <div
-        className="absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
-        style={{ left: titleLeftPosition }}
+        className="absolute -translate-x-1/2 whitespace-nowrap"
+        style={{ left: titleLeftPosition, pointerEvents: isRenaming ? 'auto' : 'none' }}
       >
-        <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
+        {isRenaming ? (
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={handleRenameKeyDown}
+              onBlur={confirmRename}
+              className="font-mono font-bold text-lg bg-zinc-700 border border-zinc-500 rounded px-2 py-1 text-center min-w-[200px]"
+              style={{ color: headerTextHex }}
+              onClick={stopPropagation}
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                confirmRename();
+              }}
+              className="px-2 py-1 bg-green-700 hover:bg-green-600 rounded text-white text-[11px] pointer-events-auto"
+              title="Confirm rename (Enter)"
+            >
+              ✓
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                cancelRename();
+              }}
+              className="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-[11px] pointer-events-auto"
+              title="Cancel (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
+        )}
       </div>
 
       {/* Settings button - top right */}
@@ -2806,6 +2953,16 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             style={{ zIndex: 9999 }}
             onClick={stopPropagation}
           >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                startRename();
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
+            >
+              Rename Node
+            </button>
+            <div className="border-t border-zinc-600 my-1" />
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -2946,6 +3103,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
   const sharedColumnWidths = useMemo(() => calculateColumnWidths(allPorts), [allPorts]);
+  // COLLAPSED view uses tighter widths (no dropdown padding, smaller minimums)
+  const sharedCollapsedColumnWidths = useMemo(() => calculateCollapsedColumnWidths(allPorts), [allPorts]);
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
@@ -3001,20 +3160,22 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const COLLAPSED_SPACING_HANDLE = 20; // Spacing handle on inside column (side-by-side only)
 
   const inputCollapsedWidth = useMemo(() => {
+    // Use COLLAPSED column widths (tighter, no dropdown padding)
     const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
-      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+      sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
     // Include spacing handle width (used in side-by-side mode)
     return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
-  }, [sharedColumnWidths, inputCollapsedColumns]);
+  }, [sharedCollapsedColumnWidths, inputCollapsedColumns]);
 
   const outputCollapsedWidth = useMemo(() => {
+    // Use COLLAPSED column widths (tighter, no dropdown padding)
     const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
-      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+      sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
     // Include spacing handle width (used in side-by-side mode)
     return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
-  }, [sharedColumnWidths, outputCollapsedColumns]);
+  }, [sharedCollapsedColumnWidths, outputCollapsedColumns]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -3533,7 +3694,22 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Section update handlers (memoized to prevent re-renders)
   const handleSystemUpdate = useCallback((updates) => {
-    onUpdate({ system: { ...node.system, ...updates } });
+    // Ensure approvedFields is initialized and preserved across all updates
+    const currentSystem = node.system || {};
+    const currentApprovedFields = currentSystem.approvedFields || {};
+
+    // If updates contains approvedFields, use it; otherwise preserve current
+    const newApprovedFields = updates.approvedFields !== undefined
+      ? updates.approvedFields
+      : currentApprovedFields;
+
+    onUpdate({
+      system: {
+        ...currentSystem,
+        ...updates,
+        approvedFields: newApprovedFields
+      }
+    });
   }, [onUpdate, node.system]);
 
   const handleInputUpdate = useCallback((updates) => {
@@ -3644,6 +3820,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             isSideBySide={areIOSideBySide}
           />
         );
@@ -3668,6 +3845,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             isSideBySide={areIOSideBySide}
           />
         );
@@ -3682,7 +3860,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     toggleInputAnchorSide, toggleOutputAnchorSide,
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds, anchorThemeColor,
-    sharedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
+    sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
     leftSectionWidth, rightSectionWidth
   ]);
 
