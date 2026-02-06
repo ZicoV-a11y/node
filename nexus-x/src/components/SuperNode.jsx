@@ -1235,6 +1235,20 @@ const CollapsedColumnHeaders = memo(({
   // Anchor element (fixed on outside edge, never moves)
   const anchorSpacer = <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
 
+  // Settings gear button (positioned on inside edge)
+  const gearButton = (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenSettings();
+      }}
+      className="text-zinc-400 hover:text-white text-[10px] px-1 shrink-0"
+      title="Configure columns"
+    >
+      ⚙
+    </button>
+  );
+
   return (
     <div
       className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30
@@ -1242,6 +1256,9 @@ const CollapsedColumnHeaders = memo(({
     >
       {/* Anchor on LEFT for input sections */}
       {!isReversed && anchorSpacer}
+
+      {/* Gear on LEFT (inside) for output sections */}
+      {isReversed && gearButton}
 
       {/* Draggable column headers with dividers */}
       <div className={`flex items-center flex-1 ${isReversed ? 'justify-end' : ''}`}>
@@ -1266,17 +1283,8 @@ const CollapsedColumnHeaders = memo(({
         })}
       </div>
 
-      {/* Settings gear */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenSettings();
-        }}
-        className="text-zinc-400 hover:text-white text-[10px] px-1 shrink-0"
-        title="Configure columns"
-      >
-        ⚙
-      </button>
+      {/* Gear on RIGHT (inside) for input sections */}
+      {!isReversed && gearButton}
 
       {/* Anchor on RIGHT for output sections */}
       {isReversed && anchorSpacer}
