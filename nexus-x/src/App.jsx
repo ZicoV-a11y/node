@@ -15,6 +15,9 @@ import ChangelogPopup from './components/ChangelogPopup';
 import { APP_VERSION } from './config/version';
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
+const ZOOM_BOUNDS = { MIN: 0.05, MAX: 8 };
+const ZOOM_STEP = { IN: 1.2, OUT: 0.8 };
+const ESTIMATED_NODE_SIZE = { WIDTH: 200, HEIGHT: 150 }; // For fitView calculations
 
 const SIGNAL_COLORS = [
   { id: 'emerald', hex: '#10b981' },
@@ -76,58 +79,6 @@ const createNode = (id) => ({
     columnName: 'OUTPUTS',
     columnOrder: ['port', 'connector', 'resolution', 'rate'],
     ports: []
-  }
-});
-
-// Create a Laptop node (source with capture card)
-const createLaptopNode = (id) => ({
-  id,
-  title: 'LAPTOP',
-  signalColor: 'emerald',
-  position: { x: 100, y: 100 },
-  scale: 0.5, // Default 50% scale
-  layout: {
-    systemPosition: 'top',
-    ioArrangement: 'columns',
-    inputPosition: 'left',
-    inputAnchorSide: 'left',
-    outputAnchorSide: 'right',
-    sectionOrder: ['system', 'input', 'output'],
-    systemCollapsed: false
-  },
-  system: {
-    settings: [
-      { key: 'Model', value: 'MacBook Pro' },
-      { key: 'OS', value: 'macOS' },
-      { key: 'Capture', value: 'Blackmagic Decklink' }
-    ],
-    cards: []
-  },
-  inputSection: {
-    columnName: 'INPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
-    ports: [
-      {
-        id: 'in-1',
-        number: 1,
-        connector: 'SDI',
-        resolution: '1920x1080',
-        refreshRate: '59.94'
-      }
-    ]
-  },
-  outputSection: {
-    columnName: 'OUTPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
-    ports: [
-      {
-        id: 'out-1',
-        number: 1,
-        connector: 'HDMI',
-        resolution: '1920x1080',
-        refreshRate: '60'
-      }
-    ]
   }
 });
 
@@ -423,9 +374,7 @@ export default function App() {
       }
     }
     // Handle string type (legacy)
-    else if (typeOrConfig === 'laptop') {
-      newNode = createLaptopNode(nodeId);
-    } else if (typeOrConfig === 'supernode') {
+    else if (typeOrConfig === 'supernode') {
       newNode = createSuperNode(nodeId);
     } else {
       newNode = createNode(nodeId);
@@ -891,7 +840,7 @@ export default function App() {
     // Smoother zoom: clamp delta and use exponential scaling
     const delta = Math.max(-5, Math.min(5, -event.deltaY * 0.01));
     const zoomFactor = Math.pow(1.1, delta);
-    const newZoom = Math.max(0.05, Math.min(8, prevZoom * zoomFactor));
+    const newZoom = Math.max(ZOOM_BOUNDS.MIN, Math.min(ZOOM_BOUNDS.MAX, prevZoom * zoomFactor));
 
     // Adjust pan so the point under the cursor stays fixed
     const newPan = {
@@ -1034,8 +983,8 @@ export default function App() {
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     nodeArray.forEach(node => {
-      const w = 200 * (node.scale || 1);
-      const h = 150 * (node.scale || 1);
+      const w = ESTIMATED_NODE_SIZE.WIDTH * (node.scale || 1);
+      const h = ESTIMATED_NODE_SIZE.HEIGHT * (node.scale || 1);
       minX = Math.min(minX, node.position.x);
       minY = Math.min(minY, node.position.y);
       maxX = Math.max(maxX, node.position.x + w);
@@ -1048,7 +997,7 @@ export default function App() {
 
     const scaleX = rect.width / (contentWidth * (1 + padding * 2));
     const scaleY = rect.height / (contentHeight * (1 + padding * 2));
-    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.05), 8);
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), ZOOM_BOUNDS.MIN), ZOOM_BOUNDS.MAX);
 
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
@@ -1081,11 +1030,11 @@ export default function App() {
   }, []);
 
   const zoomIn = useCallback(() => {
-    zoomAtCenter(Math.min(zoomRef.current * 1.2, 8));
+    zoomAtCenter(Math.min(zoomRef.current * ZOOM_STEP.IN, ZOOM_BOUNDS.MAX));
   }, [zoomAtCenter]);
 
   const zoomOut = useCallback(() => {
-    zoomAtCenter(Math.max(zoomRef.current * 0.8, 0.05));
+    zoomAtCenter(Math.max(zoomRef.current * ZOOM_STEP.OUT, ZOOM_BOUNDS.MIN));
   }, [zoomAtCenter]);
 
   // Center page on mount and whenever canvas dimensions change (orientation, paper size)
