@@ -1237,12 +1237,12 @@ const CollapsedColumnHeaders = memo(({
   // Drag-and-drop reordering (shared hook)
   const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(columnOrder, onReorderColumns);
 
-  // Anchor spacer with divider (treated as its own column)
+  // Anchor spacer (columns have their own dividers)
   const leftAnchorSpacer = (
-    <span key="anchor" className="shrink-0 border-r border-zinc-600/50 mr-1" style={SPACING_COLUMN_STYLE} />
+    <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />
   );
   const rightAnchorSpacer = (
-    <span key="anchor" className="shrink-0 border-l border-zinc-600/50 ml-1" style={SPACING_COLUMN_STYLE} />
+    <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />
   );
 
   return (
@@ -1253,13 +1253,11 @@ const CollapsedColumnHeaders = memo(({
       {/* Anchor on LEFT for input sections (with divider) */}
       {!isReversed && leftAnchorSpacer}
 
-      {/* Draggable column headers with dividers */}
+      {/* Draggable column headers with dividers - adaptive width */}
       <div className={`flex items-center ${isReversed ? 'justify-end' : ''}`}>
-        {columnOrder.map((colId, index) => {
+        {columnOrder.map((colId) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
-          const isLast = index === columnOrder.length - 1;
-          const colWidth = COLLAPSED_COLUMN_WIDTHS[colId] || 60;
 
           return (
             <span
@@ -1269,8 +1267,7 @@ const CollapsedColumnHeaders = memo(({
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, colId)}
               onDragEnd={handleDragEnd}
-              className={`cursor-grab select-none px-2 whitespace-nowrap ${isDragging ? 'opacity-50' : ''} ${!isLast ? 'border-r border-zinc-600/50' : ''}`}
-              style={{ minWidth: colWidth }}
+              className={`cursor-grab select-none px-2 whitespace-nowrap border-r border-zinc-600/50 ${isDragging ? 'opacity-50' : ''}`}
             >
               {colDef?.label || colId.toUpperCase()}
             </span>
@@ -2023,25 +2020,23 @@ const IOSection = memo(({
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            // Helper to get cell content with divider and minimum width
-            const getCellContent = (colId, isLast) => {
-              const colWidth = COLLAPSED_COLUMN_WIDTHS[colId] || 60;
-              const cellClass = `text-[10px] text-white uppercase font-mono px-2 whitespace-nowrap ${!isLast ? 'border-r border-zinc-600/50' : ''}`;
-              const cellStyle = { minWidth: colWidth };
+            // Helper to get cell content - adaptive width with dividers
+            const getCellContent = (colId) => {
+              const cellClass = `text-[10px] text-white uppercase font-mono px-2 whitespace-nowrap border-r border-zinc-600/50`;
 
               switch (colId) {
                 case 'port':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{portLabel}</span>;
+                  return <span key={colId} className={cellClass}>{portLabel}</span>;
                 case 'source':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{port.source || ''}</span>;
+                  return <span key={colId} className={cellClass}>{port.source || ''}</span>;
                 case 'destination':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{port.destination || ''}</span>;
+                  return <span key={colId} className={cellClass}>{port.destination || ''}</span>;
                 case 'connector':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{port.connector || ''}</span>;
+                  return <span key={colId} className={cellClass}>{port.connector || ''}</span>;
                 case 'resolution':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{port.resolution || ''}</span>;
+                  return <span key={colId} className={cellClass}>{port.resolution || ''}</span>;
                 case 'rate':
-                  return <span key={colId} className={cellClass} style={cellStyle}>{port.refreshRate || ''}</span>;
+                  return <span key={colId} className={cellClass}>{port.refreshRate || ''}</span>;
                 default:
                   return null;
               }
@@ -2063,13 +2058,13 @@ const IOSection = memo(({
             );
 
             const leftAnchorElement = (
-              <span key="anchor" className="shrink-0 flex items-center justify-center border-r border-zinc-600/50 mr-1" style={SPACING_COLUMN_STYLE}>
+              <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                 {anchorDot}
               </span>
             );
 
             const rightAnchorElement = (
-              <span key="anchor" className="shrink-0 flex items-center justify-center border-l border-zinc-600/50 ml-1" style={SPACING_COLUMN_STYLE}>
+              <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                 {anchorDot}
               </span>
             );
@@ -2084,7 +2079,7 @@ const IOSection = memo(({
 
                 {/* Column data with dividers */}
                 <div className={`flex items-center ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
-                  {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
+                  {collapsedColumns.map((colId) => getCellContent(colId))}
                 </div>
 
                 {/* Anchor on RIGHT for output sections (with divider) */}
