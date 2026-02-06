@@ -2876,22 +2876,20 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // to maintain alignment between System dropdowns and the IO center divider.
   // ═══════════════════════════════════════════════════════════════════════════
   // Collapsed section widths - dynamic based on selected columns
-  // anchor (24) + columns + gaps (8px each) + buffer (50)
+  // anchor (24) + columns (using COLLAPSED_COLUMN_WIDTHS) + padding
   const inputCollapsedWidth = useMemo(() => {
     const collapsedCols = node.inputSection.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
     const columnsWidth = collapsedCols.reduce((sum, colId) =>
-      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
-    const gapsWidth = collapsedCols.length * 8; // gap between each column
-    return 24 + gapsWidth + columnsWidth + 50; // anchor + gaps + columns + buffer
-  }, [node.inputSection.collapsedColumnOrder, sharedColumnWidths]);
+      sum + (COLLAPSED_COLUMN_WIDTHS[colId] || 60), 0);
+    return 24 + columnsWidth + 16; // anchor + columns + padding
+  }, [node.inputSection.collapsedColumnOrder]);
 
   const outputCollapsedWidth = useMemo(() => {
     const collapsedCols = node.outputSection.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
     const columnsWidth = collapsedCols.reduce((sum, colId) =>
-      sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
-    const gapsWidth = collapsedCols.length * 8;
-    return columnsWidth + gapsWidth + 24 + 50; // columns + gaps + anchor + buffer
-  }, [node.outputSection.collapsedColumnOrder, sharedColumnWidths]);
+      sum + (COLLAPSED_COLUMN_WIDTHS[colId] || 60), 0);
+    return columnsWidth + 24 + 16; // columns + anchor + padding
+  }, [node.outputSection.collapsedColumnOrder]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
