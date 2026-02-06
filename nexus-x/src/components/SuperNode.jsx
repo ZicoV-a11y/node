@@ -1705,7 +1705,9 @@ const IOSection = memo(({
       const isConnected = connectedAnchorIds?.has(anchorId);
       const sourceColumnWidth = columnWidths['source'] || 90;
       const destColumnWidth = columnWidths['destination'] || 90;
-      const portTitle = `${port.label || port.id} (collapsed)`;
+      const portColumnWidth = columnWidths['port'] || 52;
+      const portLabel = port.label || `${type === 'input' ? 'IN' : 'OUT'} ${port.number}`;
+      const portTitle = `${portLabel} (collapsed)`;
 
       // Pre-calculate anchor styles for INPUT (left anchor)
       const inputAnchorStyle = {
@@ -1725,6 +1727,8 @@ const IOSection = memo(({
         isConnected,
         sourceColumnWidth,
         destColumnWidth,
+        portColumnWidth,
+        portLabel,
         portTitle,
         inputAnchorStyle,
         outputAnchorStyle
@@ -1781,70 +1785,119 @@ const IOSection = memo(({
       />
 
       {collapsed ? (
-        /* When collapsed, render minimal port rows to maintain exact anchor column positions */
+        /* When collapsed, render minimal port rows with header - anchor position based on anchorSide prop */
         <div className="w-full">
+          {/* Collapsed header row - styled like ColumnHeaders */}
+          {data.ports.length > 0 && (
+            <div className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30 text-[10px] font-mono text-white uppercase tracking-wide ${anchorSide === 'right' ? 'justify-end' : 'justify-start'}`}>
+              {anchorSide !== 'right' && (
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0" style={SPACING_COLUMN_STYLE}></span>
+                  <span className="shrink-0" style={{ width: `${columnWidths['port'] || 52}px` }}>PORT</span>
+                  <span className="shrink-0" style={{ width: `${type === 'output' ? (columnWidths['destination'] || 90) : (columnWidths['source'] || 90)}px` }}>
+                    {type === 'output' ? 'DESTINATION' : 'SOURCE'}
+                  </span>
+                </div>
+              )}
+              {anchorSide === 'right' && (
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-right" style={{ width: `${type === 'output' ? (columnWidths['destination'] || 90) : (columnWidths['source'] || 90)}px` }}>
+                    {type === 'output' ? 'DESTINATION' : 'SOURCE'}
+                  </span>
+                  <span className="shrink-0 text-right" style={{ width: `${columnWidths['port'] || 52}px` }}>PORT</span>
+                  <span className="shrink-0" style={SPACING_COLUMN_STYLE}></span>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Collapsed port rows */}
           {collapsedPortData.map((portData) => {
-            // FORCE anchor positioning based on section type when collapsed:
-            // Input sections always have anchors on LEFT
-            // Output sections always have anchors on RIGHT
-            const shouldAnchorBeOnRight = type === 'output';
-            const { port, anchorId, inputAnchorStyle, outputAnchorStyle, portTitle, sourceColumnWidth, destColumnWidth } = portData;
+            // Use anchorSide prop to determine anchor position (respects side-by-side layout)
+            const shouldAnchorBeOnRight = anchorSide === 'right';
+            const isOutput = type === 'output';
+            const { port, anchorId, inputAnchorStyle, outputAnchorStyle, portTitle, sourceColumnWidth, destColumnWidth, portColumnWidth, portLabel } = portData;
+
+            // Content is source for INPUT, destination for OUTPUT
+            const contentText = isOutput ? (port.destination || '') : (port.source || '');
+            const contentWidth = isOutput ? destColumnWidth : sourceColumnWidth;
+            const anchorType = isOutput ? 'out' : 'in';
+            const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
             return (
               <div key={port.id} className={`flex items-center py-1.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
-                {/* INPUT layout: [Anchor][Source] - all on left */}
+                {/* Anchor on LEFT: [Anchor][Port][Content] */}
                 {!shouldAnchorBeOnRight && (
                   <div className="flex items-center gap-2">
                     {/* Anchor */}
                     <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                       <div
                         data-anchor-id={anchorId}
-                        data-anchor-type="in"
+                        data-anchor-type={anchorType}
                         className="w-2 h-2 rounded-full cursor-pointer"
-                        style={inputAnchorStyle}
+                        style={anchorStyle}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onAnchorClick && onAnchorClick(anchorId, 'in');
+                          onAnchorClick && onAnchorClick(anchorId, anchorType);
                         }}
                         title={portTitle}
                       />
                     </span>
-                    {/* Source */}
+                    {/* Port label */}
                     <span
-                      className="shrink-0 text-[10px] text-white truncate overflow-hidden"
+                      className="shrink-0 text-[10px] text-white truncate overflow-hidden uppercase font-mono"
                       style={{
-                        width: `${sourceColumnWidth}px`,
-                        maxWidth: `${sourceColumnWidth}px`
+                        width: `${portColumnWidth}px`,
+                        maxWidth: `${portColumnWidth}px`
                       }}
                     >
-                      {port.source || ''}
+                      {portLabel}
+                    </span>
+                    {/* Content (source/destination) */}
+                    <span
+                      className="shrink-0 text-[10px] text-white truncate overflow-hidden uppercase font-mono"
+                      style={{
+                        width: `${contentWidth}px`,
+                        maxWidth: `${contentWidth}px`
+                      }}
+                    >
+                      {contentText}
                     </span>
                   </div>
                 )}
 
-                {/* OUTPUT layout: [Destination][Anchor] - all on right */}
+                {/* Anchor on RIGHT: [Content][Port][Anchor] */}
                 {shouldAnchorBeOnRight && (
                   <div className="flex items-center gap-2">
-                    {/* Destination */}
+                    {/* Content (source/destination) */}
                     <span
-                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden"
+                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden uppercase font-mono"
                       style={{
-                        width: `${destColumnWidth}px`,
-                        maxWidth: `${destColumnWidth}px`
+                        width: `${contentWidth}px`,
+                        maxWidth: `${contentWidth}px`
                       }}
                     >
-                      {port.destination || ''}
+                      {contentText}
+                    </span>
+                    {/* Port label */}
+                    <span
+                      className="shrink-0 text-[10px] text-white truncate text-right overflow-hidden uppercase font-mono"
+                      style={{
+                        width: `${portColumnWidth}px`,
+                        maxWidth: `${portColumnWidth}px`
+                      }}
+                    >
+                      {portLabel}
                     </span>
                     {/* Anchor */}
                     <span className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
                       <div
                         data-anchor-id={anchorId}
-                        data-anchor-type="out"
+                        data-anchor-type={anchorType}
                         className="w-2 h-2 rounded-full cursor-pointer"
-                        style={outputAnchorStyle}
+                        style={anchorStyle}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onAnchorClick && onAnchorClick(anchorId, 'out');
+                          onAnchorClick && onAnchorClick(anchorId, anchorType);
                         }}
                         title={portTitle}
                       />
@@ -2061,6 +2114,9 @@ const SystemSection = memo(({
   colors,
   leftSectionWidth,
   rightSectionWidth,
+  leftSectionCollapsed,
+  rightSectionCollapsed,
+  areIOSideBySide,
 }) => {
   // Use passed hex colors or fallback to zinc (memoized)
   const colorHex = useMemo(() => colors?.hex || HEX_COLORS.zinc[500], [colors?.hex]);
@@ -2084,25 +2140,46 @@ const SystemSection = memo(({
   const sectionStyle = useMemo(() => ({ backgroundColor: `${colorHex}0d` }), [colorHex]);
 
   // CSS Grid style for aligning dropdowns with left/right sections
-  // 2 columns: field dropdown (proportional to left section), value+checkmark (proportional to right section)
-  // Using fr units ensures grid fills available width while maintaining same proportions as INPUT/OUTPUT
-  // Gap matches the divider: mx-1.5 (6px each side) + 4px width = 16px
+  // Uses different strategies based on collapse states:
+  // - One collapsed: collapsed side gets fixed width, expanded side fills remaining space (1fr)
+  // - Both expanded or both collapsed: use fr units for proportional distribution
   const gridStyle = useMemo(() => {
-    if (leftSectionWidth && rightSectionWidth) {
+    // Only align with IO sections when they are side-by-side
+    if (areIOSideBySide && leftSectionWidth && rightSectionWidth) {
+      // When left is collapsed and right is expanded: left fixed, right fills
+      if (leftSectionCollapsed && !rightSectionCollapsed) {
+        return {
+          display: 'grid',
+          gridTemplateColumns: `${leftSectionWidth}px 1fr`,
+          gap: '16px',
+          alignItems: 'stretch',
+        };
+      }
+      // When right is collapsed and left is expanded: left fills, right fixed
+      if (!leftSectionCollapsed && rightSectionCollapsed) {
+        return {
+          display: 'grid',
+          gridTemplateColumns: `1fr ${rightSectionWidth}px`,
+          gap: '16px',
+          alignItems: 'stretch',
+        };
+      }
+      // Both expanded or both collapsed: use proportional fr units
       return {
         display: 'grid',
         gridTemplateColumns: `${leftSectionWidth}fr ${rightSectionWidth}fr`,
-        gap: '16px', // Match the gap between INPUT/OUTPUT sections (mx-1.5 + 4px divider + mx-1.5 = 16px)
+        gap: '16px',
         alignItems: 'stretch',
       };
     }
+    // When IO sections are stacked, use flex layout so dropdowns size to content
+    // This allows the node to shrink to fit the content naturally
     return {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
+      display: 'flex',
       gap: '16px',
       alignItems: 'stretch',
     };
-  }, [leftSectionWidth, rightSectionWidth]);
+  }, [areIOSideBySide, leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed]);
 
   return (
     <div
@@ -2542,9 +2619,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
   const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
 
-  // Collapsed section widths (spacing + anchor + gap + source/destination only)
-  const inputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + 24 + 8 + sharedColumnWidths.source, [sharedColumnWidths]); // spacing + gap + anchor + gap + source
-  const outputCollapsedWidth = useMemo(() => sharedColumnWidths.spacing + 8 + sharedColumnWidths.destination + 8 + 24, [sharedColumnWidths]); // spacing + gap + destination + gap + anchor
+  // Collapsed section widths (anchor + gap + port + gap + source/destination + buffer)
+  // Buffer of +50 matches expanded sections for consistency
+  const inputCollapsedWidth = useMemo(() => 24 + 8 + sharedColumnWidths.port + 8 + sharedColumnWidths.source + 50, [sharedColumnWidths]); // anchor + gap + port + gap + source + buffer
+  const outputCollapsedWidth = useMemo(() => sharedColumnWidths.destination + 8 + sharedColumnWidths.port + 8 + 24 + 50, [sharedColumnWidths]); // destination + gap + port + gap + anchor + buffer
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -2952,9 +3030,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Get anchor side for a section based on its position
+  // RULE: When side-by-side, anchors ALWAYS face OUTWARD (left section = left anchors, right section = right anchors)
   const getAnchorSide = useCallback((sectionId, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
-      // In columns: left col = left anchors, right col = right anchors
+      // Side-by-side: anchors face OUTWARD (opposite side from divider)
+      // colIndex 0 = leftmost section = anchors on LEFT (outside)
+      // colIndex 1 = rightmost section = anchors on RIGHT (outside)
       return colIndex === 0 ? 'left' : 'right';
     }
     // Single section row: use stored preference
@@ -3019,14 +3100,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [areInSameRow]
   );
 
-  // Calculate left/right section widths based on actual layout position
+  // Calculate left/right section widths and collapse states based on actual layout position
   // This determines which section is visually on the left vs right when side-by-side
-  const { leftSectionWidth, rightSectionWidth } = useMemo(() => {
+  const { leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed } = useMemo(() => {
     if (!areIOSideBySide) {
       // When stacked, default to input=left, output=right for System section alignment
       return {
         leftSectionWidth: computedInputSectionWidth,
-        rightSectionWidth: computedOutputSectionWidth
+        rightSectionWidth: computedOutputSectionWidth,
+        leftSectionCollapsed: node.layout.inputCollapsed,
+        rightSectionCollapsed: node.layout.outputCollapsed
       };
     }
     // Find the row containing both INPUT and OUTPUT to determine left/right order
@@ -3042,10 +3125,21 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         rightSectionWidth: leftSection === 'input'
           ? computedOutputSectionWidth
           : computedInputSectionWidth,
+        leftSectionCollapsed: leftSection === 'input'
+          ? node.layout.inputCollapsed
+          : node.layout.outputCollapsed,
+        rightSectionCollapsed: leftSection === 'input'
+          ? node.layout.outputCollapsed
+          : node.layout.inputCollapsed,
       };
     }
-    return { leftSectionWidth: computedInputSectionWidth, rightSectionWidth: computedOutputSectionWidth };
-  }, [areIOSideBySide, layoutRows, computedInputSectionWidth, computedOutputSectionWidth]);
+    return {
+      leftSectionWidth: computedInputSectionWidth,
+      rightSectionWidth: computedOutputSectionWidth,
+      leftSectionCollapsed: node.layout.inputCollapsed,
+      rightSectionCollapsed: node.layout.outputCollapsed
+    };
+  }, [areIOSideBySide, layoutRows, computedInputSectionWidth, computedOutputSectionWidth, node.layout.inputCollapsed, node.layout.outputCollapsed]);
 
   // Render section content (memoized to prevent recreation on every render)
   const renderSectionContent = useCallback((sectionId, anchorSide, canToggleAnchor) => {
@@ -3062,6 +3156,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             colors={themeColors.system}
             leftSectionWidth={leftSectionWidth}
             rightSectionWidth={rightSectionWidth}
+            leftSectionCollapsed={leftSectionCollapsed}
+            rightSectionCollapsed={rightSectionCollapsed}
+            areIOSideBySide={areIOSideBySide}
           />
         );
       case 'input':
@@ -3120,7 +3217,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     toggleInputAnchorSide, toggleOutputAnchorSide,
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds, anchorThemeColor,
-    sharedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide
+    sharedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
+    leftSectionWidth, rightSectionWidth
   ]);
 
   // Handle click to select (shift+click to add to selection)
@@ -3147,25 +3245,28 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return 'flex-1';
   }, [inputSectionWidth, outputSectionWidth]);
 
+  // Wrapper style for section containers in side-by-side layout
   const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
     if (isSingleSectionRow) return {};
-    // Only apply minimum widths when expanded - content determines actual width
-    if (isCollapsed) return {};
-    // When expanded and side-by-side, use minWidth so content can expand
-    if (sectionId === 'input' && inputSectionWidth) {
-      return {
-        minWidth: `${inputSectionWidth}px`,
-        flexShrink: 0
-      };
+
+    // Use collapsed width when collapsed, minWidth when expanded
+    if (isCollapsed) {
+      if (sectionId === 'input') {
+        return { width: `${inputCollapsedWidth}px`, flexShrink: 0 };
+      }
+      if (sectionId === 'output') {
+        return { width: `${outputCollapsedWidth}px`, flexShrink: 0 };
+      }
+    } else {
+      if (sectionId === 'input' && inputSectionWidth) {
+        return { minWidth: `${inputSectionWidth}px`, flexShrink: 0 };
+      }
+      if (sectionId === 'output' && outputSectionWidth) {
+        return { minWidth: `${outputSectionWidth}px`, flexShrink: 0 };
+      }
     }
-    if (sectionId === 'output' && outputSectionWidth) {
-      return {
-        minWidth: `${outputSectionWidth}px`,
-        flexShrink: 0
-      };
-    }
-    return {}; // Fallback for other sections
-  }, [inputSectionWidth, outputSectionWidth]);
+    return {};
+  }, [inputSectionWidth, outputSectionWidth, inputCollapsedWidth, outputCollapsedWidth]);
 
   // Memoized dragged section row index (prevents repeated findIndex in render loop and drop zone calculations)
   const draggedSectionRowIndex = useMemo(
@@ -3371,6 +3472,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
                 return (
                   <Fragment key={sectionId}>
+                    {/* Section wrapper */}
                     <div
                       className={getWrapperClassName(sectionId, isSingleSectionRow, isCollapsed)}
                       style={getWrapperStyle(sectionId, isSingleSectionRow, isCollapsed)}
