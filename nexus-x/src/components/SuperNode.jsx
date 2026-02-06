@@ -1230,12 +1230,7 @@ CollapsedColumnSelector.displayName = 'CollapsedColumnSelector';
 const CollapsedColumnHeaders = memo(({
   anchorSide,
   columnOrder,
-  sectionType,
   onReorderColumns,
-  onOpenSettings,
-  showSettings,
-  onColumnsChange,
-  onCloseSettings,
 }) => {
   const isReversed = anchorSide === 'right';
 
@@ -1245,20 +1240,6 @@ const CollapsedColumnHeaders = memo(({
   // Anchor element (fixed on outside edge, never moves)
   const anchorSpacer = <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
 
-  // Settings gear button (positioned on inside edge)
-  const gearButton = (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenSettings();
-      }}
-      className="text-zinc-400 hover:text-white text-[10px] px-1 shrink-0"
-      title="Configure columns"
-    >
-      ⚙
-    </button>
-  );
-
   return (
     <div
       className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30
@@ -1267,11 +1248,8 @@ const CollapsedColumnHeaders = memo(({
       {/* Anchor on LEFT for input sections */}
       {!isReversed && anchorSpacer}
 
-      {/* Gear on LEFT (inside) for output sections */}
-      {isReversed && gearButton}
-
       {/* Draggable column headers with dividers */}
-      <div className={`flex items-center ${isReversed ? 'justify-end' : ''}`}>
+      <div className={`flex items-center ${isReversed ? 'justify-end' : ''} flex-1`}>
         {columnOrder.map((colId, index) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
@@ -1295,20 +1273,8 @@ const CollapsedColumnHeaders = memo(({
         })}
       </div>
 
-      {/* Gear on RIGHT (inside) for input sections */}
-      {!isReversed && gearButton}
-
       {/* Anchor on RIGHT for output sections */}
       {isReversed && anchorSpacer}
-
-      {showSettings && (
-        <CollapsedColumnSelector
-          sectionType={sectionType}
-          currentColumns={columnOrder}
-          onColumnsChange={onColumnsChange}
-          onClose={onCloseSettings}
-        />
-      )}
     </div>
   );
 });
@@ -1415,6 +1381,13 @@ const SectionHeader = memo(({
   collapsed,
   onToggleCollapse,
   colors: passedColors,
+  // Collapsed column settings
+  showCollapsedSettings,
+  onOpenCollapsedSettings,
+  onCloseCollapsedSettings,
+  collapsedColumns,
+  onCollapsedColumnsChange,
+  sectionType,
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
@@ -1453,11 +1426,29 @@ const SectionHeader = memo(({
   // Shared button style for consistency (color applied via inline style)
   const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
 
+  // Handle settings gear click
+  const handleSettingsClick = useCallback((e) => {
+    e.stopPropagation();
+    onOpenCollapsedSettings && onOpenCollapsedSettings();
+  }, [onOpenCollapsedSettings]);
+
   // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS - memoized
   const buttonsJSX = useMemo(() => (
     <div className="flex items-center gap-1.5 shrink-0 relative">
       {isReversed ? (
         <>
+          {/* Settings gear (when collapsed) */}
+          {collapsed && (
+            <button
+              onClick={handleSettingsClick}
+              onMouseDown={handleMouseDown}
+              className={buttonBaseStyle}
+              style={{ color: colorHexLight }}
+              title="Configure columns"
+            >
+              ⚙
+            </button>
+          )}
           {/* Add button */}
           <button
             onClick={handleAddClick}
@@ -1501,6 +1492,18 @@ const SectionHeader = memo(({
           >
             +
           </button>
+          {/* Settings gear (when collapsed) */}
+          {collapsed && (
+            <button
+              onClick={handleSettingsClick}
+              onMouseDown={handleMouseDown}
+              className={buttonBaseStyle}
+              style={{ color: colorHexLight }}
+              title="Configure columns"
+            >
+              ⚙
+            </button>
+          )}
         </>
       )}
 
@@ -1530,8 +1533,18 @@ const SectionHeader = memo(({
           )}
         </div>
       )}
+
+      {/* Collapsed column settings dropdown */}
+      {showCollapsedSettings && (
+        <CollapsedColumnSelector
+          sectionType={sectionType || type}
+          currentColumns={collapsedColumns}
+          onColumnsChange={onCollapsedColumnsChange}
+          onClose={onCloseCollapsedSettings}
+        />
+      )}
     </div>
-  ), [isReversed, handlePresetClick, handleMouseDown, handleAddClick, buttonBaseStyle, colorHexLight, showPresetMenu, availablePresets, handlePresetSelect]);
+  ), [isReversed, handlePresetClick, handleMouseDown, handleAddClick, handleSettingsClick, buttonBaseStyle, colorHexLight, showPresetMenu, availablePresets, handlePresetSelect, collapsed, showCollapsedSettings, sectionType, type, collapsedColumns, onCollapsedColumnsChange, onCloseCollapsedSettings]);
 
   // Create gradient background based on signal direction towards anchor
   const gradientStyle = useMemo(() => {
@@ -1978,22 +1991,23 @@ const IOSection = memo(({
         collapsed={collapsed}
         onToggleCollapse={onToggleCollapse}
         colors={colors}
+        showCollapsedSettings={showCollapsedSettings}
+        onOpenCollapsedSettings={() => setShowCollapsedSettings(true)}
+        onCloseCollapsedSettings={() => setShowCollapsedSettings(false)}
+        collapsedColumns={collapsedColumns}
+        onCollapsedColumnsChange={reorderCollapsedColumns}
+        sectionType={sectionType}
       />
 
       {collapsed ? (
         /* When collapsed, render configurable columns with drag-drop reordering */
         <div className="w-full">
-          {/* Collapsed header with drag-drop and settings */}
+          {/* Collapsed column headers (gear moved to SectionHeader) */}
           {data.ports.length > 0 && (
             <CollapsedColumnHeaders
               anchorSide={anchorSide}
               columnOrder={collapsedColumns}
-              sectionType={sectionType}
               onReorderColumns={reorderCollapsedColumns}
-              onOpenSettings={() => setShowCollapsedSettings(true)}
-              showSettings={showCollapsedSettings}
-              onColumnsChange={reorderCollapsedColumns}
-              onCloseSettings={() => setShowCollapsedSettings(false)}
             />
           )}
           {/* Collapsed port rows with dynamic columns */}
@@ -2028,9 +2042,6 @@ const IOSection = memo(({
               }
             };
 
-            // Gear spacer (matches gear button width for alignment)
-            const gearSpacer = <span className="shrink-0" style={{ width: 20 }} />;
-
             // Anchor element (fixed on outside edge)
             const anchorElement = (
               <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
@@ -2056,16 +2067,10 @@ const IOSection = memo(({
                 {/* Anchor on LEFT for input sections */}
                 {!shouldAnchorBeOnRight && anchorElement}
 
-                {/* Gear spacer on LEFT for output sections (matches header) */}
-                {shouldAnchorBeOnRight && gearSpacer}
-
                 {/* Column data with dividers */}
-                <div className={`flex items-center ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
+                <div className={`flex items-center flex-1 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
                   {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
                 </div>
-
-                {/* Gear spacer on RIGHT for input sections (matches header) */}
-                {!shouldAnchorBeOnRight && gearSpacer}
 
                 {/* Anchor on RIGHT for output sections */}
                 {shouldAnchorBeOnRight && anchorElement}
