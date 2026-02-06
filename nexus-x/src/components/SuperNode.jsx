@@ -97,6 +97,9 @@ const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
 // Drop zone z-index style (static)
 const DROP_ZONE_STYLE = { zIndex: 10000 };
 
+// Settings dropdown z-index (static)
+const SETTINGS_DROPDOWN_STYLE = { zIndex: 9999 };
+
 // Spacing drag handle style (static)
 const SPACING_HANDLE_STYLE = {
   width: '20px',
@@ -1021,9 +1024,9 @@ const PortRow = memo(({
   };
 
   // Get width for a column (use dynamic width if available, else minWidth)
-  const getColumnWidth = (colId) => {
+  const getColumnWidth = useCallback((colId) => {
     return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
-  };
+  }, [columnWidths]);
 
   return (
     <div
@@ -1946,6 +1949,11 @@ const IOSection = memo(({
     onUpdate({ collapsedColumnOrder: newColumns });
   }, [onUpdate]);
 
+  // Close column selector
+  const closeColumnSelector = useCallback(() => {
+    setShowColumnSelector(false);
+  }, []);
+
   // Get cards from data (or empty array)
   const cards = data.cards || [];
 
@@ -2167,35 +2175,51 @@ const IOSection = memo(({
     [sharedCollapsedColumnWidths, data.ports]
   );
 
-  // Helper to render port rows with spacing support
-  const renderPortRows = (ports) => (
-    ports.map(port => (
-      <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
-        <PortRow
-          port={port}
-          type={portType}
-          anchorSide={anchorSide}
-          onUpdate={(updates) => updatePort(port.id, updates)}
-          onDelete={() => deletePort(port.id)}
-          anchorId={`${nodeId}-${port.id}`}
-          isActive={activeWire?.from === `${nodeId}-${port.id}`}
-          onAnchorClick={onAnchorClick}
-          signalColor={type === 'output' ? signalColor : null}
-          canToggleAnchor={canToggleAnchor}
-          onToggleAnchor={onToggleAnchorSide}
-          columnOrder={columnOrder}
-          columnWidths={columnWidths}
-          isSelected={selectedPorts.has(port.id)}
-          onToggleSelection={() => togglePortSelection(port.id)}
-          onBulkUpdate={bulkUpdatePorts}
-          colors={colors}
-          connectedAnchorIds={connectedAnchorIds}
-          themeColor={themeColor}
-          onSpacingMouseDown={handleSpacingMouseDown}
-        />
-      </div>
-    ))
-  );
+  // Memoize spacing styles cache (common spacing values: 0, 15, 30, 45, 60, 75, 90)
+  // Most ports have spacing: 0, so cache eliminates object creation for majority of ports
+  const spacingStyleCache = useMemo(() => {
+    const cache = {};
+    for (let i = 0; i <= 90; i += 15) {
+      cache[i] = { marginTop: `${i}px` };
+    }
+    return cache;
+  }, []);
+
+  // Helper to render port rows with spacing support (memoized)
+  const renderPortRows = useCallback((ports) => (
+    ports.map(port => {
+      const spacing = port.spacing || 0;
+      // Use cached style for common values, create new for custom spacing
+      const style = spacingStyleCache[spacing] || { marginTop: `${spacing}px` };
+
+      return (
+        <div key={port.id} style={style}>
+          <PortRow
+            port={port}
+            type={portType}
+            anchorSide={anchorSide}
+            onUpdate={(updates) => updatePort(port.id, updates)}
+            onDelete={() => deletePort(port.id)}
+            anchorId={`${nodeId}-${port.id}`}
+            isActive={activeWire?.from === `${nodeId}-${port.id}`}
+            onAnchorClick={onAnchorClick}
+            signalColor={type === 'output' ? signalColor : null}
+            canToggleAnchor={canToggleAnchor}
+            onToggleAnchor={onToggleAnchorSide}
+            columnOrder={columnOrder}
+            columnWidths={columnWidths}
+            isSelected={selectedPorts.has(port.id)}
+            onToggleSelection={() => togglePortSelection(port.id)}
+            onBulkUpdate={bulkUpdatePorts}
+            colors={colors}
+            connectedAnchorIds={connectedAnchorIds}
+            themeColor={themeColor}
+            onSpacingMouseDown={handleSpacingMouseDown}
+          />
+        </div>
+      );
+    })
+  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, signalColor, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, themeColor, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
 
   return (
     <div className="flex flex-col border-t border-zinc-700/50 shrink-0">
@@ -2233,7 +2257,7 @@ const IOSection = memo(({
             <CollapsedColumnSelector
               selectedColumns={collapsedColumns}
               onChange={updateCollapsedColumns}
-              onClose={() => setShowColumnSelector(false)}
+              onClose={closeColumnSelector}
               sectionType={sectionType}
             />
           )}
@@ -2796,6 +2820,29 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     }
   }, [confirmRename, cancelRename]);
 
+  // Settings menu handlers
+  const handleRenameClick = useCallback((e) => {
+    e.stopPropagation();
+    startRename();
+  }, [startRename]);
+
+  const handleSavePresetClick = useCallback((e) => {
+    e.stopPropagation();
+    // TODO: Implement save preset
+    setShowSettings(false);
+  }, []);
+
+  const handleSetDefaultClick = useCallback((e) => {
+    e.stopPropagation();
+    // TODO: Implement set as default
+    setShowSettings(false);
+  }, []);
+
+  const toggleSettingsMenu = useCallback((e) => {
+    e.stopPropagation();
+    setShowSettings(prev => !prev);
+  }, []);
+
   // Section visibility toggles
   const toggleSectionVisibility = useCallback((section) => {
     const visibleKey = `${section}Visible`;
@@ -2936,10 +2983,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
       {/* Settings button - top right */}
       <div ref={settingsRef} className="flex items-center gap-1 ml-auto z-10 relative">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowSettings(!showSettings);
-          }}
+          onClick={toggleSettingsMenu}
           className="text-zinc-300 hover:text-white text-[16px] px-1"
           title="Node settings"
         >
@@ -2950,35 +2994,24 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
         {showSettings && (
           <div
             className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg py-1 min-w-[160px]"
-            style={{ zIndex: 9999 }}
+            style={SETTINGS_DROPDOWN_STYLE}
             onClick={stopPropagation}
           >
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                startRename();
-              }}
+              onClick={handleRenameClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               Rename Node
             </button>
             <div className="border-t border-zinc-600 my-1" />
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Implement save preset
-                setShowSettings(false);
-              }}
+              onClick={handleSavePresetClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               Save Preset
             </button>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Implement set as default
-                setShowSettings(false);
-              }}
+              onClick={handleSetDefaultClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               Set as Default
@@ -3096,6 +3129,14 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Memoize divider gradient style for side-by-side sections
   // Gradient fades from solid at top to transparent at bottom
+  const dividerGradientStyle = useMemo(() => {
+    const color = themeColors?.header?.hex || '#10b981';
+    return {
+      width: '4px',
+      background: `linear-gradient(to bottom, ${color} 0%, ${color}80 60%, transparent 100%)`,
+      borderRadius: '2px',
+    };
+  }, [themeColors?.header?.hex]);
 
   // Extract theme color for anchors (use the header/main color)
   const anchorThemeColor = themeColors.header?.hex || null;
@@ -3888,28 +3929,39 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return 'flex-1';
   }, [inputSectionWidth, outputSectionWidth]);
 
+  // Memoize wrapper styles for each section state (prevents object recreation)
+  const inputCollapsedStyle = useMemo(
+    () => ({ width: `${inputCollapsedWidth}px`, flexShrink: 0 }),
+    [inputCollapsedWidth]
+  );
+  const outputCollapsedStyle = useMemo(
+    () => ({ width: `${outputCollapsedWidth}px`, flexShrink: 0 }),
+    [outputCollapsedWidth]
+  );
+  const inputExpandedStyle = useMemo(
+    () => inputSectionWidth ? { minWidth: `${inputSectionWidth}px`, flexShrink: 0 } : {},
+    [inputSectionWidth]
+  );
+  const outputExpandedStyle = useMemo(
+    () => outputSectionWidth ? { minWidth: `${outputSectionWidth}px`, flexShrink: 0 } : {},
+    [outputSectionWidth]
+  );
+  const emptyStyle = useMemo(() => ({}), []);
+
   // Wrapper style for section containers in side-by-side layout
   const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
-    if (isSingleSectionRow) return {};
+    if (isSingleSectionRow) return emptyStyle;
 
     // Use collapsed width when collapsed, minWidth when expanded
     if (isCollapsed) {
-      if (sectionId === 'input') {
-        return { width: `${inputCollapsedWidth}px`, flexShrink: 0 };
-      }
-      if (sectionId === 'output') {
-        return { width: `${outputCollapsedWidth}px`, flexShrink: 0 };
-      }
+      if (sectionId === 'input') return inputCollapsedStyle;
+      if (sectionId === 'output') return outputCollapsedStyle;
     } else {
-      if (sectionId === 'input' && inputSectionWidth) {
-        return { minWidth: `${inputSectionWidth}px`, flexShrink: 0 };
-      }
-      if (sectionId === 'output' && outputSectionWidth) {
-        return { minWidth: `${outputSectionWidth}px`, flexShrink: 0 };
-      }
+      if (sectionId === 'input') return inputExpandedStyle;
+      if (sectionId === 'output') return outputExpandedStyle;
     }
-    return {};
-  }, [inputSectionWidth, outputSectionWidth, inputCollapsedWidth, outputCollapsedWidth]);
+    return emptyStyle;
+  }, [inputCollapsedStyle, outputCollapsedStyle, inputExpandedStyle, outputExpandedStyle, emptyStyle]);
 
   // Memoized dragged section row index (prevents repeated findIndex in render loop and drop zone calculations)
   const draggedSectionRowIndex = useMemo(
@@ -4096,11 +4148,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                       {!isSingleSectionRow && !isLastInRow && (
                         <div
                           className="mx-1.5 self-stretch shrink-0"
-                          style={{
-                            width: '4px',
-                            background: `linear-gradient(to bottom, ${themeColors?.header?.hex || '#10b981'} 0%, ${themeColors?.header?.hex || '#10b981'}80 60%, transparent 100%)`,
-                            borderRadius: '2px',
-                          }}
+                          style={dividerGradientStyle}
                         />
                       )}
                     </Fragment>
@@ -4143,11 +4191,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                     {!isSingleSectionRow && !isLastInRow && (
                       <div
                         className="mx-1.5 self-stretch shrink-0"
-                        style={{
-                          width: '4px',
-                          background: `linear-gradient(to bottom, ${themeColors?.header?.hex || '#10b981'} 0%, ${themeColors?.header?.hex || '#10b981'}80 60%, transparent 100%)`,
-                          borderRadius: '2px',
-                        }}
+                        style={dividerGradientStyle}
                       />
                     )}
                   </Fragment>
