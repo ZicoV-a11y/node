@@ -1,5 +1,43 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react';
 
+/**
+ * ============================================
+ * SUPERNODE COMPONENT - Performance Optimized
+ * ============================================
+ *
+ * This component is heavily optimized with 126+ memoized values.
+ * It uses React.memo with a custom comparator to prevent unnecessary re-renders.
+ *
+ * PARENT COMPONENT REQUIREMENTS:
+ * --------------------------------
+ * To maintain optimal performance, the parent component MUST properly memoize these props:
+ *
+ * 1. connectedAnchorIds (Set) - MUST use useMemo:
+ *    ✅ const connectedAnchorIds = useMemo(() => {
+ *         const set = new Set();
+ *         connections.forEach(c => { set.add(c.from); set.add(c.to); });
+ *         return set;
+ *       }, [connections]);
+ *
+ * 2. usedSignalColors (Set) - MUST use useMemo:
+ *    ✅ const usedSignalColors = useMemo(() => {
+ *         const set = new Set();
+ *         Object.values(nodes).forEach(node => {
+ *           if (node.signalColor) set.add(node.signalColor);
+ *         });
+ *         return set;
+ *       }, [nodes]);
+ *
+ * 3. Callback props (onUpdate, onDelete, etc.) - SHOULD use useCallback:
+ *    ✅ const handleUpdate = useCallback((nodeId, updates) => {...}, [deps]);
+ *
+ * WARNING: If these props are not memoized, SuperNode will re-render on EVERY parent render,
+ * bypassing all 126+ internal optimizations!
+ *
+ * Development mode includes warnings that detect unstable props automatically.
+ * Set ENABLE_PROFILING = true inside SuperNode to measure render times.
+ */
+
 // ============================================
 // CONSTANTS - Single source of truth for sizes
 // ============================================
@@ -1957,6 +1995,9 @@ const IOSection = memo(({
   // Get cards from data (or empty array)
   const cards = data.cards || [];
 
+  // Memoize ports by ID for O(1) lookups (avoids O(n) .find() in delete/update operations)
+  const portsById = useMemo(() => new Map(data.ports.map(p => [p.id, p])), [data.ports]);
+
   // Spacing drag state
   const dragStartY = useRef(0);
   const dragStartSpacing = useRef(0);
@@ -2051,7 +2092,7 @@ const IOSection = memo(({
   }, [data.ports, selectedPorts, onUpdate]);
 
   const deletePort = useCallback((portId) => {
-    const port = data.ports.find(p => p.id === portId);
+    const port = portsById.get(portId); // O(1) lookup instead of O(n) .find()
     const remainingPorts = data.ports.filter(p => p.id !== portId);
 
     // If port belonged to a card, check if card is now empty
@@ -2068,7 +2109,7 @@ const IOSection = memo(({
     const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
 
     onUpdate({ ports: renumberedPorts, cards: updatedCards });
-  }, [data.ports, cards, onUpdate]);
+  }, [data.ports, cards, onUpdate, portsById]);
 
   const reorderColumns = useCallback((newOrder) => {
     onUpdate({ columnOrder: newOrder });
@@ -3106,6 +3147,30 @@ ResizeHandle.displayName = 'ResizeHandle';
 // ============================================
 
 function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors }) {
+  // ============================================
+  // PERFORMANCE PROFILING (Development Only)
+  // ============================================
+  // Set ENABLE_PROFILING = true to log render times and detect slow renders
+  const ENABLE_PROFILING = false; // Toggle to true to enable profiling
+  const SLOW_RENDER_THRESHOLD = 50; // Warn if render takes > 50ms
+
+  const renderStartTime = useRef(0);
+  if (ENABLE_PROFILING && process.env.NODE_ENV === 'development') {
+    renderStartTime.current = performance.now();
+  }
+
+  useEffect(() => {
+    if (ENABLE_PROFILING && process.env.NODE_ENV === 'development' && renderStartTime.current > 0) {
+      const renderTime = performance.now() - renderStartTime.current;
+      if (renderTime > SLOW_RENDER_THRESHOLD) {
+        console.warn(`⚠️ SuperNode ${node.id} slow render: ${renderTime.toFixed(2)}ms`);
+      } else {
+        console.log(`✓ SuperNode ${node.id} render: ${renderTime.toFixed(2)}ms`);
+      }
+    }
+  });
+  // ============================================
+
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -4219,19 +4284,42 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   );
 }
 
-export default memo(SuperNode, (prev, next) =>
-  prev.node === next.node &&
-  prev.zoom === next.zoom &&
-  prev.isSelected === next.isSelected &&
-  prev.activeWire === next.activeWire &&
-  prev.snapToGrid === next.snapToGrid &&
-  prev.gridSize === next.gridSize &&
-  prev.onUpdate === next.onUpdate &&
-  prev.onDelete === next.onDelete &&
-  prev.onAnchorClick === next.onAnchorClick &&
-  prev.registerAnchor === next.registerAnchor &&
-  prev.unregisterAnchors === next.unregisterAnchors &&
-  prev.onSelect === next.onSelect &&
-  prev.connectedAnchorIds === next.connectedAnchorIds &&
-  prev.usedSignalColors === next.usedSignalColors
-);
+export default memo(SuperNode, (prev, next) => {
+  // Development warnings for unstable props (only in dev mode)
+  if (process.env.NODE_ENV === 'development') {
+    // Warn if connectedAnchorIds isn't properly memoized (parent should use useMemo)
+    if (prev.connectedAnchorIds !== next.connectedAnchorIds) {
+      // Check if Set contents are actually the same (parent recreating Set unnecessarily)
+      const prevArr = Array.from(prev.connectedAnchorIds).sort();
+      const nextArr = Array.from(next.connectedAnchorIds).sort();
+      if (JSON.stringify(prevArr) === JSON.stringify(nextArr)) {
+        console.warn('⚠️ SuperNode: connectedAnchorIds Set recreated with same contents. Parent should memoize with useMemo.');
+      }
+    }
+
+    // Warn if usedSignalColors isn't properly memoized
+    if (prev.usedSignalColors !== next.usedSignalColors) {
+      const prevArr = Array.from(prev.usedSignalColors).sort();
+      const nextArr = Array.from(next.usedSignalColors).sort();
+      if (JSON.stringify(prevArr) === JSON.stringify(nextArr)) {
+        console.warn('⚠️ SuperNode: usedSignalColors Set recreated with same contents. Parent should memoize with useMemo.');
+      }
+    }
+  }
+
+  // Memo comparison (return true if props are equal = skip re-render)
+  return prev.node === next.node &&
+    prev.zoom === next.zoom &&
+    prev.isSelected === next.isSelected &&
+    prev.activeWire === next.activeWire &&
+    prev.snapToGrid === next.snapToGrid &&
+    prev.gridSize === next.gridSize &&
+    prev.onUpdate === next.onUpdate &&
+    prev.onDelete === next.onDelete &&
+    prev.onAnchorClick === next.onAnchorClick &&
+    prev.registerAnchor === next.registerAnchor &&
+    prev.unregisterAnchors === next.unregisterAnchors &&
+    prev.onSelect === next.onSelect &&
+    prev.connectedAnchorIds === next.connectedAnchorIds &&
+    prev.usedSignalColors === next.usedSignalColors;
+});

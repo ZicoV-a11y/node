@@ -282,6 +282,8 @@ export default function App() {
   const cachedExportBlob = useRef(null);
 
   // Multi-page grid (pages extend dynamically as nodes are placed)
+  // CRITICAL: Memoize node array to prevent creating new object references on every render
+  // Each node value should only change when that specific node's data changes
   const nodeArray = useMemo(() => Object.values(nodes), [nodes]);
   const pages = usePageGrid({
     nodes: nodeArray,
