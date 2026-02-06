@@ -2775,12 +2775,6 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             style={colorPickerStyle}
             title={signalLabel}
           />
-          {/* Show color name when selected */}
-          {signalColorObj && (
-            <span className="text-[10px] font-mono opacity-70 pointer-events-none" style={{ color: signalColorHex }}>
-              {signalColorObj.label}
-            </span>
-          )}
         </div>
       </div>
 
