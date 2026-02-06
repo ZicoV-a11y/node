@@ -1249,7 +1249,7 @@ const CollapsedColumnHeaders = memo(({
       {!isReversed && anchorSpacer}
 
       {/* Draggable column headers with dividers */}
-      <div className={`flex items-center ${isReversed ? 'justify-end' : ''} flex-1`}>
+      <div className={`flex items-center ${isReversed ? 'justify-end' : ''}`}>
         {columnOrder.map((colId, index) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
@@ -2068,7 +2068,7 @@ const IOSection = memo(({
                 {!shouldAnchorBeOnRight && anchorElement}
 
                 {/* Column data with dividers */}
-                <div className={`flex items-center flex-1 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
+                <div className={`flex items-center ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
                   {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
                 </div>
 
