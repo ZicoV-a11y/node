@@ -1232,9 +1232,9 @@ const CollapsedColumnHeaders = memo(({
   // Drag-and-drop reordering (shared hook)
   const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(columnOrder, onReorderColumns);
 
-  // Build render order with anchor position
+  // Build render order with anchor position (mirror columns for right-side anchor)
   const renderOrder = useMemo(() =>
-    isReversed ? [...columnOrder, 'anchor'] : ['anchor', ...columnOrder],
+    isReversed ? [[...columnOrder].reverse(), 'anchor'].flat() : ['anchor', ...columnOrder],
     [isReversed, columnOrder]
   );
 
@@ -1244,7 +1244,7 @@ const CollapsedColumnHeaders = memo(({
         text-[10px] font-mono text-white uppercase tracking-wide relative w-full
         ${isReversed ? 'flex-row-reverse' : ''}`}
     >
-      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse justify-end' : ''}`}>
+      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse' : ''}`}>
         {renderOrder.map((colId) => {
           if (colId === 'anchor') {
             return <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
@@ -1984,9 +1984,9 @@ const IOSection = memo(({
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            // Build render order based on anchor side
+            // Build render order based on anchor side (mirror columns for right-side anchor)
             const renderCols = shouldAnchorBeOnRight
-              ? [...collapsedColumns, 'anchor']
+              ? [[...collapsedColumns].reverse(), 'anchor'].flat()
               : ['anchor', ...collapsedColumns];
 
             // Helper to get cell content
@@ -2017,7 +2017,7 @@ const IOSection = memo(({
                 key={port.id}
                 className={`flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse justify-end' : ''}`}>
+                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}>
                   {renderCols.map((colId) => {
                     if (colId === 'anchor') {
                       return (
