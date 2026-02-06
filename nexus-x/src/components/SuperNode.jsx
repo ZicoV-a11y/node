@@ -127,7 +127,8 @@ const HEX_COLORS = {
 const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600";
 
 // System section wrapper style (static)
-const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 1, isolation: 'isolate' };
+// minWidth: 0 allows flex shrinking
+const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 1, isolation: 'isolate', minWidth: 0 };
 
 // Checkmark button size (static)
 const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
@@ -306,7 +307,7 @@ const SelectWithCustom = memo(({
   value,
   options,
   onChange,
-  placeholder = 'Choose',
+  placeholder = 'Select',
   className = '',
   isSelected = false,
 }) => {
@@ -335,7 +336,7 @@ const SelectWithCustom = memo(({
 
   if (isCustomMode) {
     return (
-      <div className={`flex items-center w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
+      <div className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
         <input
           ref={inputRef}
           type="text"
@@ -362,7 +363,7 @@ const SelectWithCustom = memo(({
           }}
           onClick={stopPropagation}
           placeholder="Type custom..."
-          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
+          className="flex-1 min-w-0 w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
@@ -1011,7 +1012,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.connector || ''}
             options={CONNECTOR_TYPES}
-            placeholder="Type"
+            placeholder="Select"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('connector', value)}
           />
@@ -1021,7 +1022,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.resolution || ''}
             options={RESOLUTIONS}
-            placeholder="Choose"
+            placeholder="Select"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('resolution', value)}
           />
@@ -1031,7 +1032,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.refreshRate || ''}
             options={REFRESH_RATES}
-            placeholder="Choose"
+            placeholder="Select"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('refreshRate', value)}
           />
@@ -1041,7 +1042,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.source || ''}
             options={['Custom...']}
-            placeholder="Source"
+            placeholder="Select"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('source', value)}
           />
@@ -1051,7 +1052,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.destination || ''}
             options={['Custom...']}
-            placeholder="Destination"
+            placeholder="Select"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('destination', value)}
           />
@@ -2444,35 +2445,35 @@ const SystemHeader = memo(({
     [approvedFields]
   );
 
-  // Pre-calculate approved fields display elements (prevents repeated conditional checks in render)
+  // Pre-calculate approved fields display elements (compact, wrapping layout)
   const displayFieldsContent = useMemo(() => {
     if (!hasDisplayFields) return null;
 
     const parts = [];
     if (approvedFields['IP Address']) {
       parts.push(
-        <span key="ip" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        <span key="ip" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
           <span style={{ opacity: 0.6 }}>IP:</span> {approvedFields['IP Address']}
         </span>
       );
     }
     if (approvedFields['Software']) {
       parts.push(
-        <span key="software" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        <span key="software" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
           <span style={{ opacity: 0.6 }}>SW:</span> {approvedFields['Software']}
         </span>
       );
     }
     if (approvedFields['Platform']) {
       parts.push(
-        <span key="platform" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        <span key="platform" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
           {approvedFields['Platform']}
         </span>
       );
     }
     if (approvedFields['Capture']) {
       parts.push(
-        <span key="capture" className="px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        <span key="capture" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
           {approvedFields['Capture']}
         </span>
       );
@@ -2484,13 +2485,13 @@ const SystemHeader = memo(({
     <div
       data-section-drag="true"
       onMouseDown={handleMouseDown}
-      className={`flex items-center justify-between gap-2 px-2 py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`flex items-center gap-2 px-2 py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
       style={{
         ...gradientStyle,
       }}
       title="Drag to reorder section"
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <span
           className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
           style={WHITE_TEXT_STYLE}
@@ -2514,8 +2515,8 @@ const SystemHeader = memo(({
 
       {/* Display approved fields (excluding Manufacturer/Model which go to title bar) */}
       {hasDisplayFields ? (
-        <div className="flex-1 px-2 text-[10px] font-mono pointer-events-none overflow-hidden" style={{ color: '#ffffff' }}>
-          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="flex-1 min-w-0 px-2 font-mono pointer-events-none" style={{ color: '#ffffff', overflow: 'hidden' }}>
+          <div className="flex items-center gap-1 flex-wrap" style={{ maxHeight: '32px', lineHeight: '1.2', overflow: 'hidden' }}>
             {displayFieldsContent}
           </div>
         </div>
@@ -2606,12 +2607,16 @@ const SystemSection = memo(({
         alignItems: 'stretch',
       };
     }
-    // When IO sections are stacked, use flex layout so dropdowns size to content
-    // This allows the node to shrink to fit the content naturally
+    // When IO sections are stacked, use flex layout constrained to IO section width
+    // min-width: 0 allows flex children to shrink below content size
+    // max-width matches the larger IO section to prevent SYSTEM from expanding node
+    const maxIOWidth = Math.max(leftSectionWidth || 0, rightSectionWidth || 0);
     return {
       display: 'flex',
       gap: '16px',
       alignItems: 'stretch',
+      minWidth: 0,
+      ...(maxIOWidth > 0 && { maxWidth: `${maxIOWidth}px` }),
     };
   }, [areIOSideBySide, leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed]);
 
@@ -2641,19 +2646,19 @@ const SystemSection = memo(({
               options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
               placeholder="Select field..."
               onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
-              className="h-[26px]"
+              className="h-[26px] min-w-0"
             />
 
             {/* Column 2: Value input + Checkmark - aligns with right section */}
-            <div className="flex items-stretch gap-2 w-full">
-              <div className="flex-1 flex items-stretch">
+            <div className="flex items-stretch gap-2 w-full min-w-0">
+              <div className="flex-1 flex items-stretch min-w-0">
                 {(!data.selectedField || data.selectedField === 'Manufacturer') && (
                   <SelectWithCustom
                     value={data.selectedValue || ''}
                     options={MANUFACTURERS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
-                    className="h-[26px]"
+                    className="h-[26px] min-w-0"
                   />
                 )}
                 {data.selectedField === 'Model' && (
@@ -2673,7 +2678,7 @@ const SystemSection = memo(({
                     }}
                     onClick={stopPropagation}
                     placeholder="Enter..."
-                    className={`${INPUT_FIELD_CLASS} h-[26px]`}
+                    className={`${INPUT_FIELD_CLASS} h-[26px] min-w-0`}
                   />
                 )}
                 {data.selectedField === 'Platform' && (
@@ -2682,7 +2687,7 @@ const SystemSection = memo(({
                     options={PLATFORMS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
-                    className="h-[26px]"
+                    className="h-[26px] min-w-0"
                   />
                 )}
                 {data.selectedField === 'Software' && (
@@ -2691,7 +2696,7 @@ const SystemSection = memo(({
                     options={SOFTWARE_PRESET_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
-                    className="h-[26px]"
+                    className="h-[26px] min-w-0"
                   />
                 )}
                 {data.selectedField === 'Capture' && (
@@ -2700,7 +2705,7 @@ const SystemSection = memo(({
                     options={CAPTURE_CARD_LABELS}
                     placeholder="Select..."
                     onChange={(value) => onUpdate({ selectedValue: value })}
-                    className="h-[26px]"
+                    className="h-[26px] min-w-0"
                   />
                 )}
                 {data.selectedField === 'IP Address' && (
@@ -2720,7 +2725,7 @@ const SystemSection = memo(({
                     }}
                     onClick={stopPropagation}
                     placeholder="Enter..."
-                    className={`${INPUT_FIELD_CLASS} h-[26px]`}
+                    className={`${INPUT_FIELD_CLASS} h-[26px] min-w-0`}
                   />
                 )}
               </div>
@@ -3406,18 +3411,47 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Resize handling
   const handleResizeStart = useCallback((e) => {
+    const rect = nodeRef.current.getBoundingClientRect();
+    const canvas = nodeRef.current?.closest('[data-canvas]');
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+
     setIsResizing(true);
-    setResizeStart({ x: e.clientX, y: e.clientY, scale: node.scale || 1 });
-  }, [node.scale]);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      scale: node.scale || 1,
+      nodeX: node.position.x,
+      nodeY: node.position.y,
+      // Store unscaled dimensions (current size / current scale / zoom)
+      unscaledWidth: rect.width / zoom / (node.scale || 1),
+      unscaledHeight: rect.height / zoom / (node.scale || 1),
+      canvasLeft: canvasRect.left,
+      canvasTop: canvasRect.top
+    });
+  }, [node.scale, node.position.x, node.position.y, zoom]);
 
   useEffect(() => {
     if (!isResizing) return;
 
     const handleResizeMove = (e) => {
-      const deltaX = e.clientX - resizeStart.x;
-      const deltaY = e.clientY - resizeStart.y;
-      const scaleDelta = (deltaX + deltaY) / 400;
-      const newScale = Math.max(0.5, Math.min(2.0, resizeStart.scale + scaleDelta));
+      // Calculate mouse position in canvas coordinates (accounting for zoom)
+      const mouseCanvasX = (e.clientX - resizeStart.canvasLeft) / zoom;
+      const mouseCanvasY = (e.clientY - resizeStart.canvasTop) / zoom;
+
+      // Calculate what scale would place the bottom-right corner at the mouse
+      // bottomRight = nodePosition + (unscaledDimensions * scale)
+      // Solve for scale: scale = (mousePos - nodePos) / unscaledDimensions
+      const scaleFromX = (mouseCanvasX - resizeStart.nodeX) / resizeStart.unscaledWidth;
+      const scaleFromY = (mouseCanvasY - resizeStart.nodeY) / resizeStart.unscaledHeight;
+
+      // Use the average to maintain proportional scaling
+      const targetScale = (scaleFromX + scaleFromY) / 2;
+
+      // Clamp to reasonable bounds (30% to 300%)
+      const newScale = Math.max(0.3, Math.min(3.0, targetScale));
+
       onUpdate({ scale: newScale });
     };
 
@@ -3429,7 +3463,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       window.removeEventListener('mousemove', handleResizeMove);
       window.removeEventListener('mouseup', handleResizeEnd);
     };
-  }, [isResizing, resizeStart, onUpdate]);
+  }, [isResizing, resizeStart, onUpdate, zoom]);
 
   // Node drag handling
   const handleMouseDown = useCallback((e) => {
