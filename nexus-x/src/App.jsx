@@ -676,6 +676,15 @@ export default function App() {
     return set;
   }, [connections]);
 
+  // Pre-compute which signal colors are in use across all nodes
+  const usedSignalColors = useMemo(() => {
+    const set = new Set();
+    Object.values(nodes).forEach(node => {
+      if (node.signalColor) set.add(node.signalColor);
+    });
+    return set;
+  }, [nodes]);
+
   // Pre-compute wire colors to avoid recursive graph traversal per wire per render
   const connectionColorMap = useMemo(() => {
     const map = new Map();
@@ -1256,6 +1265,22 @@ export default function App() {
         return prev;
       }
       return { ...prev, [anchorId]: offset };
+    });
+  }, []);
+
+  // Unregister anchors (called when ports are deleted)
+  const unregisterAnchors = useCallback((anchorIds) => {
+    if (!anchorIds || anchorIds.length === 0) return;
+    setAnchorLocalOffsets(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of anchorIds) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
   }, []);
 
@@ -2154,8 +2179,10 @@ export default function App() {
                 onDelete={() => deleteNode(node.id)}
                 onAnchorClick={handleAnchorClick}
                 registerAnchor={registerAnchor}
+                unregisterAnchors={unregisterAnchors}
                 activeWire={activeWire}
                 connectedAnchorIds={connectedAnchorIds}
+                usedSignalColors={usedSignalColors}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {

@@ -31,15 +31,33 @@ const CONNECTOR_TYPES = [
   'HDMI', 'SDI', '12G SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
 ];
 
+// Signal colors in ranked priority order (1 = most preferred)
 const SIGNAL_COLORS = [
-  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
-  { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
-  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
-  { id: 'violet', hex: '#8b5cf6', label: 'Violet' },
-  { id: 'pink', hex: '#ec4899', label: 'Pink' },
-  { id: 'red', hex: '#ef4444', label: 'Red' },
-  { id: 'orange', hex: '#f97316', label: 'Orange' },
-  { id: 'yellow', hex: '#eab308', label: 'Yellow' },
+  { id: 'crimson', hex: '#e63946', label: 'Crimson' },
+  { id: 'vermilion', hex: '#d62828', label: 'Vermilion' },
+  { id: 'raspberry', hex: '#c9184a', label: 'Raspberry' },
+  { id: 'rose', hex: '#db5075', label: 'Rose' },
+  { id: 'maroon', hex: '#9b2226', label: 'Maroon' },
+  { id: 'marigold', hex: '#ff9f1c', label: 'Marigold' },
+  { id: 'burnt-orange', hex: '#d4700a', label: 'Burnt Orange' },
+  { id: 'antique-gold', hex: '#c4a35a', label: 'Antique Gold' },
+  { id: 'bronze', hex: '#bb7733', label: 'Bronze' },
+  { id: 'saddle', hex: '#a4641e', label: 'Saddle' },
+  { id: 'lime', hex: '#8ac926', label: 'Lime' },
+  { id: 'kelly-green', hex: '#38b000', label: 'Kelly Green' },
+  { id: 'fern', hex: '#6a994e', label: 'Fern' },
+  { id: 'forest', hex: '#2d6a4f', label: 'Forest' },
+  { id: 'olive', hex: '#606c38', label: 'Olive' },
+  { id: 'cornflower', hex: '#4895ef', label: 'Cornflower' },
+  { id: 'cerulean', hex: '#219ebc', label: 'Cerulean' },
+  { id: 'aqua', hex: '#2ec4b6', label: 'Aqua' },
+  { id: 'ocean', hex: '#168aad', label: 'Ocean' },
+  { id: 'deep-teal', hex: '#087e8b', label: 'Deep Teal' },
+  { id: 'ultraviolet', hex: '#8338ec', label: 'Ultraviolet' },
+  { id: 'indigo', hex: '#5e60ce', label: 'Indigo' },
+  { id: 'plum', hex: '#7b2d8e', label: 'Plum' },
+  { id: 'amethyst', hex: '#6c63a0', label: 'Amethyst' },
+  { id: 'midnight', hex: '#1d3557', label: 'Midnight' },
 ];
 
 // Signal colors lookup Map for O(1) access by id
@@ -116,7 +134,8 @@ const WHITE_TEXT_STYLE = { color: '#ffffff' };
 const stopPropagation = (e) => e.stopPropagation();
 
 // Generate cohesive color theme from signal color
-// Returns hex values for inline styles
+// Uses a SINGLE color for the entire node (header, system, input, output)
+// Gradients are preserved via opacity variations
 const getThemeColors = (signalColorId) => {
   // No color selected = neutral zinc theme
   if (!signalColorId) {
@@ -129,25 +148,28 @@ const getThemeColors = (signalColorId) => {
     };
   }
 
-  // Color family mappings - each signal color gets related variants
-  const themes = {
-    emerald: { base: 'emerald', system: 'teal',    input: 'emerald', output: 'green' },
-    cyan:    { base: 'cyan',    system: 'sky',     input: 'cyan',    output: 'teal' },
-    blue:    { base: 'blue',    system: 'indigo',  input: 'blue',    output: 'sky' },
-    violet:  { base: 'violet',  system: 'purple',  input: 'violet',  output: 'indigo' },
-    pink:    { base: 'pink',    system: 'fuchsia', input: 'pink',    output: 'rose' },
-    red:     { base: 'red',     system: 'rose',    input: 'red',     output: 'orange' },
-    orange:  { base: 'orange',  system: 'amber',   input: 'orange',  output: 'yellow' },
-    yellow:  { base: 'yellow',  system: 'amber',   input: 'yellow',  output: 'lime' },
-  };
+  // Look up the signal color from the list
+  const signalColor = SIGNAL_COLORS_BY_ID.get(signalColorId);
+  if (!signalColor) {
+    const zinc = HEX_COLORS.zinc;
+    return {
+      header: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      system: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      input:  { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      output: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+    };
+  }
 
-  const theme = themes[signalColorId] || themes.cyan;
+  // Use the SAME color for everything - gradients come from opacity
+  const hex = signalColor.hex;
+  // Generate lighter variant by adding transparency or computing lighter shade
+  const hexLight = hex + 'cc'; // 80% opacity for "light" variant
 
   return {
-    header: { hex: HEX_COLORS[theme.base][500],   hexLight: HEX_COLORS[theme.base][400] },
-    system: { hex: HEX_COLORS[theme.system][500], hexLight: HEX_COLORS[theme.system][400] },
-    input:  { hex: HEX_COLORS[theme.input][500],  hexLight: HEX_COLORS[theme.input][400] },
-    output: { hex: HEX_COLORS[theme.output][500], hexLight: HEX_COLORS[theme.output][400] },
+    header: { hex, hexLight },
+    system: { hex, hexLight },
+    input:  { hex, hexLight },
+    output: { hex, hexLight },
   };
 };
 
@@ -1285,9 +1307,26 @@ const CollapsedPortRow = memo(({
   columnWidths = {},
   connectedAnchorIds,
   themeColor,
+  isSideBySide = false,
+  onSpacingMouseDown,
 }) => {
   const isOutput = type === 'out';
   const isReversed = anchorSide === 'right';
+
+  // Spacing handle for inside column in side-by-side mode
+  const spacingHandle = useMemo(() => {
+    if (!isSideBySide || !onSpacingMouseDown) return null;
+    return (
+      <div
+        className="spacing-drag-handle nodrag shrink-0"
+        onMouseDown={(e) => onSpacingMouseDown(e, port.id, port.spacing || 0)}
+        title="Drag to adjust spacing"
+        style={SPACING_HANDLE_STYLE}
+      >
+        ⋮
+      </div>
+    );
+  }, [isSideBySide, onSpacingMouseDown, port.id, port.spacing]);
 
   // Check if connected
   const isConnected = useMemo(
@@ -1364,6 +1403,9 @@ const CollapsedPortRow = memo(({
 
   return (
     <div className={`flex items-center py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity ${isReversed ? 'justify-end' : ''}`}>
+      {/* Spacing handle on LEFT (inside) when reversed (INPUT on right in side-by-side) */}
+      {isReversed && spacingHandle}
+
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
@@ -1391,6 +1433,9 @@ const CollapsedPortRow = memo(({
           </div>
         );
       })}
+
+      {/* Spacing handle on RIGHT (inside) when NOT reversed (OUTPUT on left in side-by-side) */}
+      {!isReversed && spacingHandle}
     </div>
   );
 });
@@ -1832,6 +1877,7 @@ const IOSection = memo(({
   connectedAnchorIds,
   themeColor,
   sharedColumnWidths,
+  isSideBySide = false, // Whether IO sections are displayed side-by-side
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2141,19 +2187,22 @@ const IOSection = memo(({
 
           {/* Collapsed port rows - matches expanded PortRow structure */}
           {data.ports.map(port => (
-            <CollapsedPortRow
-              key={port.id}
-              port={port}
-              type={portType}
-              anchorSide={anchorSide}
-              anchorId={`${nodeId}-${port.id}`}
-              onAnchorClick={onAnchorClick}
-              signalColor={type === 'output' ? signalColor : null}
-              selectedColumns={collapsedColumns}
-              columnWidths={columnWidths}
-              connectedAnchorIds={connectedAnchorIds}
-              themeColor={themeColor}
-            />
+            <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
+              <CollapsedPortRow
+                port={port}
+                type={portType}
+                anchorSide={anchorSide}
+                anchorId={`${nodeId}-${port.id}`}
+                onAnchorClick={onAnchorClick}
+                signalColor={type === 'output' ? signalColor : null}
+                selectedColumns={collapsedColumns}
+                columnWidths={columnWidths}
+                connectedAnchorIds={connectedAnchorIds}
+                themeColor={themeColor}
+                isSideBySide={isSideBySide}
+                onSpacingMouseDown={handleSpacingMouseDown}
+              />
+            </div>
           ))}
         </div>
       ) : (
@@ -2563,7 +2612,7 @@ SystemSection.displayName = 'SystemSection';
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed, usedSignalColors }) => {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
 
@@ -2599,6 +2648,20 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     [signalColorObj]
   );
 
+  // Sort colors: unused first (in priority order), used colors at bottom
+  // Show top 10 unused, or all remaining + used if fewer than 8 unused
+  const sortedSignalColors = useMemo(() => {
+    const unused = SIGNAL_COLORS.filter(c => !usedSignalColors?.has(c.id));
+    const used = SIGNAL_COLORS.filter(c => usedSignalColors?.has(c.id));
+
+    // If 8 or fewer unused colors remain, show all of them plus used ones
+    if (unused.length <= 8) {
+      return [...unused, ...used];
+    }
+    // Otherwise show top 10 unused, then used colors
+    return [...unused.slice(0, 10), ...used];
+  }, [usedSignalColors]);
+
   const displayTitle = useMemo(() => {
     const softwareId = node.system?.software;
     if (!softwareId || softwareId === 'none') return node.title;
@@ -2621,6 +2684,18 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     });
     setShowSettings(false);
   }, [node.system, onUpdate]);
+
+  // Section visibility toggles
+  const toggleSectionVisibility = useCallback((section) => {
+    const visibleKey = `${section}Visible`;
+    const currentVisible = node.layout[visibleKey] !== false; // Default to true
+    onUpdate({ layout: { ...node.layout, [visibleKey]: !currentVisible } });
+  }, [node.layout, onUpdate]);
+
+  // Compute visibility states (default to true)
+  const inputVisible = node.layout.inputVisible !== false;
+  const outputVisible = node.layout.outputVisible !== false;
+  const systemVisible = node.layout.systemVisible !== false;
 
   // Use theme header colors (hex values for inline styles) - memoized
   const headerHex = useMemo(
@@ -2678,8 +2753,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
           </div>
         )}
 
-        {/* Signal color picker - rounded square style */}
-        <div className="relative">
+        {/* Signal color picker - rounded square style with name */}
+        <div className="relative flex items-center gap-1.5">
           <select
             value={node.signalColor || ''}
             onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
@@ -2689,17 +2764,23 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             style={DARK_COLOR_SCHEME_STYLE}
           >
             <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
-            {SIGNAL_COLORS.map(color => (
+            {sortedSignalColors.map(color => (
               <option key={color.id} value={color.id} className="bg-zinc-800 text-zinc-300">
-                {color.label}
+                {color.label}{usedSignalColors?.has(color.id) ? ' •' : ''}
               </option>
             ))}
           </select>
           <div
-            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
+            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 pointer-events-none"
             style={colorPickerStyle}
             title={signalLabel}
           />
+          {/* Show color name when selected */}
+          {signalColorObj && (
+            <span className="text-[10px] font-mono opacity-70 pointer-events-none" style={{ color: signalColorHex }}>
+              {signalColorObj.label}
+            </span>
+          )}
         </div>
       </div>
 
@@ -2757,6 +2838,46 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             >
               Reset System Settings
             </button>
+
+            {/* Section visibility divider */}
+            <div className="border-t border-zinc-600 my-1" />
+            <div className="px-3 py-1 text-[10px] text-zinc-500 uppercase tracking-wide">Sections</div>
+
+            {/* Input section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('input');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>Input Section</span>
+              <span className={inputVisible ? 'text-green-400' : 'text-zinc-500'}>{inputVisible ? '✓' : '○'}</span>
+            </button>
+
+            {/* Output section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('output');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>Output Section</span>
+              <span className={outputVisible ? 'text-green-400' : 'text-zinc-500'}>{outputVisible ? '✓' : '○'}</span>
+            </button>
+
+            {/* System section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('system');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>System Section</span>
+              <span className={systemVisible ? 'text-green-400' : 'text-zinc-500'}>{systemVisible ? '✓' : '○'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -2800,7 +2921,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, connectedAnchorIds }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
@@ -2811,10 +2932,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const [dragOverSection, setDragOverSection] = useState(null);
 
   const nodeRef = useRef(null);
+  const registeredAnchorsRef = useRef(new Set()); // Track anchors we've registered for cleanup
   const nodeScale = node.scale || 1;
 
   // Generate cohesive theme colors from signal color
   const themeColors = useMemo(() => getThemeColors(node.signalColor), [node.signalColor]);
+
+  // Section visibility flags (default to true)
+  const inputVisible = node.layout.inputVisible !== false;
+  const outputVisible = node.layout.outputVisible !== false;
+  const systemVisible = node.layout.systemVisible !== false;
 
   // Memoize divider gradient style for side-by-side sections
   // Gradient fades from solid at top to transparent at bottom
@@ -2872,24 +2999,27 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
 
   // Collapsed section widths - calculated from actual selected columns
-  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3)
+  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3) + spacing handle (20)
   const COLLAPSED_OUTER_PADDING = 8;  // px-1 on each side
   const COLLAPSED_DIVIDER = 5;        // 1px line + mx-0.5 margins (2px each side)
   const COLLAPSED_EDGE_DIVIDER = 3;   // 1px line + ml-0.5 or mr-0.5 (2px)
   const ANCHOR_WIDTH = 24;
+  const COLLAPSED_SPACING_HANDLE = 20; // Spacing handle on inside column (side-by-side only)
 
   const inputCollapsedWidth = useMemo(() => {
     const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
-    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER;
+    // Include spacing handle width (used in side-by-side mode)
+    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
   }, [sharedColumnWidths, inputCollapsedColumns]);
 
   const outputCollapsedWidth = useMemo(() => {
     const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
-    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER;
+    // Include spacing handle width (used in side-by-side mode)
+    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
   }, [sharedColumnWidths, outputCollapsedColumns]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
@@ -2912,50 +3042,106 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // ===========================================
 
   // Get rows from layout (default: all sections stacked)
+  // Filter out hidden sections and force stacked layout when only one I/O section is visible
   const layoutRows = useMemo(() => {
+    // Build visibility map
+    const visibilityMap = {
+      input: inputVisible,
+      output: outputVisible,
+      system: systemVisible,
+    };
+
+    let rows;
     if (node.layout.rows) {
-      return node.layout.rows;
+      rows = node.layout.rows;
+    } else {
+      // Fallback: convert sectionOrder to rows
+      const sectionOrder = node.layout.sectionOrder || ['system', 'input', 'output'];
+      rows = sectionOrder.map(s => [s]);
     }
-    // Fallback: convert sectionOrder to rows
-    const sectionOrder = node.layout.sectionOrder || ['system', 'input', 'output'];
-    return sectionOrder.map(s => [s]);
-  }, [node.layout.rows, node.layout.sectionOrder]);
+
+    // Filter out hidden sections from each row
+    const filteredRows = rows
+      .map(row => row.filter(section => visibilityMap[section]))
+      .filter(row => row.length > 0); // Remove empty rows
+
+    // ENFORCE: If only one I/O section is visible, it cannot be side-by-side
+    // Split any row that has a single I/O section alongside nothing (already handled by filter)
+    // But also: if Input or Output is hidden, the other cannot be side-by-side with System
+    // System can NEVER be side-by-side anyway, so this is mainly about I/O together
+    // If one of Input/Output is hidden, the visible one should be in its own row (stacked)
+    const bothIOVisible = inputVisible && outputVisible;
+    if (!bothIOVisible) {
+      // Force each section into its own row (stacked layout)
+      return filteredRows.flatMap(row => row.map(section => [section]));
+    }
+
+    return filteredRows;
+  }, [node.layout.rows, node.layout.sectionOrder, inputVisible, outputVisible, systemVisible]);
 
   // Compute anchor local offsets via scoped DOM queries (only when layout changes)
+  // Only register anchors for visible sections
   useLayoutEffect(() => {
     if (!registerAnchor || !nodeRef.current) return;
     const scale = node.scale || 1;
     const nodeRect = nodeRef.current.getBoundingClientRect();
     const totalScale = zoom * scale;
 
-    node.inputSection.ports.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
-      if (anchorEl) {
-        const r = anchorEl.getBoundingClientRect();
-        registerAnchor(anchorId, {
-          nodeId: node.id,
-          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
-          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'in'
-        });
-      }
-    });
+    // Build set of current anchor IDs from ports (only for visible sections)
+    const currentAnchorIds = new Set();
 
-    node.outputSection.ports.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
-      if (anchorEl) {
-        const r = anchorEl.getBoundingClientRect();
-        registerAnchor(anchorId, {
-          nodeId: node.id,
-          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
-          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'out'
-        });
+    // Only register input anchors if input section is visible
+    if (inputVisible) {
+      node.inputSection.ports.forEach((port) => {
+        const anchorId = `${node.id}-${port.id}`;
+        currentAnchorIds.add(anchorId);
+        const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+        if (anchorEl) {
+          const r = anchorEl.getBoundingClientRect();
+          registerAnchor(anchorId, {
+            nodeId: node.id,
+            localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+            localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+            type: 'in'
+          });
+        }
+      });
+    }
+
+    // Only register output anchors if output section is visible
+    if (outputVisible) {
+      node.outputSection.ports.forEach((port) => {
+        const anchorId = `${node.id}-${port.id}`;
+        currentAnchorIds.add(anchorId);
+        const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+        if (anchorEl) {
+          const r = anchorEl.getBoundingClientRect();
+          registerAnchor(anchorId, {
+            nodeId: node.id,
+            localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+            localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+            type: 'out'
+          });
+        }
+      });
+    }
+
+    // Clean up stale anchors that no longer exist
+    if (unregisterAnchors) {
+      const staleAnchors = [];
+      for (const anchorId of registeredAnchorsRef.current) {
+        if (!currentAnchorIds.has(anchorId)) {
+          staleAnchors.push(anchorId);
+        }
       }
-    });
-  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
+      if (staleAnchors.length > 0) {
+        unregisterAnchors(staleAnchors);
+      }
+    }
+
+    // Update tracked anchors
+    registeredAnchorsRef.current = currentAnchorIds;
+  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, unregisterAnchors, node.id, zoom, inputVisible, outputVisible]);
 
   // Resize handling
   const handleResizeStart = useCallback((e) => {
@@ -3464,6 +3650,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            isSideBySide={areIOSideBySide}
           />
         );
       case 'output':
@@ -3487,6 +3674,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            isSideBySide={areIOSideBySide}
           />
         );
       default:
@@ -3691,6 +3879,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         areIOSideBySide={areIOSideBySide}
         inputCollapsed={node.layout.inputCollapsed}
         outputCollapsed={node.layout.outputCollapsed}
+        usedSignalColors={usedSignalColors}
       />
 
       {/* Row-based layout */}
@@ -3825,6 +4014,8 @@ export default memo(SuperNode, (prev, next) =>
   prev.onDelete === next.onDelete &&
   prev.onAnchorClick === next.onAnchorClick &&
   prev.registerAnchor === next.registerAnchor &&
+  prev.unregisterAnchors === next.unregisterAnchors &&
   prev.onSelect === next.onSelect &&
-  prev.connectedAnchorIds === next.connectedAnchorIds
+  prev.connectedAnchorIds === next.connectedAnchorIds &&
+  prev.usedSignalColors === next.usedSignalColors
 );
