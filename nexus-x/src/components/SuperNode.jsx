@@ -118,6 +118,9 @@ const WHITE_TEXT_STYLE = { color: '#ffffff' };
 // Shared event handlers (prevents anonymous function creation)
 const stopPropagation = (e) => e.stopPropagation();
 
+// Helper to check if section is INPUT or OUTPUT (not SYSTEM)
+const isIOSectionType = (sectionId) => sectionId === 'input' || sectionId === 'output';
+
 // Reusable drag-and-drop reorder hook (used by ColumnHeaders and CollapsedColumnHeaders)
 function useDragReorder(order, onReorder) {
   const [draggedItem, setDraggedItem] = useState(null);
@@ -1309,21 +1312,15 @@ const DraggableSection = memo(({
   draggedSection, // What section is currently being dragged
 }) => {
   // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
-  // System can NEVER be side-by-side with anything (memoized)
-  const isIOSection = useMemo(() => sectionId === 'input' || sectionId === 'output', [sectionId]);
-  const isDraggingIO = useMemo(() => draggedSection === 'input' || draggedSection === 'output', [draggedSection]);
+  // System can NEVER be side-by-side with anything
+  const isIOSection = isIOSectionType(sectionId);
+  const isDraggingIO = isIOSectionType(draggedSection);
 
-  // Determine drop zone mode (memoized)
+  // Determine drop zone mode
   // - Both left and right = stacked mode (show 3 zones: left, center/swap, right)
   // - Only left OR only right = side-by-side swap (show full-width zone)
-  const showThreeZones = useMemo(
-    () => showLeftDropZone && showRightDropZone,
-    [showLeftDropZone, showRightDropZone]
-  );
-  const showFullWidthSwap = useMemo(
-    () => (showLeftDropZone || showRightDropZone) && !showThreeZones,
-    [showLeftDropZone, showRightDropZone, showThreeZones]
-  );
+  const showThreeZones = showLeftDropZone && showRightDropZone;
+  const showFullWidthSwap = (showLeftDropZone || showRightDropZone) && !showThreeZones;
 
   // Memoized event handlers
   const handleDragOver = useCallback((e) => onDragOver(e, sectionId), [onDragOver, sectionId]);
@@ -3510,7 +3507,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     // When collapsed, don't use flex-1 (let it shrink to content)
     if (isCollapsed) return '';
     // When expanded, don't use flex-1 if we have a fixed width
-    const hasFixedWidth = (sectionId === 'input' || sectionId === 'output') && (inputSectionWidth || outputSectionWidth);
+    const hasFixedWidth = isIOSectionType(sectionId) && (inputSectionWidth || outputSectionWidth);
     if (hasFixedWidth) return '';
     // Fallback: use flex-1
     return 'flex-1';
@@ -3563,8 +3560,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
   // Calculate drop zone visibility for a section (memoized to prevent recalculation in render loop)
   const calculateDropZones = useCallback((sectionId, rowIndex, colIndex) => {
-    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-    const isTargetIO = sectionId === 'input' || sectionId === 'output';
+    const isDraggingIO = isIOSectionType(draggedSection);
+    const isTargetIO = isIOSectionType(sectionId);
     let showLeftDropZone = false;
     let showRightDropZone = false;
 
@@ -3622,7 +3619,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     }
     // IO sections: show bottom zone ONLY when side-by-side
     // In stacked mode, use the three-zone drop area on adjacent section instead
-    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+    const isDraggingIO = isIOSectionType(draggedSection);
     if (isDraggingIO) {
       const isSideBySide = layoutRows[draggedSectionRowIndex]?.length > 1;
       // Show bottom zone only if side-by-side

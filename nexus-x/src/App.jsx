@@ -31,6 +31,9 @@ const SIGNAL_COLORS = [
 const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
 const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
 
+// Extract nodeId from anchorId (format: "node-123-portId" -> "node-123")
+const getNodeIdFromAnchor = (anchorId) => anchorId.split('-').slice(0, -1).join('-');
+
 // Dash patterns for enhanced wires
 const DASH_PATTERNS = [
   { id: 'solid', pattern: null, label: '───' },
@@ -681,7 +684,7 @@ export default function App() {
     if (visited.has(anchorId)) return null;
     visited.add(anchorId);
 
-    const nodeId = anchorId.split('-')[0] + '-' + anchorId.split('-')[1];
+    const nodeId = getNodeIdFromAnchor(anchorId);
     const node = nodes[nodeId];
 
     if (!node) return null;
@@ -701,7 +704,7 @@ export default function App() {
   // Get signal color for a connection
   const getConnectionColor = useCallback((conn) => {
     const sourceAnchorId = conn.from;
-    const nodeId = sourceAnchorId.split('-').slice(0, 2).join('-');
+    const nodeId = getNodeIdFromAnchor(sourceAnchorId);
     const node = nodes[nodeId];
 
     if (node?.signalColor) {
@@ -1381,8 +1384,8 @@ export default function App() {
   }, [centerPage]);
 
   // Fallback download for browsers without File System Access API
-  const fallbackDownload = (content, fileName) => {
-    const blob = new Blob([content], { type: 'application/json' });
+  const fallbackDownload = (content, fileName, type = 'application/json') => {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1513,13 +1516,7 @@ export default function App() {
     });
 
     // Download as file
-    const blob = new Blob([output], { type: 'text/javascript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'user-presets-export.js';
-    a.click();
-    URL.revokeObjectURL(url);
+    fallbackDownload(output, 'user-presets-export.js', 'text/javascript');
 
     alert(`Exported ${Object.keys(userPresets).length} preset categories!\n\nCheck your downloads for: user-presets-export.js\n\nCopy the code and paste into nodePresets.js, then commit to Git.`);
   }, [userPresets]);
@@ -2016,8 +2013,7 @@ export default function App() {
               const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
               const isConnected = connectedAnchorIds.has(anchorId);
 
-              // Extract node ID from anchor ID (format: nodeId-portId)
-              const nodeId = anchorId.split('-').slice(0, -1).join('-');
+              const nodeId = getNodeIdFromAnchor(anchorId);
               const node = nodes[nodeId];
               const nodeColor = node?.signalColor;
 
