@@ -504,6 +504,16 @@ const DEFAULT_COLLAPSED_COLUMNS_OUTPUT = ['port', 'destination'];
 const MAX_COLLAPSED_COLUMNS = 3;
 const MIN_COLLAPSED_COLUMNS = 1;
 
+// Fixed widths for collapsed columns (ensures header/data alignment)
+const COLLAPSED_COLUMN_WIDTHS = {
+  port: 45,
+  source: 90,
+  destination: 90,
+  connector: 50,
+  resolution: 75,
+  rate: 45,
+};
+
 // Width calculation constants
 const CHAR_WIDTH = 7; // Character width for text estimation
 const PADDING = 16; // Padding inside cells
@@ -1261,11 +1271,12 @@ const CollapsedColumnHeaders = memo(({
       {isReversed && gearButton}
 
       {/* Draggable column headers with dividers */}
-      <div className={`flex items-center flex-1 ${isReversed ? 'justify-end' : ''}`}>
+      <div className={`flex items-center ${isReversed ? 'justify-end' : ''}`}>
         {columnOrder.map((colId, index) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
           const isLast = index === columnOrder.length - 1;
+          const colWidth = COLLAPSED_COLUMN_WIDTHS[colId] || 60;
 
           return (
             <span
@@ -1276,6 +1287,7 @@ const CollapsedColumnHeaders = memo(({
               onDrop={(e) => handleDrop(e, colId)}
               onDragEnd={handleDragEnd}
               className={`cursor-grab select-none px-2 ${isDragging ? 'opacity-50' : ''} ${!isLast ? 'border-r border-zinc-600/50' : ''}`}
+              style={{ width: colWidth, minWidth: colWidth }}
             >
               {colDef?.label || colId.toUpperCase()}
             </span>
@@ -1992,27 +2004,32 @@ const IOSection = memo(({
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            // Helper to get cell content with divider
+            // Helper to get cell content with divider and fixed width
             const getCellContent = (colId, isLast) => {
+              const colWidth = COLLAPSED_COLUMN_WIDTHS[colId] || 60;
               const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono px-2 ${!isLast ? 'border-r border-zinc-600/50' : ''}`;
+              const cellStyle = { width: colWidth, minWidth: colWidth };
 
               switch (colId) {
                 case 'port':
-                  return <span key={colId} className={cellClass}>{portLabel}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{portLabel}</span>;
                 case 'source':
-                  return <span key={colId} className={cellClass}>{port.source || ''}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{port.source || ''}</span>;
                 case 'destination':
-                  return <span key={colId} className={cellClass}>{port.destination || ''}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{port.destination || ''}</span>;
                 case 'connector':
-                  return <span key={colId} className={cellClass}>{port.connector || ''}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{port.connector || ''}</span>;
                 case 'resolution':
-                  return <span key={colId} className={cellClass}>{port.resolution || ''}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{port.resolution || ''}</span>;
                 case 'rate':
-                  return <span key={colId} className={cellClass}>{port.refreshRate || ''}</span>;
+                  return <span key={colId} className={cellClass} style={cellStyle}>{port.refreshRate || ''}</span>;
                 default:
                   return null;
               }
             };
+
+            // Gear spacer (matches gear button width for alignment)
+            const gearSpacer = <span className="shrink-0" style={{ width: 20 }} />;
 
             // Anchor element (fixed on outside edge)
             const anchorElement = (
@@ -2039,10 +2056,16 @@ const IOSection = memo(({
                 {/* Anchor on LEFT for input sections */}
                 {!shouldAnchorBeOnRight && anchorElement}
 
+                {/* Gear spacer on LEFT for output sections (matches header) */}
+                {shouldAnchorBeOnRight && gearSpacer}
+
                 {/* Column data with dividers */}
-                <div className={`flex items-center flex-1 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
+                <div className={`flex items-center ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
                   {collapsedColumns.map((colId, index) => getCellContent(colId, index === collapsedColumns.length - 1))}
                 </div>
+
+                {/* Gear spacer on RIGHT for input sections (matches header) */}
+                {!shouldAnchorBeOnRight && gearSpacer}
 
                 {/* Anchor on RIGHT for output sections */}
                 {shouldAnchorBeOnRight && anchorElement}
