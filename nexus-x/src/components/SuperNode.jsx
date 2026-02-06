@@ -1232,24 +1232,20 @@ const CollapsedColumnHeaders = memo(({
   // Drag-and-drop reordering (shared hook)
   const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(columnOrder, onReorderColumns);
 
-  // Build render order with anchor position (mirror columns for right-side anchor)
-  const renderOrder = useMemo(() =>
-    isReversed ? [[...columnOrder].reverse(), 'anchor'].flat() : ['anchor', ...columnOrder],
-    [isReversed, columnOrder]
-  );
+  // Anchor element (fixed on outside edge, never moves)
+  const anchorSpacer = <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
 
   return (
     <div
       className={`flex items-center py-1 px-2 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide relative w-full
-        ${isReversed ? 'flex-row-reverse' : ''}`}
+        text-[10px] font-mono text-white uppercase tracking-wide relative w-full`}
     >
-      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'flex-row-reverse' : ''}`}>
-        {renderOrder.map((colId) => {
-          if (colId === 'anchor') {
-            return <span key="anchor" className="shrink-0" style={SPACING_COLUMN_STYLE} />;
-          }
+      {/* Anchor on LEFT for input sections */}
+      {!isReversed && anchorSpacer}
 
+      {/* Draggable column headers */}
+      <div className={`flex items-center flex-1 gap-3 ${isReversed ? 'justify-end' : ''}`}>
+        {columnOrder.map((colId) => {
           const colDef = COLUMN_DEFS[colId];
           const isDragging = draggedColumn === colId;
 
@@ -1275,11 +1271,14 @@ const CollapsedColumnHeaders = memo(({
           e.stopPropagation();
           onOpenSettings();
         }}
-        className="text-zinc-400 hover:text-white text-[10px] px-1 ml-auto shrink-0"
+        className="text-zinc-400 hover:text-white text-[10px] px-1 shrink-0"
         title="Configure columns"
       >
         ⚙
       </button>
+
+      {/* Anchor on RIGHT for output sections */}
+      {isReversed && anchorSpacer}
 
       {showSettings && (
         <CollapsedColumnSelector
@@ -1984,15 +1983,9 @@ const IOSection = memo(({
             const anchorType = isOutput ? 'out' : 'in';
             const anchorStyle = isOutput ? outputAnchorStyle : inputAnchorStyle;
 
-            // Build render order based on anchor side (mirror columns for right-side anchor)
-            const renderCols = shouldAnchorBeOnRight
-              ? [[...collapsedColumns].reverse(), 'anchor'].flat()
-              : ['anchor', ...collapsedColumns];
-
             // Helper to get cell content
             const getCellContent = (colId) => {
-              const textAlign = shouldAnchorBeOnRight ? 'text-right' : 'text-left';
-              const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono ${textAlign}`;
+              const cellClass = `text-[10px] text-white truncate overflow-hidden uppercase font-mono`;
 
               switch (colId) {
                 case 'port':
@@ -2012,33 +2005,38 @@ const IOSection = memo(({
               }
             };
 
+            // Anchor element (fixed on outside edge)
+            const anchorElement = (
+              <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
+                <div
+                  data-anchor-id={anchorId}
+                  data-anchor-type={anchorType}
+                  className="w-2 h-2 rounded-full cursor-pointer"
+                  style={anchorStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAnchorClick && onAnchorClick(anchorId, anchorType);
+                  }}
+                  title={portTitle}
+                />
+              </span>
+            );
+
             return (
               <div
                 key={port.id}
-                className={`flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}
+                className="flex items-center py-1.5 px-2 w-full opacity-40 hover:opacity-100 transition-opacity"
               >
-                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'flex-row-reverse' : ''}`}>
-                  {renderCols.map((colId) => {
-                    if (colId === 'anchor') {
-                      return (
-                        <span key="anchor" className="shrink-0 flex items-center justify-center" style={SPACING_COLUMN_STYLE}>
-                          <div
-                            data-anchor-id={anchorId}
-                            data-anchor-type={anchorType}
-                            className="w-2 h-2 rounded-full cursor-pointer"
-                            style={anchorStyle}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAnchorClick && onAnchorClick(anchorId, anchorType);
-                            }}
-                            title={portTitle}
-                          />
-                        </span>
-                      );
-                    }
-                    return getCellContent(colId);
-                  })}
+                {/* Anchor on LEFT for input sections */}
+                {!shouldAnchorBeOnRight && anchorElement}
+
+                {/* Column data */}
+                <div className={`flex items-center flex-1 gap-3 ${shouldAnchorBeOnRight ? 'justify-end' : ''}`}>
+                  {collapsedColumns.map((colId) => getCellContent(colId))}
                 </div>
+
+                {/* Anchor on RIGHT for output sections */}
+                {shouldAnchorBeOnRight && anchorElement}
               </div>
             );
           })}
