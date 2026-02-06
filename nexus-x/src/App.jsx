@@ -27,6 +27,10 @@ const SIGNAL_COLORS = [
   { id: 'yellow', hex: '#eab308' },
 ];
 
+// Signal colors lookup Map for O(1) access by id
+const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
+const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
+
 // Dash patterns for enhanced wires
 const DASH_PATTERNS = [
   { id: 'solid', pattern: null, label: '───' },
@@ -521,7 +525,6 @@ export default function App() {
 
   // Move a subcategory into or out of another subcategory
   const moveSubcategory = (categoryId, subcategoryId, newParentId) => {
-    console.log('moveSubcategory called:', { categoryId, subcategoryId, newParentId });
     setUserSubcategories(prev => {
       const updated = { ...prev };
 
@@ -532,7 +535,6 @@ export default function App() {
 
       if (updated[categoryId][subcategoryId]) {
         // Subcategory already in userSubcategories, just update parentId
-        console.log('Moving existing user subcategory:', subcategoryId, 'to parent:', newParentId);
         updated[categoryId] = {
           ...updated[categoryId],
           [subcategoryId]: {
@@ -547,7 +549,6 @@ export default function App() {
         const baseSub = baseSubcats.find(s => s.id === subcategoryId);
 
         if (baseSub) {
-          console.log('Adding built-in subcategory to userSubcategories:', subcategoryId, 'with parent:', newParentId);
           updated[categoryId] = {
             ...updated[categoryId],
             [subcategoryId]: {
@@ -556,8 +557,6 @@ export default function App() {
               parentId: newParentId
             }
           };
-        } else {
-          console.log('Subcategory not found:', subcategoryId);
         }
       }
 
@@ -734,7 +733,6 @@ export default function App() {
 
   // Connection management
   const handleAnchorClick = (anchorId, direction) => {
-    console.log('handleAnchorClick called:', anchorId, direction);
     if (!activeWire) {
       setActiveWire({ from: anchorId, direction });
     } else {
@@ -1063,8 +1061,8 @@ export default function App() {
     centerPage();
   };
 
-  // Zoom in/out from center of viewport
-  const zoomIn = useCallback(() => {
+  // Zoom at viewport center (shared logic for zoom in/out)
+  const zoomAtCenter = useCallback((newZoom) => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -1072,7 +1070,6 @@ export default function App() {
     const cy = rect.height / 2;
     const prev = zoomRef.current;
     const prevPan = panRef.current;
-    const newZoom = Math.min(prev * 1.2, 8);
     setZoom(newZoom);
     setPan({
       x: cx - ((cx - prevPan.x) / prev) * newZoom,
@@ -1080,21 +1077,13 @@ export default function App() {
     });
   }, []);
 
+  const zoomIn = useCallback(() => {
+    zoomAtCenter(Math.min(zoomRef.current * 1.2, 8));
+  }, [zoomAtCenter]);
+
   const zoomOut = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const cx = rect.width / 2;
-    const cy = rect.height / 2;
-    const prev = zoomRef.current;
-    const prevPan = panRef.current;
-    const newZoom = Math.max(prev * 0.8, 0.05);
-    setZoom(newZoom);
-    setPan({
-      x: cx - ((cx - prevPan.x) / prev) * newZoom,
-      y: cy - ((cy - prevPan.y) / prev) * newZoom,
-    });
-  }, []);
+    zoomAtCenter(Math.max(zoomRef.current * 0.8, 0.05));
+  }, [zoomAtCenter]);
 
   // Center page on mount and whenever canvas dimensions change (orientation, paper size)
   // rAF handles fast updates; timeout fallback catches initial load when flex layout isn't ready yet
@@ -2032,18 +2021,8 @@ export default function App() {
               const node = nodes[nodeId];
               const nodeColor = node?.signalColor;
 
-              // Get node's theme color (use header color)
-              const getNodeThemeColor = (signalColorId) => {
-                if (!signalColorId) return '#71717a'; // zinc-500 default
-                const colorMap = {
-                  emerald: '#10b981', cyan: '#06b6d4', blue: '#3b82f6',
-                  violet: '#8b5cf6', pink: '#ec4899', red: '#ef4444',
-                  orange: '#f97316', yellow: '#eab308'
-                };
-                return colorMap[signalColorId] || '#71717a';
-              };
-
-              const themeColor = getNodeThemeColor(nodeColor);
+              // Get node's theme color (use Map lookup)
+              const themeColor = SIGNAL_COLORS_BY_ID.get(nodeColor) || DEFAULT_THEME_COLOR;
               const themeLightColor = themeColor + 'cc'; // Add alpha for lighter version
 
               // Show dim/off when not connected, lit with theme color when connected

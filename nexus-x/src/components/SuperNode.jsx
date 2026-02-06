@@ -118,6 +118,49 @@ const WHITE_TEXT_STYLE = { color: '#ffffff' };
 // Shared event handlers (prevents anonymous function creation)
 const stopPropagation = (e) => e.stopPropagation();
 
+// Reusable drag-and-drop reorder hook (used by ColumnHeaders and CollapsedColumnHeaders)
+function useDragReorder(order, onReorder) {
+  const [draggedItem, setDraggedItem] = useState(null);
+
+  const handleDragStart = useCallback((e, itemId) => {
+    e.stopPropagation();
+    setDraggedItem(itemId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('reorder', itemId);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e, targetId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedItem || draggedItem === targetId || !onReorder) {
+      setDraggedItem(null);
+      return;
+    }
+    const newOrder = [...order];
+    const dragIdx = newOrder.indexOf(draggedItem);
+    const targetIdx = newOrder.indexOf(targetId);
+    if (dragIdx === -1 || targetIdx === -1) {
+      setDraggedItem(null);
+      return;
+    }
+    newOrder.splice(dragIdx, 1);
+    newOrder.splice(targetIdx, 0, draggedItem);
+    onReorder(newOrder);
+    setDraggedItem(null);
+  }, [draggedItem, order, onReorder]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedItem(null);
+  }, []);
+
+  return { draggedItem, handleDragStart, handleDragOver, handleDrop, handleDragEnd };
+}
+
 // Generate cohesive color theme from signal color
 // Returns hex values for inline styles
 const getThemeColors = (signalColorId) => {
@@ -987,7 +1030,6 @@ PortRow.displayName = 'PortRow';
 
 const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
   const isReversed = anchorSide === 'right';
-  const [draggedColumn, setDraggedColumn] = useState(null);
 
   // Get width for a column (use dynamic width if available, else minWidth)
   const getColumnWidth = useCallback((colId) => {
@@ -996,6 +1038,9 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
+
+  // Drag-and-drop reordering (shared hook)
+  const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(dataOrder, onReorderColumns);
 
   // Selection state indicator
   const getSelectionIndicator = useCallback(() => {
@@ -1017,48 +1062,6 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
     });
     return styles;
   }, [fullColumnOrder, getColumnWidth]);
-
-  const handleDragStart = useCallback((e, colId) => {
-    e.stopPropagation();
-    setDraggedColumn(colId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('column-reorder', colId);
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback((e, targetColId) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!draggedColumn || draggedColumn === targetColId || !onReorderColumns) {
-      setDraggedColumn(null);
-      return;
-    }
-
-    // Work with base data order (not reversed, not including anchor/delete/flip)
-    const newOrder = [...dataOrder];
-    const dragIdx = newOrder.indexOf(draggedColumn);
-    const targetIdx = newOrder.indexOf(targetColId);
-
-    if (dragIdx === -1 || targetIdx === -1) {
-      setDraggedColumn(null);
-      return;
-    }
-
-    newOrder.splice(dragIdx, 1);
-    newOrder.splice(targetIdx, 0, draggedColumn);
-
-    onReorderColumns(newOrder);
-    setDraggedColumn(null);
-  }, [draggedColumn, dataOrder, onReorderColumns]);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedColumn(null);
-  }, []);
 
   return (
     <div
@@ -1222,46 +1225,9 @@ const CollapsedColumnHeaders = memo(({
   onCloseSettings,
 }) => {
   const isReversed = anchorSide === 'right';
-  const [draggedColumn, setDraggedColumn] = useState(null);
 
-  const handleDragStart = useCallback((e, colId) => {
-    e.stopPropagation();
-    setDraggedColumn(colId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('collapsed-column-reorder', colId);
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback((e, targetColId) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!draggedColumn || draggedColumn === targetColId || !onReorderColumns) {
-      setDraggedColumn(null);
-      return;
-    }
-
-    const newOrder = [...columnOrder];
-    const dragIdx = newOrder.indexOf(draggedColumn);
-    const targetIdx = newOrder.indexOf(targetColId);
-
-    if (dragIdx === -1 || targetIdx === -1) {
-      setDraggedColumn(null);
-      return;
-    }
-
-    newOrder.splice(dragIdx, 1);
-    newOrder.splice(targetIdx, 0, draggedColumn);
-
-    onReorderColumns(newOrder);
-    setDraggedColumn(null);
-  }, [draggedColumn, columnOrder, onReorderColumns]);
-
-  const handleDragEnd = useCallback(() => setDraggedColumn(null), []);
+  // Drag-and-drop reordering (shared hook)
+  const { draggedItem: draggedColumn, handleDragStart, handleDragOver, handleDrop, handleDragEnd } = useDragReorder(columnOrder, onReorderColumns);
 
   // Build render order with anchor position
   const renderOrder = useMemo(() =>
