@@ -1288,7 +1288,6 @@ const CollapsedColumnHeaders = memo(({
   selectedColumns,
   onReorderColumns,
   columnWidths = {},
-  isSideBySide = false,
 }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
@@ -1361,8 +1360,8 @@ const CollapsedColumnHeaders = memo(({
       className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
     >
-      {/* Spacer to match spacing handle column when reversed (side-by-side only) */}
-      {isSideBySide && isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when reversed */}
+      {isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
 
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1393,10 +1392,10 @@ const CollapsedColumnHeaders = memo(({
               onMouseDown={(e) => e.stopPropagation()}
               onDragStart={isDraggable ? (e) => handleDragStart(e, colId) : undefined}
               onDragEnd={handleDragEnd}
-              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1 min-w-0' : 'shrink-0'}
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1' : 'shrink-0'}
                 ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                 ${isDragging ? 'opacity-50' : ''}`}
-              style={isFlexColumn ? undefined : columnStyles[colId]}
+              style={columnStyles[colId]}
               title={isDraggable ? "Drag to reorder" : undefined}
             >
               {colDef.label}
@@ -1409,8 +1408,8 @@ const CollapsedColumnHeaders = memo(({
         );
       })}
 
-      {/* Spacer to match spacing handle column when NOT reversed (side-by-side only) */}
-      {isSideBySide && !isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when NOT reversed */}
+      {!isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
     </div>
   );
 });
@@ -1430,15 +1429,14 @@ const CollapsedPortRow = memo(({
   selectedColumns,
   columnWidths = {},
   connectedAnchorIds,
-  isSideBySide = false,
   onSpacingMouseDown,
 }) => {
   const isOutput = type === 'out';
   const isReversed = anchorSide === 'right';
 
-  // Spacing handle for inside column in side-by-side mode
+  // Spacing handle - shows on opposite side of anchor (both stacked and side-by-side)
   const spacingHandle = useMemo(() => {
-    if (!isSideBySide || !onSpacingMouseDown) return null;
+    if (!onSpacingMouseDown) return null;
     return (
       <div className="flex items-center justify-center shrink-0" style={{ width: '24px' }}>
         <div
@@ -1451,7 +1449,7 @@ const CollapsedPortRow = memo(({
         </div>
       </div>
     );
-  }, [isSideBySide, onSpacingMouseDown, port.id, port.spacing]);
+  }, [onSpacingMouseDown, port.id, port.spacing]);
 
   // Check if connected
   const isConnected = useMemo(
@@ -1547,8 +1545,8 @@ const CollapsedPortRow = memo(({
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
             )}
             <span
-              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1 min-w-0' : 'shrink-0'}`}
-              style={isFlexColumn ? undefined : { minWidth: `${getColumnWidth(colId)}px` }}
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1' : 'shrink-0'}`}
+              style={{ minWidth: `${getColumnWidth(colId)}px` }}
             >
               {renderColumnContent(colId)}
             </span>
@@ -1999,7 +1997,6 @@ const IOSection = memo(({
   connectedAnchorIds,
   sharedColumnWidths,
   sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
-  isSideBySide = false, // Whether IO sections are displayed side-by-side
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2344,7 +2341,6 @@ const IOSection = memo(({
               selectedColumns={collapsedColumns}
               onReorderColumns={updateCollapsedColumns}
               columnWidths={collapsedColumnWidths}
-              isSideBySide={isSideBySide}
             />
           )}
 
@@ -2372,7 +2368,6 @@ const IOSection = memo(({
                 selectedColumns={collapsedColumns}
                 columnWidths={collapsedColumnWidths}
                 connectedAnchorIds={connectedAnchorIds}
-                isSideBySide={isSideBySide}
                 onSpacingMouseDown={handleSpacingMouseDown}
               />
             </div>
@@ -3339,24 +3334,22 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
-    // Only include spacing handle width in side-by-side mode
-    const spacingHandleWidth = ioSideBySide ? COLLAPSED_SPACING_HANDLE : 0;
-    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + spacingHandleWidth;
+    // Always include spacing handle width (shown in both stacked and side-by-side)
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
     // Ensure section is at least as wide as the header (header sets minimum floor)
     return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
-  }, [sharedCollapsedColumnWidths, inputCollapsedColumns, ioSideBySide]);
+  }, [sharedCollapsedColumnWidths, inputCollapsedColumns]);
 
   const outputCollapsedWidth = useMemo(() => {
     // Use COLLAPSED column widths (tighter, no dropdown padding)
     const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
-    // Only include spacing handle width in side-by-side mode
-    const spacingHandleWidth = ioSideBySide ? COLLAPSED_SPACING_HANDLE : 0;
-    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + spacingHandleWidth;
+    // Always include spacing handle width (shown in both stacked and side-by-side)
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
     // Ensure section is at least as wide as the header (header sets minimum floor)
     return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
-  }, [sharedCollapsedColumnWidths, outputCollapsedColumns, ioSideBySide]);
+  }, [sharedCollapsedColumnWidths, outputCollapsedColumns]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -4030,7 +4023,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
-            isSideBySide={areIOSideBySide}
           />
         );
       case 'output':
@@ -4053,7 +4045,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
-            isSideBySide={areIOSideBySide}
           />
         );
       default:
