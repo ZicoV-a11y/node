@@ -330,7 +330,7 @@ const SelectWithCustom = memo(({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full max-w-full overflow-hidden text-ellipsis text-center ${
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -824,22 +824,14 @@ TopDropZone.displayName = 'TopDropZone';
 // ============================================
 
 // Visible anchor point built into the node column
-const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
-  const isInput = type === 'in';
-
-  // Use theme color if provided, otherwise fallback to signal color or default (memoized)
-  const baseColor = useMemo(
-    () => themeColor || (isInput ? HEX_COLORS.zinc[500] : (signalColor || HEX_COLORS.zinc[500])),
-    [themeColor, isInput, signalColor]
-  );
-  const lightColor = useMemo(
-    () => themeColor ? `${themeColor}cc` : (isInput ? HEX_COLORS.zinc[400] : (signalColor ? `${signalColor}cc` : HEX_COLORS.zinc[400])),
-    [themeColor, isInput, signalColor]
-  );
+const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected }) => {
+  // Always use neutral gray for anchors
+  const baseColor = HEX_COLORS.zinc[500];
+  const lightColor = HEX_COLORS.zinc[400];
 
   const handleMouseDown = useCallback((e) => {
     e.stopPropagation();
-    e.preventDefault(); // Prevent the subsequent click event
+    e.preventDefault();
     // Start wire connection
     onClick && onClick(anchorId, type);
   }, [onClick, anchorId, type]);
@@ -847,21 +839,28 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, signalColor, isConnect
   // Determine if anchor should be "lit" - when connected or actively being used
   const isLit = isConnected || isActive;
 
-  // Memoized style object (prevents recreation on every render)
+  const anchorSize = isActive ? 8 : 7;
+  const fillColor = isLit ? baseColor : HEX_COLORS.zinc[600];
+  const borderColor = isLit ? lightColor : HEX_COLORS.zinc[500];
+  const opacityValue = isLit ? 1 : 0.4;
+
   const anchorStyle = useMemo(() => ({
-    width: isActive ? '8px' : '7px',
-    height: isActive ? '8px' : '7px',
-    backgroundColor: isLit ? baseColor : HEX_COLORS.zinc[600], // zinc-600 when off
-    border: `1px solid ${isLit ? lightColor : HEX_COLORS.zinc[500]}`, // zinc-500 when off
+    width: `${anchorSize}px`,
+    height: `${anchorSize}px`,
+    backgroundColor: fillColor,
+    opacity: opacityValue,
+    borderRadius: '50%',
+    border: `1px solid ${borderColor}`,
+    transition: 'all 0.15s ease',
+    cursor: 'crosshair',
     boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
-    opacity: isLit ? 1 : 0.4
-  }), [isActive, isLit, baseColor, lightColor]);
+  }), [anchorSize, fillColor, borderColor, opacityValue, isLit, isActive, baseColor]);
 
   return (
     <div
       data-anchor-id={anchorId}
       data-anchor-type={type}
-      className="rounded-full transition-all cursor-pointer select-none"
+      className="select-none port-anchor"
       onMouseDown={handleMouseDown}
       style={anchorStyle}
     />
@@ -901,7 +900,6 @@ const PortRow = memo(({
   anchorId,
   isActive,
   onAnchorClick,
-  signalColor,
   canToggleAnchor,
   onToggleAnchor,
   columnOrder,
@@ -911,11 +909,19 @@ const PortRow = memo(({
   columnWidths = {}, // Dynamic column widths
   colors: passedColors,
   connectedAnchorIds,
-  themeColor,
   onSpacingMouseDown, // Handler for spacing drag
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
+
+  // Track when hovering over anchor column
+  const [isAnchorHovered, setIsAnchorHovered] = useState(false);
+
+  // Pick a random color from SIGNAL_COLORS (memoized so it stays consistent for this row)
+  const randomHoverColor = useMemo(() => {
+    const randomIndex = Math.floor(Math.random() * SIGNAL_COLORS.length);
+    return SIGNAL_COLORS[randomIndex].hex + '20'; // 20 = ~12% opacity
+  }, []);
 
   // Memoized color fallback
   const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
@@ -967,10 +973,8 @@ const PortRow = memo(({
             anchorId={anchorId}
             type={type}
             isActive={isActive}
-            signalColor={signalColor}
             onClick={onAnchorClick}
             isConnected={isConnected}
-            themeColor={themeColor}
           />
         );
       case 'delete':
@@ -1067,13 +1071,36 @@ const PortRow = memo(({
     return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
 
+  // Row style with hover background color
+  const rowStyle = useMemo(() => {
+    if (isAnchorHovered) {
+      console.log('✨ APPLYING ROW COLOR - Port', port.number, 'Color:', randomHoverColor);
+      return { backgroundColor: randomHoverColor };
+    }
+    return {};
+  }, [isAnchorHovered, randomHoverColor, port.number]);
+
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap px-2`}
+      className={`flex items-center ${SIZES.PADDING_Y} group text-[12px] whitespace-nowrap px-2`}
+      style={rowStyle}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
+
+        // Add hover handlers for anchor column
+        const isAnchorColumn = colId === 'anchor';
+        const columnProps = isAnchorColumn ? {
+          onMouseEnter: () => {
+            console.log('🟢 ANCHOR HOVER ENTER - Port', port.number, 'Color:', randomHoverColor);
+            setIsAnchorHovered(true);
+          },
+          onMouseLeave: () => {
+            console.log('🔴 ANCHOR HOVER LEAVE - Port', port.number);
+            setIsAnchorHovered(false);
+          },
+        } : {};
 
         return (
           <div key={colId} className="flex items-center">
@@ -1084,6 +1111,7 @@ const PortRow = memo(({
             <span
               className="shrink-0 flex items-center justify-center"
               style={{ minWidth: `${getColumnWidth(colId)}px` }}
+              {...columnProps}
             >
               {renderColumnContent(colId)}
             </span>
@@ -1390,11 +1418,9 @@ const CollapsedPortRow = memo(({
   anchorSide,
   anchorId,
   onAnchorClick,
-  signalColor,
   selectedColumns,
   columnWidths = {},
   connectedAnchorIds,
-  themeColor,
   isSideBySide = false,
   onSpacingMouseDown,
 }) => {
@@ -1442,10 +1468,8 @@ const CollapsedPortRow = memo(({
             anchorId={anchorId}
             type={type}
             isActive={false}
-            signalColor={signalColor}
             onClick={onAnchorClick}
             isConnected={isConnected}
-            themeColor={themeColor}
           />
         );
       case 'port':
@@ -1538,7 +1562,7 @@ const CollapsedColumnSelector = memo(({
   selectedColumns,
   onChange,
   onClose,
-  sectionType, // 'input' or 'output'
+  anchorSide,
 }) => {
   const toggleColumn = useCallback((colId) => {
     const isSelected = selectedColumns.includes(colId);
@@ -1551,10 +1575,15 @@ const CollapsedColumnSelector = memo(({
       if (selectedColumns.length >= MAX_COLLAPSED_COLUMNS) return;
       onChange([...selectedColumns, colId]);
     }
-  }, [selectedColumns, onChange]);
+    // Close dropdown after selection
+    onClose();
+  }, [selectedColumns, onChange, onClose]);
+
+  // Mirror alignment: left section aligns right, right section aligns left
+  const alignClass = anchorSide === 'left' ? 'right-0' : 'left-0';
 
   return (
-    <div className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[160px]">
+    <div className={`absolute top-full ${alignClass} mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[160px]`}>
       <div className="px-3 py-2 border-b border-zinc-700 text-[10px] text-zinc-400 uppercase">
         Show columns ({selectedColumns.length}/{MAX_COLLAPSED_COLUMNS})
       </div>
@@ -1580,14 +1609,6 @@ const CollapsedColumnSelector = memo(({
           </button>
         );
       })}
-      <div className="px-3 py-2 border-t border-zinc-700">
-        <button
-          onClick={onClose}
-          className="w-full text-center text-[10px] text-zinc-500 hover:text-zinc-300"
-        >
-          Close
-        </button>
-      </div>
     </div>
   );
 });
@@ -1954,7 +1975,6 @@ const IOSection = memo(({
   activeWire,
   onAnchorClick,
   onUpdate,
-  signalColor,
   canToggleAnchor,
   onToggleAnchorSide,
   onSectionDragStart,
@@ -1963,7 +1983,6 @@ const IOSection = memo(({
   onToggleCollapse,
   colors,
   connectedAnchorIds,
-  themeColor,
   sharedColumnWidths,
   sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
   isSideBySide = false, // Whether IO sections are displayed side-by-side
@@ -1981,6 +2000,28 @@ const IOSection = memo(({
     () => data.collapsedColumnOrder || defaultCollapsedCols
   );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const columnSelectorRef = useRef(null);
+
+  // Close column selector when clicking outside
+  useEffect(() => {
+    if (!showColumnSelector) return;
+
+    const handleClickOutside = (e) => {
+      if (columnSelectorRef.current && !columnSelectorRef.current.contains(e.target)) {
+        setShowColumnSelector(false);
+      }
+    };
+
+    // Delay to avoid closing on the same click that opened it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColumnSelector]);
 
   // Update collapsed columns and persist to data
   const updateCollapsedColumns = useCallback((newColumns) => {
@@ -2245,7 +2286,6 @@ const IOSection = memo(({
             anchorId={`${nodeId}-${port.id}`}
             isActive={activeWire?.from === `${nodeId}-${port.id}`}
             onAnchorClick={onAnchorClick}
-            signalColor={type === 'output' ? signalColor : null}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchor={onToggleAnchorSide}
             columnOrder={columnOrder}
@@ -2255,13 +2295,12 @@ const IOSection = memo(({
             onBulkUpdate={bulkUpdatePorts}
             colors={colors}
             connectedAnchorIds={connectedAnchorIds}
-            themeColor={themeColor}
             onSpacingMouseDown={handleSpacingMouseDown}
           />
         </div>
       );
     })
-  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, signalColor, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, themeColor, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
+  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
 
   return (
     <div className="flex flex-col border-t border-zinc-700/50 shrink-0">
@@ -2296,12 +2335,14 @@ const IOSection = memo(({
 
           {/* Column selector dropdown */}
           {showColumnSelector && (
-            <CollapsedColumnSelector
-              selectedColumns={collapsedColumns}
-              onChange={updateCollapsedColumns}
-              onClose={closeColumnSelector}
-              sectionType={sectionType}
-            />
+            <div ref={columnSelectorRef} className="relative">
+              <CollapsedColumnSelector
+                selectedColumns={collapsedColumns}
+                onChange={updateCollapsedColumns}
+                onClose={closeColumnSelector}
+                anchorSide={anchorSide}
+              />
+            </div>
           )}
 
           {/* Collapsed port rows - uses COMPACT widths */}
@@ -2313,11 +2354,9 @@ const IOSection = memo(({
                 anchorSide={anchorSide}
                 anchorId={`${nodeId}-${port.id}`}
                 onAnchorClick={onAnchorClick}
-                signalColor={type === 'output' ? signalColor : null}
                 selectedColumns={collapsedColumns}
                 columnWidths={collapsedColumnWidths}
                 connectedAnchorIds={connectedAnchorIds}
-                themeColor={themeColor}
                 isSideBySide={isSideBySide}
                 onSpacingMouseDown={handleSpacingMouseDown}
               />
@@ -2607,23 +2646,24 @@ const SystemSection = memo(({
         alignItems: 'stretch',
       };
     }
-    // When IO sections are stacked, use flex layout constrained to IO section width
-    // min-width: 0 allows flex children to shrink below content size
-    // max-width matches the larger IO section to prevent SYSTEM from expanding node
-    const maxIOWidth = Math.max(leftSectionWidth || 0, rightSectionWidth || 0);
+    // When IO sections are stacked, constrain to parent width (determined by IO sections)
+    // Left: field selector, Right: value input + checkmark
+    // Use minmax(0, 1fr) to allow columns to shrink below content size
     return {
-      display: 'flex',
-      gap: '16px',
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+      gap: '8px',
       alignItems: 'stretch',
-      minWidth: 0,
-      ...(maxIOWidth > 0 && { maxWidth: `${maxIOWidth}px` }),
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden', // Force content to clip
     };
   }, [areIOSideBySide, leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed]);
 
   return (
     <div
-      className="flex flex-col border-t border-zinc-700/50"
-      style={sectionStyle}
+      className="flex flex-col border-t border-zinc-700/50 overflow-hidden"
+      style={{ ...sectionStyle, contain: 'inline-size' }}
     >
       {/* Use SystemHeader component */}
       <SystemHeader
@@ -2638,7 +2678,7 @@ const SystemSection = memo(({
 
       {/* Content when expanded - dropdowns aligned with left/right section widths using CSS Grid */}
       {!collapsed && (
-        <div className="py-2">
+        <div className="py-2 overflow-hidden">
           <div style={gridStyle}>
             {/* Column 1: Field selector - aligns with left section */}
             <SelectWithCustom
@@ -3207,9 +3247,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       borderRadius: '2px',
     };
   }, [themeColors?.header?.hex]);
-
-  // Extract theme color for anchors (use the header/main color)
-  const anchorThemeColor = themeColors.header?.hex || null;
 
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
@@ -3958,7 +3995,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onToggleCollapse={handleInputCollapseToggle}
             colors={themeColors.input}
             connectedAnchorIds={connectedAnchorIds}
-            themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             isSideBySide={areIOSideBySide}
@@ -3974,7 +4010,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             activeWire={activeWire}
             onAnchorClick={onAnchorClick}
             onUpdate={handleOutputUpdate}
-            signalColor={node.signalColor}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchorSide={toggleOutputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
@@ -3983,7 +4018,6 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onToggleCollapse={handleOutputCollapseToggle}
             colors={themeColors.output}
             connectedAnchorIds={connectedAnchorIds}
-            themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             isSideBySide={areIOSideBySide}
@@ -3999,7 +4033,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     handleSystemCollapseToggle, handleInputCollapseToggle, handleOutputCollapseToggle,
     toggleInputAnchorSide, toggleOutputAnchorSide,
     handleSectionDragStart, handleSectionDragEnd,
-    themeColors, activeWire, onAnchorClick, connectedAnchorIds, anchorThemeColor,
+    themeColors, activeWire, onAnchorClick, connectedAnchorIds,
     sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
     leftSectionWidth, rightSectionWidth
   ]);
@@ -4180,18 +4214,18 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     <div
       ref={nodeRef}
       className={wrapperClassName}
-      style={{
-        left: node.position.x,
-        top: node.position.y,
-        // Let content determine width - no explicit width constraints
-        zIndex: wrapperZIndex,
-        transform: wrapperTransform,
-        transformOrigin: 'top left',
-        isolation: 'isolate', // Create new stacking context
-      }}
-      onMouseDown={handleMouseDown}
-      onClick={handleClick}
-    >
+        style={{
+          left: node.position.x,
+          top: node.position.y,
+          width: !areIOSideBySide ? 'fit-content' : undefined,
+          zIndex: wrapperZIndex,
+          transform: wrapperTransform,
+          transformOrigin: 'top left',
+          isolation: 'isolate', // Create new stacking context
+        }}
+        onMouseDown={handleMouseDown}
+        onClick={handleClick}
+      >
       <TitleBar
         node={node}
         onUpdate={onUpdate}
