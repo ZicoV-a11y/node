@@ -592,9 +592,9 @@ const calculateCollapsedColumnWidths = (ports) => {
     delete: COLUMN_DEFS.delete.minWidth,
     port: 44,         // Tighter: "IN 99" or "OUT 99" fits in ~44px
     source: 60,       // Tighter minimum for text display
-    destination: 60,  // Tighter minimum for text display
+    destination: 80,  // More breathing room for collapsed side-by-side
     connector: 60,    // Tighter minimum for text display
-    resolution: 60,   // Tighter minimum for text display
+    resolution: 80,   // More breathing room for collapsed side-by-side
     rate: 44,         // Tighter: rates are short like "60Hz"
     flip: COLUMN_DEFS.flip.minWidth,
   };
@@ -1357,20 +1357,25 @@ const CollapsedColumnHeaders = memo(({
 
   return (
     <div
-      className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide w-full px-1 ${isReversed ? 'justify-end' : ''}`}
+      className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
+        text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
     >
+      {/* Spacer to match spacing handle column when reversed */}
+      {isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
 
         const isDragging = draggedColumn === colId;
         const isDraggable = colId !== 'anchor'; // All data columns draggable
+        // SOURCE and DESTINATION columns expand to fill remaining space
+        const isFlexColumn = colId === 'source' || colId === 'destination';
 
         return (
           <div
             key={colId}
-            className="flex items-center"
+            className={`flex items-center ${isFlexColumn ? 'flex-1 min-w-0' : ''}`}
             onDragOver={isDraggable ? handleDragOver : undefined}
             onDrop={isDraggable ? (e) => handleDrop(e, colId) : undefined}
           >
@@ -1387,10 +1392,10 @@ const CollapsedColumnHeaders = memo(({
               onMouseDown={(e) => e.stopPropagation()}
               onDragStart={isDraggable ? (e) => handleDragStart(e, colId) : undefined}
               onDragEnd={handleDragEnd}
-              className={`shrink-0 flex items-center justify-center
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1 min-w-0' : 'shrink-0'}
                 ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                 ${isDragging ? 'opacity-50' : ''}`}
-              style={columnStyles[colId]}
+              style={isFlexColumn ? undefined : columnStyles[colId]}
               title={isDraggable ? "Drag to reorder" : undefined}
             >
               {colDef.label}
@@ -1402,6 +1407,9 @@ const CollapsedColumnHeaders = memo(({
           </div>
         );
       })}
+
+      {/* Spacer to match spacing handle column when NOT reversed */}
+      {!isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
     </div>
   );
 });
@@ -1431,13 +1439,15 @@ const CollapsedPortRow = memo(({
   const spacingHandle = useMemo(() => {
     if (!isSideBySide || !onSpacingMouseDown) return null;
     return (
-      <div
-        className="spacing-drag-handle nodrag shrink-0"
-        onMouseDown={(e) => onSpacingMouseDown(e, port.id, port.spacing || 0)}
-        title="Drag to adjust spacing"
-        style={SPACING_HANDLE_STYLE}
-      >
-        ⋮
+      <div className="flex items-center justify-center shrink-0" style={{ width: '24px' }}>
+        <div
+          className="spacing-drag-handle nodrag"
+          onMouseDown={(e) => onSpacingMouseDown(e, port.id, port.spacing || 0)}
+          title="Drag to adjust spacing"
+          style={SPACING_HANDLE_STYLE}
+        >
+          ⋮
+        </div>
       </div>
     );
   }, [isSideBySide, onSpacingMouseDown, port.id, port.spacing]);
@@ -1514,7 +1524,7 @@ const CollapsedPortRow = memo(({
   };
 
   return (
-    <div className={`flex items-center py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity ${isReversed ? 'justify-end' : ''}`}>
+    <div className="flex items-center w-full py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity">
       {/* Spacing handle on LEFT (inside) when reversed (INPUT on right in side-by-side) */}
       {isReversed && spacingHandle}
 
@@ -1522,8 +1532,11 @@ const CollapsedPortRow = memo(({
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
 
+        // SOURCE and DESTINATION columns expand to fill remaining space
+        const isFlexColumn = colId === 'source' || colId === 'destination';
+
         return (
-          <div key={colId} className="flex items-center">
+          <div key={colId} className={`flex items-center ${isFlexColumn ? 'flex-1 min-w-0' : ''}`}>
             {/* Leading divider before first column when reversed (data side) */}
             {isReversed && index === 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
@@ -1533,8 +1546,8 @@ const CollapsedPortRow = memo(({
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
             )}
             <span
-              className="shrink-0 flex items-center justify-center"
-              style={{ minWidth: `${getColumnWidth(colId)}px` }}
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1 min-w-0' : 'shrink-0'}`}
+              style={isFlexColumn ? undefined : { minWidth: `${getColumnWidth(colId)}px` }}
             >
               {renderColumnContent(colId)}
             </span>
@@ -1882,7 +1895,7 @@ const SectionHeader = memo(({
 
   return (
     <div
-      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
+      className={`flex items-center justify-between gap-1 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
       style={gradientStyle}
     >
       {isReversed ? (
@@ -1913,7 +1926,7 @@ const SectionHeader = memo(({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
@@ -1937,7 +1950,7 @@ const SectionHeader = memo(({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 py-0.5 rounded whitespace-nowrap"
               style={{ color: colorHexLight }}
               title="Drag to reorder section"
             >
@@ -3307,13 +3320,20 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const ANCHOR_WIDTH = 24;
   const COLLAPSED_SPACING_HANDLE = 20; // Spacing handle on inside column (side-by-side only)
 
+  // MINIMUM HEADER WIDTH - ensures section is never narrower than its header
+  // Header structure: px-2 padding (16) + gap-1 (4) + title ~50px + arrow ~16px + gap-1 (4) + 3 buttons (72) + 2 gaps (12) + minimal breathing room
+  // This sets the floor so node width = MAX(header width, content width)
+  const SECTION_HEADER_MIN_WIDTH = 200;
+
   const inputCollapsedWidth = useMemo(() => {
     // Use COLLAPSED column widths (tighter, no dropdown padding)
     const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
     // Include spacing handle width (used in side-by-side mode)
-    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Ensure section is at least as wide as the header (header sets minimum floor)
+    return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
   }, [sharedCollapsedColumnWidths, inputCollapsedColumns]);
 
   const outputCollapsedWidth = useMemo(() => {
@@ -3322,7 +3342,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
     // Include spacing handle width (used in side-by-side mode)
-    return COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Ensure section is at least as wide as the header (header sets minimum floor)
+    return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
   }, [sharedCollapsedColumnWidths, outputCollapsedColumns]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
