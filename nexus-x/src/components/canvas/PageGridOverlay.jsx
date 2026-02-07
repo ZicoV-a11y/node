@@ -1,12 +1,12 @@
 import { memo, useMemo } from 'react';
 
-const PRINT_MARGINS = { top: 48, right: 48, bottom: 48, left: 48 };
+const GRID_SPACING = 50; // 50px grid lines
 
 function PageGridOverlayInner({ pages, zoom, showRatioOverlay }) {
   const borderWidth = 1 / zoom;
   const fontSize = 14 / zoom;
-  const marginBorderWidth = 1 / zoom;
-  const marginDash = `${6 / zoom} ${4 / zoom}`;
+  const gridLineWidth = 0.5 / zoom;
+  const gridDash = `${2 / zoom} ${4 / zoom}`;
 
   // Compute bounding box to size the SVG appropriately
   const bounds = useMemo(() => {
@@ -83,17 +83,32 @@ function PageGridOverlayInner({ pages, zoom, showRatioOverlay }) {
             stroke="#3f3f46"
             strokeWidth={borderWidth}
           />
-          {/* Print margin guide inside each page */}
-          <rect
-            x={page.x - bounds.x + PRINT_MARGINS.left}
-            y={page.y - bounds.y + PRINT_MARGINS.top}
-            width={page.width - PRINT_MARGINS.left - PRINT_MARGINS.right}
-            height={page.height - PRINT_MARGINS.top - PRINT_MARGINS.bottom}
-            fill="none"
-            stroke="#27272a"
-            strokeWidth={marginBorderWidth}
-            strokeDasharray={marginDash}
-          />
+          {/* 50px grid lines - vertical */}
+          {Array.from({ length: Math.floor(page.width / GRID_SPACING) }, (_, i) => (
+            <line
+              key={`v-${i}`}
+              x1={page.x - bounds.x + (i + 1) * GRID_SPACING}
+              y1={page.y - bounds.y}
+              x2={page.x - bounds.x + (i + 1) * GRID_SPACING}
+              y2={page.y - bounds.y + page.height}
+              stroke="#27272a"
+              strokeWidth={gridLineWidth}
+              strokeDasharray={gridDash}
+            />
+          ))}
+          {/* 50px grid lines - horizontal */}
+          {Array.from({ length: Math.floor(page.height / GRID_SPACING) }, (_, i) => (
+            <line
+              key={`h-${i}`}
+              x1={page.x - bounds.x}
+              y1={page.y - bounds.y + (i + 1) * GRID_SPACING}
+              x2={page.x - bounds.x + page.width}
+              y2={page.y - bounds.y + (i + 1) * GRID_SPACING}
+              stroke="#27272a"
+              strokeWidth={gridLineWidth}
+              strokeDasharray={gridDash}
+            />
+          ))}
           {/* Page label */}
           <text
             x={page.x - bounds.x + 10 / zoom}

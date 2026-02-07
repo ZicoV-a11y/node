@@ -1288,6 +1288,7 @@ const CollapsedColumnHeaders = memo(({
   selectedColumns,
   onReorderColumns,
   columnWidths = {},
+  isSideBySide = false,
 }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
@@ -1360,8 +1361,8 @@ const CollapsedColumnHeaders = memo(({
       className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
     >
-      {/* Spacer to match spacing handle column when reversed */}
-      {isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when reversed (side-by-side only) */}
+      {isSideBySide && isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
 
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1408,8 +1409,8 @@ const CollapsedColumnHeaders = memo(({
         );
       })}
 
-      {/* Spacer to match spacing handle column when NOT reversed */}
-      {!isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when NOT reversed (side-by-side only) */}
+      {isSideBySide && !isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
     </div>
   );
 });
@@ -2316,7 +2317,7 @@ const IOSection = memo(({
   ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
 
   return (
-    <div className="flex flex-col border-t border-zinc-700/50 shrink-0">
+    <div className="flex flex-col border-t border-zinc-700/50 shrink-0 w-full">
       <SectionHeader
         type={sectionType}
         title={data.columnName}
@@ -2343,6 +2344,7 @@ const IOSection = memo(({
               selectedColumns={collapsedColumns}
               onReorderColumns={updateCollapsedColumns}
               columnWidths={collapsedColumnWidths}
+              isSideBySide={isSideBySide}
             />
           )}
 
@@ -3312,13 +3314,20 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const inputCollapsedColumns = node.inputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
   const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
 
+  // Early check if Input and Output are side-by-side (needed for width calculations)
+  // This checks if both 'input' and 'output' appear in the same row array
+  const ioSideBySide = useMemo(() => {
+    const rows = node.layout.rows || (node.layout.sectionOrder || ['system', 'input', 'output']).map(s => [s]);
+    return rows.some(row => row.includes('input') && row.includes('output'));
+  }, [node.layout.rows, node.layout.sectionOrder]);
+
   // Collapsed section widths - calculated from actual selected columns
-  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3) + spacing handle (20)
+  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3) + spacing handle (20, side-by-side only)
   const COLLAPSED_OUTER_PADDING = 8;  // px-1 on each side
   const COLLAPSED_DIVIDER = 5;        // 1px line + mx-0.5 margins (2px each side)
   const COLLAPSED_EDGE_DIVIDER = 3;   // 1px line + ml-0.5 or mr-0.5 (2px)
   const ANCHOR_WIDTH = 24;
-  const COLLAPSED_SPACING_HANDLE = 20; // Spacing handle on inside column (side-by-side only)
+  const COLLAPSED_SPACING_HANDLE = 24; // Spacing handle wrapper width (side-by-side only)
 
   // MINIMUM HEADER WIDTH - ensures section is never narrower than its header
   // Header structure: px-2 padding (16) + gap-1 (4) + title ~50px + arrow ~16px + gap-1 (4) + 3 buttons (72) + 2 gaps (12) + minimal breathing room
@@ -3330,22 +3339,24 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
-    // Include spacing handle width (used in side-by-side mode)
-    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Only include spacing handle width in side-by-side mode
+    const spacingHandleWidth = ioSideBySide ? COLLAPSED_SPACING_HANDLE : 0;
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + spacingHandleWidth;
     // Ensure section is at least as wide as the header (header sets minimum floor)
     return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
-  }, [sharedCollapsedColumnWidths, inputCollapsedColumns]);
+  }, [sharedCollapsedColumnWidths, inputCollapsedColumns, ioSideBySide]);
 
   const outputCollapsedWidth = useMemo(() => {
     // Use COLLAPSED column widths (tighter, no dropdown padding)
     const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
       sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
     const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
-    // Include spacing handle width (used in side-by-side mode)
-    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Only include spacing handle width in side-by-side mode
+    const spacingHandleWidth = ioSideBySide ? COLLAPSED_SPACING_HANDLE : 0;
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + spacingHandleWidth;
     // Ensure section is at least as wide as the header (header sets minimum floor)
     return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
-  }, [sharedCollapsedColumnWidths, outputCollapsedColumns]);
+  }, [sharedCollapsedColumnWidths, outputCollapsedColumns, ioSideBySide]);
 
   // Computed widths based on collapsed state (memoized to avoid recalculation)
   const computedInputSectionWidth = useMemo(() =>
@@ -4102,10 +4113,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     [outputSectionWidth]
   );
   const emptyStyle = useMemo(() => ({}), []);
+  const fullWidthStyle = useMemo(() => ({ width: '100%' }), []);
 
   // Wrapper style for section containers in side-by-side layout
   const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
-    if (isSingleSectionRow) return emptyStyle;
+    // In stacked mode (single section row), sections should fill full width
+    if (isSingleSectionRow) return fullWidthStyle;
 
     // Use collapsed width when collapsed, minWidth when expanded
     if (isCollapsed) {
@@ -4116,7 +4129,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       if (sectionId === 'output') return outputExpandedStyle;
     }
     return emptyStyle;
-  }, [inputCollapsedStyle, outputCollapsedStyle, inputExpandedStyle, outputExpandedStyle, emptyStyle]);
+  }, [inputCollapsedStyle, outputCollapsedStyle, inputExpandedStyle, outputExpandedStyle, emptyStyle, fullWidthStyle]);
 
   // Memoized dragged section row index (prevents repeated findIndex in render loop and drop zone calculations)
   const draggedSectionRowIndex = useMemo(
@@ -4239,7 +4252,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         style={{
           left: node.position.x,
           top: node.position.y,
-          width: !areIOSideBySide ? 'fit-content' : undefined,
+          width: !areIOSideBySide
+            ? (node.layout.inputCollapsed && node.layout.outputCollapsed
+                ? Math.max(computedInputSectionWidth, computedOutputSectionWidth)
+                : 'fit-content')
+            : undefined,
           zIndex: wrapperZIndex,
           transform: wrapperTransform,
           transformOrigin: 'top left',

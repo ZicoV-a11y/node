@@ -213,22 +213,27 @@ export default function App() {
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
 
-  // Create two initial nodes for comparison on first load
+  // Create single Aligned System node on first load
   useEffect(() => {
     if (Object.keys(nodes).length === 0) {
       const alignedNode = createSuperNode('aligned-demo');
       alignedNode.title = 'ALIGNED SYSTEM';
       alignedNode.position = { x: 100, y: 100 };
       alignedNode.system.systemSectionStyle = 'aligned';
-
-      const simplifiedNode = createSuperNode('simplified-demo');
-      simplifiedNode.title = 'SIMPLIFIED SYSTEM';
-      simplifiedNode.position = { x: 100, y: 500 };
-      simplifiedNode.system.systemSectionStyle = 'aligned';
+      // Pre-populate with test data
+      alignedNode.inputSection.ports = [
+        { id: 'in-1', number: 1, source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'in-2', number: 2, source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'in-3', number: 3, source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+      ];
+      alignedNode.outputSection.ports = [
+        { id: 'out-1', number: 1, destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'out-2', number: 2, destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'out-3', number: 3, destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+      ];
 
       setNodes({
-        [alignedNode.id]: alignedNode,
-        [simplifiedNode.id]: simplifiedNode
+        [alignedNode.id]: alignedNode
       });
     }
   }, []); // Empty deps - only run once on mount
@@ -356,18 +361,20 @@ export default function App() {
             newNode.inputSection.ports = preset.inputSection.ports.map((p, i) => ({
               id: `in-${i + 1}`,
               number: i + 1,
+              source: p.source || '',
               connector: p.connector || 'HDMI',
-              resolution: p.resolution || '1920x1080',
-              refreshRate: p.refreshRate || '60'
+              resolution: p.resolution || '',
+              refreshRate: p.refreshRate || ''
             }));
           }
           if (preset.outputSection?.ports) {
             newNode.outputSection.ports = preset.outputSection.ports.map((p, i) => ({
               id: `out-${i + 1}`,
               number: i + 1,
+              destination: p.destination || '',
               connector: p.connector || 'HDMI',
-              resolution: p.resolution || '1920x1080',
-              refreshRate: p.refreshRate || '60'
+              resolution: p.resolution || '',
+              refreshRate: p.refreshRate || ''
             }));
           }
         }
@@ -1817,6 +1824,37 @@ export default function App() {
               title="Add SuperNode with drag-based column layout"
             >
               + SuperNode
+            </button>
+            <button
+              onClick={() => addNode({
+                type: 'supernode',
+                preset: {
+                  title: 'ALIGNED SYSTEM',
+                  signalColor: 'zinc',
+                  system: {
+                    manufacturer: null,
+                    model: null,
+                  },
+                  inputSection: {
+                    ports: [
+                      { source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+                    ]
+                  },
+                  outputSection: {
+                    ports: [
+                      { destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+                    ]
+                  }
+                }
+              })}
+              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-mono text-white"
+              title="Add Aligned System node for testing"
+            >
+              + Aligned
             </button>
           </div>
 
