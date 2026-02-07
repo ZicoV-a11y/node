@@ -2662,8 +2662,8 @@ const SystemSection = memo(({
 
   return (
     <div
-      className="flex flex-col border-t border-zinc-700/50 overflow-hidden"
-      style={{ ...sectionStyle, contain: 'inline-size' }}
+      className="flex flex-col border-t border-zinc-700/50"
+      style={sectionStyle}
     >
       {/* Use SystemHeader component */}
       <SystemHeader
@@ -2678,7 +2678,7 @@ const SystemSection = memo(({
 
       {/* Content when expanded - dropdowns aligned with left/right section widths using CSS Grid */}
       {!collapsed && (
-        <div className="py-2 overflow-hidden">
+        <div className="py-2">
           <div style={gridStyle}>
             {/* Column 1: Field selector - aligns with left section */}
             <SelectWithCustom
