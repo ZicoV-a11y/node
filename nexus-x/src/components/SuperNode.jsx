@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react';
+import { NODE_PRESET_CATEGORIES } from '../config/nodePresets';
 
 /**
  * ============================================
@@ -2870,17 +2871,22 @@ SystemSection.displayName = 'SystemSection';
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePreset, userSubcategories }) => {
   const [showSettings, setShowSettings] = useState(false);
+  const [showLibraryMenu, setShowLibraryMenu] = useState(false);
   const settingsRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    if (!showSettings) return;
+    if (!showSettings) {
+      setShowLibraryMenu(false); // Reset submenu when settings closes
+      return;
+    }
 
     const handleClickOutside = (e) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target)) {
         setShowSettings(false);
+        setShowLibraryMenu(false);
       }
     };
 
@@ -2930,6 +2936,34 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
     [node.system?.approvedFields]
   );
 
+  // Build list of library folders for "Save to Library" submenu
+  const libraryFolders = useMemo(() => {
+    const folders = [];
+    // Add folders from NODE_PRESET_CATEGORIES
+    Object.entries(NODE_PRESET_CATEGORIES).forEach(([catId, category]) => {
+      Object.entries(category.subcategories || {}).forEach(([subId, sub]) => {
+        folders.push({
+          categoryId: catId,
+          subcategoryId: subId,
+          label: sub.label,
+          isUserCreated: false
+        });
+      });
+    });
+    // Add user-created subcategories
+    Object.entries(userSubcategories || {}).forEach(([catId, subs]) => {
+      Object.entries(subs || {}).forEach(([subId, sub]) => {
+        folders.push({
+          categoryId: catId,
+          subcategoryId: subId,
+          label: sub.label || subId,
+          isUserCreated: true
+        });
+      });
+    });
+    return folders;
+  }, [userSubcategories]);
+
   const handleResetSystemSettings = useCallback(() => {
     onUpdate({
       system: {
@@ -2945,9 +2979,16 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
   // Settings menu handlers
   const handleSavePresetClick = useCallback((e) => {
     e.stopPropagation();
-    // TODO: Implement save preset
-    setShowSettings(false);
+    setShowLibraryMenu(prev => !prev);
   }, []);
+
+  const handleSelectFolder = useCallback((categoryId, subcategoryId) => {
+    if (onSavePreset) {
+      onSavePreset(categoryId, subcategoryId);
+    }
+    setShowLibraryMenu(false);
+    setShowSettings(false);
+  }, [onSavePreset]);
 
   const handleSetDefaultClick = useCallback((e) => {
     e.stopPropagation();
@@ -3029,14 +3070,14 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
           />
         </div>
 
-        {/* Manufacturer + Model stacked display */}
+        {/* Model + Manufacturer stacked display (Model big, Manufacturer small) */}
         {(manufacturer || model) && (
           <div className="flex flex-col leading-tight pointer-events-none">
-            {manufacturer && (
-              <span className="font-mono font-bold text-[13px]" style={{ color: headerTextHex }}>{manufacturer}</span>
-            )}
             {model && (
-              <span className="font-mono text-[10px] text-zinc-400">{model}</span>
+              <span className="font-mono font-bold text-[13px]" style={{ color: headerTextHex }}>{model}</span>
+            )}
+            {manufacturer && (
+              <span className="font-mono text-[10px] text-zinc-400">{manufacturer}</span>
             )}
           </div>
         )}
@@ -3059,12 +3100,38 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
             style={SETTINGS_DROPDOWN_STYLE}
             onClick={stopPropagation}
           >
-            <button
-              onClick={handleSavePresetClick}
-              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
-            >
-              Save Preset
-            </button>
+            {/* Save to Library with submenu */}
+            <div className="relative">
+              <button
+                onClick={handleSavePresetClick}
+                className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+              >
+                <span>Save to Library</span>
+                <span className="text-[10px]">{showLibraryMenu ? '▼' : '▶'}</span>
+              </button>
+              {showLibraryMenu && (
+                <div className="bg-zinc-750 border-t border-zinc-600 max-h-[200px] overflow-y-auto">
+                  {libraryFolders.length === 0 ? (
+                    <div className="px-3 py-2 text-[10px] text-zinc-500 italic">No folders available</div>
+                  ) : (
+                    libraryFolders.map((folder) => (
+                      <button
+                        key={`${folder.categoryId}/${folder.subcategoryId}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectFolder(folder.categoryId, folder.subcategoryId);
+                        }}
+                        className="w-full text-left px-4 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-600 hover:text-white flex items-center gap-2"
+                      >
+                        <span className="text-zinc-500">📁</span>
+                        <span>{folder.label}</span>
+                        {folder.isUserCreated && <span className="text-[9px] text-cyan-400 ml-auto">user</span>}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleSetDefaultClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -3191,7 +3258,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, onSavePreset, userSubcategories }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -4321,6 +4388,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         onUpdate={onUpdate}
         themeColors={themeColors}
         usedSignalColors={usedSignalColors}
+        onSavePreset={onSavePreset}
+        userSubcategories={userSubcategories}
       />
 
       {/* Row-based layout */}

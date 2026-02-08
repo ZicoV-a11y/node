@@ -2324,6 +2324,8 @@ export default function App() {
                 activeWire={activeWire}
                 connectedAnchorIds={connectedAnchorIds}
                 usedSignalColors={usedSignalColors}
+                onSavePreset={(categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
+                userSubcategories={userSubcategories}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {
