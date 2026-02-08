@@ -1766,8 +1766,8 @@ const SectionHeader = memo(({
 
   const handleMouseDown = useCallback((e) => e.stopPropagation(), []);
 
-  // Shared button style for consistency (color applied via inline style)
-  const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
+  // Subtle hover background style - transparent until hovered
+  const buttonBaseStyle = "px-1.5 py-0.5 text-[11px] font-mono rounded hover:bg-zinc-600/60 transition-all cursor-pointer";
 
   // Buttons container - mirrored order: INPUTS [⊞][+][⚙] ... [⚙][+][⊞] OUTPUTS - memoized
   const buttonsJSX = useMemo(() => (
@@ -1923,7 +1923,7 @@ const SectionHeader = memo(({
               }}
               onMouseDown={(e) => e.stopPropagation()}
               className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight, transform: 'translateY(-15%)' }}
+              style={{ color: colorHexLight, transform: 'translateY(-8%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -1947,7 +1947,7 @@ const SectionHeader = memo(({
               }}
               onMouseDown={(e) => e.stopPropagation()}
               className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight, transform: 'translateY(-15%)' }}
+              style={{ color: colorHexLight, transform: 'translateY(-8%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -2814,7 +2814,7 @@ SystemSection.displayName = 'SystemSection';
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed, usedSignalColors }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
 
@@ -2864,12 +2864,15 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     return [...unused.slice(0, 10), ...used];
   }, [usedSignalColors]);
 
-  // Title derived from Manufacturer + Model (empty if neither set)
-  const displayTitle = useMemo(() => {
-    const manufacturer = node.system?.approvedFields?.['Manufacturer'] || '';
-    const model = node.system?.approvedFields?.['Model'] || '';
-    return [manufacturer, model].filter(Boolean).join(' ');
-  }, [node.system?.approvedFields]);
+  // Manufacturer and Model from approved fields (displayed separately)
+  const manufacturer = useMemo(() =>
+    node.system?.approvedFields?.['Manufacturer'] || '',
+    [node.system?.approvedFields]
+  );
+  const model = useMemo(() =>
+    node.system?.approvedFields?.['Model'] || '',
+    [node.system?.approvedFields]
+  );
 
   const handleResetSystemSettings = useCallback(() => {
     onUpdate({
@@ -2939,24 +2942,12 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
   }), [signalColorHex]);
 
-  // Memoized title position (divider-centered when side-by-side, otherwise 50%)
-  const titleLeftPosition = useMemo(() => {
-    // Only use special divider-centered positioning when both sections are expanded and side-by-side
-    if (areIOSideBySide && !inputCollapsed && !outputCollapsed && inputSectionWidth) {
-      // Position at the divider between INPUT and OUTPUT sections
-      // inputSectionWidth already includes buffer, just add gap between sections
-      return `${inputSectionWidth + 8}px`;
-    }
-    // All other cases: use standard 50% centering (collapsed, stacked, or mixed states)
-    return '50%';
-  }, [areIOSideBySide, inputCollapsed, outputCollapsed, inputSectionWidth]);
-
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
       style={titleBarStyle}
     >
-      {/* Left corner - Color picker */}
+      {/* Left corner - Color picker + Manufacturer/Model */}
       <div className="flex items-center gap-2 z-10">
         {/* Signal color picker - rounded square style */}
         <div className="relative flex items-center gap-1.5">
@@ -2981,17 +2972,19 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             title={signalLabel}
           />
         </div>
-      </div>
 
-      {/* Centered title - derived from Manufacturer + Model */}
-      {displayTitle && (
-        <div
-          className="absolute -translate-x-1/2 whitespace-nowrap pointer-events-none"
-          style={{ left: titleLeftPosition }}
-        >
-          <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
-        </div>
-      )}
+        {/* Manufacturer + Model stacked display */}
+        {(manufacturer || model) && (
+          <div className="flex flex-col leading-tight pointer-events-none">
+            {manufacturer && (
+              <span className="font-mono font-bold text-[13px]" style={{ color: headerTextHex }}>{manufacturer}</span>
+            )}
+            {model && (
+              <span className="font-mono text-[10px] text-zinc-400">{model}</span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Settings button - top right */}
       <div ref={settingsRef} className="flex items-center gap-1 ml-auto relative" style={{ zIndex: showSettings ? 10000 : 10 }}>
@@ -4233,13 +4226,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       <TitleBar
         node={node}
         onUpdate={onUpdate}
-        onDelete={onDelete}
         themeColors={themeColors}
-        inputSectionWidth={inputSectionWidth}
-        outputSectionWidth={outputSectionWidth}
-        areIOSideBySide={areIOSideBySide}
-        inputCollapsed={node.layout.inputCollapsed}
-        outputCollapsed={node.layout.outputCollapsed}
         usedSignalColors={usedSignalColors}
       />
 
