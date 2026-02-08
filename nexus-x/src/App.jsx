@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
@@ -45,6 +45,107 @@ const DASH_PATTERNS = [
   { id: 'short', pattern: '4 4', label: '· · ·' },
   { id: 'dashdot', pattern: '12 4 4 4', label: '─·─·' },
 ];
+
+// Memoized Cable component - only re-renders when its specific anchor positions change
+const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, selectedWires, onWireClick }) => {
+  const isEnhanced = conn.enhanced || false;
+
+  if (!wirePath) return null;
+
+  return (
+    <g>
+      {/* Selection highlight */}
+      {isSelected && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke="#22d3ee"
+          strokeWidth={8}
+          strokeOpacity={0.3}
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* Enhanced: White outline */}
+      {isEnhanced && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={5}
+          strokeDasharray={conn.dashPattern || undefined}
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* Main wire */}
+      <path
+        d={wirePath}
+        fill="none"
+        stroke={wireColor}
+        strokeWidth={2}
+        strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
+        strokeLinecap="round"
+        style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }}
+      />
+
+      {/* Enhanced: Animated flow */}
+      {isEnhanced && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke={wireColor}
+          strokeWidth={1}
+          strokeDasharray="4 12"
+          strokeOpacity={0.6}
+          strokeLinecap="round"
+          className="animate-wire-flow"
+        />
+      )}
+
+      {/* Cable length label */}
+      {conn.length && fromPos && toPos && (
+        <text
+          x={(fromPos.x + toPos.x) / 2}
+          y={(fromPos.y + toPos.y) / 2 - 8}
+          fill={wireColor}
+          fontSize="10"
+          textAnchor="middle"
+          className="select-none pointer-events-none"
+          style={{ textShadow: '0 0 3px rgba(0,0,0,0.8)' }}
+        >
+          {conn.length}
+        </text>
+      )}
+
+      {/* Invisible click hit area */}
+      <path
+        d={wirePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        strokeLinecap="round"
+        className="pointer-events-auto cursor-pointer"
+        onClick={(e) => onWireClick(e, conn.id)}
+      />
+    </g>
+  );
+}, (prev, next) => {
+  // Custom comparison - only re-render if these specific props changed
+  return (
+    prev.wirePath === next.wirePath &&
+    prev.wireColor === next.wireColor &&
+    prev.isSelected === next.isSelected &&
+    prev.conn.enhanced === next.conn.enhanced &&
+    prev.conn.dashPattern === next.conn.dashPattern &&
+    prev.conn.length === next.conn.length &&
+    prev.fromPos?.x === next.fromPos?.x &&
+    prev.fromPos?.y === next.fromPos?.y &&
+    prev.toPos?.x === next.toPos?.x &&
+    prev.toPos?.y === next.toPos?.y
+  );
+});
+Cable.displayName = 'Cable';
 
 // Create empty node with default config
 const createNode = (id) => ({
@@ -2016,9 +2117,9 @@ export default function App() {
             <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
           )}
 
-          {/* SVG Layer for Wires */}
+          {/* SVG Layer for Wires - z-index below nodes so dropdowns can appear above */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-[110]"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[50]"
             style={{ overflow: 'visible' }}
           >
             {/* SVG Anchor Points - rendered for all registered anchors */}

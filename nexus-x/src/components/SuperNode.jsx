@@ -136,8 +136,8 @@ const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
 // Drop zone z-index style (static)
 const DROP_ZONE_STYLE = { zIndex: 10000 };
 
-// Settings dropdown z-index (static)
-const SETTINGS_DROPDOWN_STYLE = { zIndex: 9999 };
+// Settings dropdown z-index (static) - solid background to hide content behind
+const SETTINGS_DROPDOWN_STYLE = { zIndex: 9999, backgroundColor: '#27272a' };
 
 // Spacing drag handle style (static)
 const SPACING_HANDLE_STYLE = {
@@ -264,9 +264,6 @@ const CAPTURE_CARDS = [
 // Pre-mapped label arrays (computed once at module load)
 const SOFTWARE_PRESET_LABELS = SOFTWARE_PRESETS.map(s => s.label);
 const CAPTURE_CARD_LABELS = CAPTURE_CARDS.map(c => c.label);
-
-// Pre-mapped lookup Maps for O(1) access by id
-const SOFTWARE_PRESETS_BY_ID = new Map(SOFTWARE_PRESETS.map(s => [s.id, s]));
 
 // Barco Tri-Combo Cards (DP, HDMI, 4x 12G SDI)
 const CARD_PRESETS = {
@@ -2077,13 +2074,16 @@ const IOSection = memo(({
     }
   }, [selectedPorts.size, data.ports]);
 
-  // Spacing drag handler with half-row snapping
+  // Spacing drag handler with half-row snapping (RAF throttled)
   const handleSpacingMouseDown = useCallback(
     (e, portId, currentSpacing) => {
       e.preventDefault();
       e.stopPropagation();
       dragStartY.current = e.clientY;
       dragStartSpacing.current = currentSpacing || 0;
+
+      let rafId = null;
+      let pendingSpacing = null;
 
       const handleMouseMove = (moveEvent) => {
         const deltaY = moveEvent.clientY - dragStartY.current;
@@ -2093,13 +2093,23 @@ const IOSection = memo(({
         const snapIncrement = SIZES.SPACING_SNAP;
         const newSpacing = Math.round(rawSpacing / snapIncrement) * snapIncrement;
 
-        const newPorts = data.ports.map((port) =>
-          port.id === portId ? { ...port, spacing: newSpacing } : port
-        );
-        onUpdate({ ports: newPorts });
+        // Throttle updates using requestAnimationFrame
+        pendingSpacing = newSpacing;
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            if (pendingSpacing !== null) {
+              const newPorts = data.ports.map((port) =>
+                port.id === portId ? { ...port, spacing: pendingSpacing } : port
+              );
+              onUpdate({ ports: newPorts });
+            }
+            rafId = null;
+          });
+        }
       };
 
       const handleMouseUp = () => {
+        if (rafId) cancelAnimationFrame(rafId);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
@@ -2806,10 +2816,7 @@ SystemSection.displayName = 'SystemSection';
 
 const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSideBySide, inputCollapsed, outputCollapsed, usedSignalColors }) => {
   const [showSettings, setShowSettings] = useState(false);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
   const settingsRef = useRef(null);
-  const renameInputRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -2857,16 +2864,12 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     return [...unused.slice(0, 10), ...used];
   }, [usedSignalColors]);
 
+  // Title derived from Manufacturer + Model (empty if neither set)
   const displayTitle = useMemo(() => {
-    const softwareId = node.system?.software;
-    if (!softwareId || softwareId === 'none') return node.title;
-    const software = SOFTWARE_PRESETS_BY_ID.get(softwareId);
-    const softwareLabel = software ? software.label : null;
-    if (softwareLabel) {
-      return `${softwareLabel} ${node.title}`.toUpperCase();
-    }
-    return node.title;
-  }, [node.system?.software, node.title]);
+    const manufacturer = node.system?.approvedFields?.['Manufacturer'] || '';
+    const model = node.system?.approvedFields?.['Model'] || '';
+    return [manufacturer, model].filter(Boolean).join(' ');
+  }, [node.system?.approvedFields]);
 
   const handleResetSystemSettings = useCallback(() => {
     onUpdate({
@@ -2880,48 +2883,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
     setShowSettings(false);
   }, [node.system, onUpdate]);
 
-  // Rename handlers
-  const startRename = useCallback(() => {
-    setNewTitle(node.title);
-    setIsRenaming(true);
-    setShowSettings(false);
-    // Focus input after state updates
-    setTimeout(() => {
-      renameInputRef.current?.focus();
-      renameInputRef.current?.select();
-    }, 0);
-  }, [node.title]);
-
-  const cancelRename = useCallback(() => {
-    setIsRenaming(false);
-    setNewTitle('');
-  }, []);
-
-  const confirmRename = useCallback(() => {
-    const trimmedTitle = newTitle.trim();
-    if (trimmedTitle && trimmedTitle !== node.title) {
-      onUpdate({ title: trimmedTitle });
-    }
-    setIsRenaming(false);
-    setNewTitle('');
-  }, [newTitle, node.title, onUpdate]);
-
-  const handleRenameKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      confirmRename();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cancelRename();
-    }
-  }, [confirmRename, cancelRename]);
-
   // Settings menu handlers
-  const handleRenameClick = useCallback((e) => {
-    e.stopPropagation();
-    startRename();
-  }, [startRename]);
-
   const handleSavePresetClick = useCallback((e) => {
     e.stopPropagation();
     // TODO: Implement save preset
@@ -2994,20 +2956,9 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
       style={titleBarStyle}
     >
-      {/* Left corner - Manufacturer/Model and Color picker */}
+      {/* Left corner - Color picker */}
       <div className="flex items-center gap-2 z-10">
-        {(node.system?.approvedFields?.['Manufacturer'] || node.system?.approvedFields?.['Model']) && (
-          <div className="flex flex-col gap-0 font-mono leading-tight" style={{ color: headerTextHex }}>
-            {node.system?.approvedFields?.['Manufacturer'] && (
-              <div className="opacity-90 text-[12px]">{node.system.approvedFields['Manufacturer']}</div>
-            )}
-            {node.system?.approvedFields?.['Model'] && (
-              <div className="opacity-70 text-[10px]">{node.system.approvedFields['Model']}</div>
-            )}
-          </div>
-        )}
-
-        {/* Signal color picker - rounded square style with name */}
+        {/* Signal color picker - rounded square style */}
         <div className="relative flex items-center gap-1.5">
           <select
             value={node.signalColor || ''}
@@ -3032,52 +2983,18 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
         </div>
       </div>
 
-      {/* Centered title - positioned at divider when side-by-side, otherwise centered */}
-      <div
-        className="absolute -translate-x-1/2 whitespace-nowrap"
-        style={{ left: titleLeftPosition, pointerEvents: isRenaming ? 'auto' : 'none' }}
-      >
-        {isRenaming ? (
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <input
-              ref={renameInputRef}
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={handleRenameKeyDown}
-              onBlur={confirmRename}
-              className="font-mono font-bold text-lg bg-zinc-700 border border-zinc-500 rounded px-2 py-1 text-center min-w-[200px]"
-              style={{ color: headerTextHex }}
-              onClick={stopPropagation}
-            />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                confirmRename();
-              }}
-              className="px-2 py-1 bg-green-700 hover:bg-green-600 rounded text-white text-[11px] pointer-events-auto"
-              title="Confirm rename (Enter)"
-            >
-              ✓
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                cancelRename();
-              }}
-              className="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-[11px] pointer-events-auto"
-              title="Cancel (Esc)"
-            >
-              ✕
-            </button>
-          </div>
-        ) : (
+      {/* Centered title - derived from Manufacturer + Model */}
+      {displayTitle && (
+        <div
+          className="absolute -translate-x-1/2 whitespace-nowrap pointer-events-none"
+          style={{ left: titleLeftPosition }}
+        >
           <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle}</span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Settings button - top right */}
-      <div ref={settingsRef} className="flex items-center gap-1 ml-auto z-10 relative">
+      <div ref={settingsRef} className="flex items-center gap-1 ml-auto relative" style={{ zIndex: showSettings ? 10000 : 10 }}>
         <button
           onClick={toggleSettingsMenu}
           className="text-zinc-300 hover:text-white text-[16px] px-1"
@@ -3093,13 +3010,6 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
             style={SETTINGS_DROPDOWN_STYLE}
             onClick={stopPropagation}
           >
-            <button
-              onClick={handleRenameClick}
-              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
-            >
-              Rename Node
-            </button>
-            <div className="border-t border-zinc-600 my-1" />
             <button
               onClick={handleSavePresetClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
@@ -3158,6 +3068,37 @@ const TitleBar = memo(({ node, onUpdate, themeColors, inputSectionWidth, areIOSi
               <span>System Section</span>
               <span className={systemVisible ? 'text-green-400' : 'text-zinc-500'}>{systemVisible ? '✓' : '○'}</span>
             </button>
+
+            {/* Device Type section */}
+            <div className="border-t border-zinc-600 my-1" />
+            <div className="px-3 py-1 text-[10px] text-zinc-500 uppercase tracking-wide">Device Type</div>
+
+            {[
+              { id: 'router', label: 'Router' },
+              { id: 'switcher', label: 'Switcher' },
+              { id: 'source', label: 'Source' },
+              { id: 'destination', label: 'Destination' },
+            ].map(role => {
+              const roles = node.deviceRoles || [];
+              const isChecked = roles.includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentRoles = node.deviceRoles || [];
+                    const newRoles = isChecked
+                      ? currentRoles.filter(r => r !== role.id)
+                      : [...currentRoles, role.id];
+                    onUpdate({ deviceRoles: newRoles });
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+                >
+                  <span>{role.label}</span>
+                  <span className={isChecked ? 'text-green-400' : 'text-zinc-500'}>{isChecked ? '✓' : '○'}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -3498,6 +3439,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   useEffect(() => {
     if (!isResizing) return;
 
+    let rafId = null;
+    let pendingScale = null;
+
     const handleResizeMove = (e) => {
       // Calculate mouse position in canvas coordinates (accounting for zoom)
       const mouseCanvasX = (e.clientX - resizeStart.canvasLeft) / zoom;
@@ -3515,14 +3459,27 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       // Clamp to reasonable bounds (30% to 300%)
       const newScale = Math.max(0.3, Math.min(3.0, targetScale));
 
-      onUpdate({ scale: newScale });
+      // Throttle updates using requestAnimationFrame
+      pendingScale = newScale;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingScale !== null) {
+            onUpdate({ scale: pendingScale });
+          }
+          rafId = null;
+        });
+      }
     };
 
-    const handleResizeEnd = () => setIsResizing(false);
+    const handleResizeEnd = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      setIsResizing(false);
+    };
 
     window.addEventListener('mousemove', handleResizeMove);
     window.addEventListener('mouseup', handleResizeEnd);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleResizeMove);
       window.removeEventListener('mouseup', handleResizeEnd);
     };
@@ -3558,6 +3515,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   useEffect(() => {
     if (!isDragging) return;
 
+    let rafId = null;
+    let pendingPosition = null;
+
     const handleMouseMove = (e) => {
       const canvas = nodeRef.current?.closest('[data-canvas]');
       if (!canvas) return;
@@ -3572,16 +3532,27 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         newY = Math.round(newY / gridSize) * gridSize;
       }
 
-      onUpdate({
-        position: { x: newX, y: newY }
-      });
+      // Throttle updates using requestAnimationFrame
+      pendingPosition = { x: newX, y: newY };
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingPosition) {
+            onUpdate({ position: pendingPosition });
+          }
+          rafId = null;
+        });
+      }
     };
 
-    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseUp = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      setIsDragging(false);
+    };
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -4252,6 +4223,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           transform: wrapperTransform,
           transformOrigin: 'top left',
           isolation: 'isolate', // Create new stacking context
+          // Performance optimizations
+          willChange: isDragging || isResizing ? 'transform, left, top' : 'auto',
+          contain: 'layout style', // Contain layout recalculations within this element
         }}
         onMouseDown={handleMouseDown}
         onClick={handleClick}
