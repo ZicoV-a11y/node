@@ -1891,7 +1891,7 @@ const SectionHeader = memo(({
 
   return (
     <div
-      className={`flex items-center justify-between gap-1 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
+      className={`flex items-center justify-between gap-1 ${SIZES.PADDING_X} border-b border-zinc-700/50`}
       style={gradientStyle}
     >
       {isReversed ? (
@@ -1922,8 +1922,8 @@ const SectionHeader = memo(({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 py-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight }}
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight, transform: 'translateY(-15%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -1946,8 +1946,8 @@ const SectionHeader = memo(({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 py-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight }}
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight, transform: 'translateY(-15%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -2544,7 +2544,7 @@ const SystemHeader = memo(({
     <div
       data-section-drag="true"
       onMouseDown={handleMouseDown}
-      className={`flex items-center gap-2 px-2 py-1 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`flex items-center gap-2 px-2 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
       style={{
         ...gradientStyle,
       }}
@@ -2552,7 +2552,7 @@ const SystemHeader = memo(({
     >
       <div className="flex items-center gap-1 shrink-0">
         <span
-          className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
+          className="font-mono font-bold text-[12px] hover:opacity-80 px-1 rounded whitespace-nowrap pointer-events-none"
           style={WHITE_TEXT_STYLE}
         >
           SYSTEM
