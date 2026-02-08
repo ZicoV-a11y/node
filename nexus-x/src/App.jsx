@@ -362,6 +362,12 @@ export default function App() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
 
+  // Auto-show changelog when version changes
+  useEffect(() => {
+    const lastSeen = localStorage.getItem('nx-lastSeenVersion');
+    if (lastSeen !== APP_VERSION) setShowChangelog(true);
+  }, []);
+
   // Refs for stable access in event handlers (avoids stale closures)
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
@@ -1997,7 +2003,10 @@ export default function App() {
             </button>
             <ChangelogPopup
               isOpen={showChangelog}
-              onClose={() => setShowChangelog(false)}
+              onClose={() => {
+                setShowChangelog(false);
+                localStorage.setItem('nx-lastSeenVersion', APP_VERSION);
+              }}
             />
           </div>
         </div>
