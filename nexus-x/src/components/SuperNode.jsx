@@ -139,13 +139,10 @@ const DROP_ZONE_STYLE = { zIndex: 10000 };
 // Settings dropdown z-index (static) - solid background to hide content behind
 const SETTINGS_DROPDOWN_STYLE = { zIndex: 9999, backgroundColor: '#27272a' };
 
-// Spacing drag handle style (static)
+// Spacing drag handle style (static) - no border to avoid extra vertical lines
 const SPACING_HANDLE_STYLE = {
   width: '20px',
   height: '20px',
-  background: '#27272a',
-  border: '1px solid #3f3f46',
-  borderRadius: '3px',
   color: HEX_COLORS.zinc[500],
   fontSize: '16px',
   fontWeight: 'bold',
@@ -154,7 +151,6 @@ const SPACING_HANDLE_STYLE = {
   alignItems: 'center',
   justifyContent: 'center',
   lineHeight: '1',
-  transition: 'all 0.2s',
   userSelect: 'none',
 };
 
@@ -1013,7 +1009,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.connector || ''}
             options={CONNECTOR_TYPES}
-            placeholder="Select"
+            placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('connector', value)}
           />
@@ -1023,7 +1019,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.resolution || ''}
             options={RESOLUTIONS}
-            placeholder="Select"
+            placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('resolution', value)}
           />
@@ -1033,7 +1029,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.refreshRate || ''}
             options={REFRESH_RATES}
-            placeholder="Select"
+            placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('refreshRate', value)}
           />
@@ -1043,7 +1039,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.source || ''}
             options={['Custom...']}
-            placeholder="Select"
+            placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('source', value)}
           />
@@ -1053,7 +1049,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.destination || ''}
             options={['Custom...']}
-            placeholder="Select"
+            placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('destination', value)}
           />
@@ -1063,9 +1059,9 @@ const PortRow = memo(({
     }
   };
 
-  // Get width for a column (use dynamic width if available, else minWidth)
+  // Get width for a column - check undefined explicitly to allow 0 values
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
   }, [columnWidths]);
 
   // Row style with hover background color
@@ -1079,7 +1075,7 @@ const PortRow = memo(({
 
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} group text-[12px] whitespace-nowrap px-2`}
+      className={`flex items-center ${SIZES.PADDING_Y} group text-[12px] whitespace-nowrap px-2 w-full`}
       style={rowStyle}
     >
       {fullColumnOrder.map((colId, index) => {
@@ -1101,13 +1097,15 @@ const PortRow = memo(({
 
         return (
           <div key={colId} className="flex items-center">
-            {/* Divider between columns (except before first) */}
+            {/* Divider between columns - same structure as header resize handle for alignment */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
+              <div className="w-4 h-5 flex items-center justify-center shrink-0">
+                <span className="w-px h-4 bg-zinc-600/40" />
+              </div>
             )}
             <span
-              className="shrink-0 flex items-center justify-center"
-              style={{ minWidth: `${getColumnWidth(colId)}px` }}
+              className="shrink-0 flex items-center justify-center overflow-hidden"
+              style={{ width: `${getColumnWidth(colId)}px` }}
               {...columnProps}
             >
               {renderColumnContent(colId)}
@@ -1115,6 +1113,12 @@ const PortRow = memo(({
           </div>
         );
       })}
+      {/* Trailing divider to match header's trailing resize handle */}
+      {fullColumnOrder.length > 0 && (
+        <div className="w-4 h-5 flex items-center justify-center shrink-0">
+          <span className="w-px h-4 bg-zinc-600/40" />
+        </div>
+      )}
     </div>
   );
 });
@@ -1125,14 +1129,38 @@ PortRow.displayName = 'PortRow';
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
+const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {}, onColumnResize }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
+  const resizeRef = useRef({ colId: null, startX: 0, startWidth: 0 });
 
-  // Get width for a column (use dynamic width if available, else minWidth)
+  // Get width for a column - check undefined explicitly to allow 0 values
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
   }, [columnWidths]);
+
+  // Resize column by dragging divider - no minimum, allow full collapse
+  const handleResizeStart = useCallback((e, colId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = { colId, startX: e.clientX, startWidth: getColumnWidth(colId) };
+
+    const handleMouseMove = (moveE) => {
+      if (!onColumnResize || !resizeRef.current.colId) return;
+      const delta = moveE.clientX - resizeRef.current.startX;
+      const newWidth = Math.max(0, resizeRef.current.startWidth + delta);
+      onColumnResize(resizeRef.current.colId, newWidth);
+    };
+
+    const handleMouseUp = () => {
+      resizeRef.current.colId = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [getColumnWidth, onColumnResize]);
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
@@ -1148,12 +1176,12 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
   // Get full column order (anchor, delete, data, flip) with proper reversal
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
 
-  // Pre-compute column width styles (prevents calling getColumnWidth twice per column)
+  // Pre-compute column width styles (use fixed width for alignment)
   const columnStyles = useMemo(() => {
     const styles = {};
     fullColumnOrder.forEach(colId => {
       const width = getColumnWidth(colId);
-      styles[colId] = { minWidth: `${width}px` };
+      styles[colId] = { width: `${width}px` };
     });
     return styles;
   }, [fullColumnOrder, getColumnWidth]);
@@ -1224,9 +1252,20 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
           >
-            {/* Divider between columns (except before first) */}
+            {/* Resize handle between columns (drag to resize previous column) */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
+              <div
+                className="w-4 h-5 flex items-center justify-center cursor-col-resize shrink-0 group"
+                onMouseDown={(e) => {
+                  const prevColId = fullColumnOrder[index - 1];
+                  if (prevColId && onColumnResize) {
+                    handleResizeStart(e, prevColId);
+                  }
+                }}
+                title="Drag to resize column"
+              >
+                <span className="w-px h-4 bg-zinc-600/40 group-hover:bg-cyan-400 group-hover:w-0.5 transition-all" />
+              </div>
             )}
             {colId === 'port' ? (
               // PORT header is both draggable AND clickable for select all
@@ -1240,7 +1279,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                 }}
                 onDragStart={(e) => handleDragStart(e, colId)}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
+                className={`shrink-0 flex items-center justify-center overflow-hidden gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
                 style={columnStyles[colId]}
@@ -1258,7 +1297,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
                   if (isDraggable) handleDragStart(e, colId);
                 }}
                 onDragEnd={handleDragEnd}
-                className={`shrink-0 flex items-center justify-center transition-opacity
+                className={`shrink-0 flex items-center justify-center overflow-hidden transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
                 style={columnStyles[colId]}
@@ -1270,6 +1309,21 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
           </div>
         );
       })}
+      {/* Trailing divider - always shown to match PortRow structure for alignment */}
+      {fullColumnOrder.length > 0 && (
+        <div
+          className={`w-4 h-5 flex items-center justify-center shrink-0 ${onColumnResize ? 'cursor-col-resize group' : ''}`}
+          onMouseDown={onColumnResize ? (e) => {
+            const lastColId = fullColumnOrder[fullColumnOrder.length - 1];
+            if (lastColId) {
+              handleResizeStart(e, lastColId);
+            }
+          } : undefined}
+          title={onColumnResize ? "Drag to resize column" : undefined}
+        >
+          <span className={`w-px h-4 bg-zinc-600/40 ${onColumnResize ? 'group-hover:bg-cyan-400 group-hover:w-0.5 transition-all' : ''}`} />
+        </div>
+      )}
     </div>
   );
 });
@@ -1289,9 +1343,9 @@ const CollapsedColumnHeaders = memo(({
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
 
-  // Get width for a column
+  // Get width for a column - check undefined explicitly to allow 0 values
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
   }, [columnWidths]);
 
   // Build full column order with anchor
@@ -1460,9 +1514,9 @@ const CollapsedPortRow = memo(({
     [selectedColumns, isReversed]
   );
 
-  // Get width for a column
+  // Get width for a column - check undefined explicitly to allow 0 values
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
   }, [columnWidths]);
 
   // Render column content based on column ID
@@ -1994,6 +2048,7 @@ const IOSection = memo(({
   connectedAnchorIds,
   sharedColumnWidths,
   sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
+  onColumnResize, // Handler for column resize
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2395,6 +2450,7 @@ const IOSection = memo(({
               selectedCount={selectedPorts.size}
               totalCount={data.ports.length}
               onToggleSelectAll={toggleSelectAll}
+              onColumnResize={onColumnResize}
             />
           )}
 
@@ -3169,6 +3225,36 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const [draggedSection, setDraggedSection] = useState(null);
   const [dragOverSection, setDragOverSection] = useState(null);
 
+  // Custom column widths from user resizing (persisted in node.layout.columnWidths)
+  const customColumnWidths = node.layout?.columnWidths || {};
+
+  // Handler for column resize - updates node data
+  // No minimum - allow columns to collapse completely
+  // Syncs source/destination to same width (whichever is resized)
+  const handleColumnResize = useCallback((colId, newWidth) => {
+    const clampedWidth = Math.max(0, newWidth);
+
+    // Build updates object
+    const updates = { [colId]: clampedWidth };
+
+    // Sync source and destination - when one is resized, update both
+    if (colId === 'source') {
+      updates.destination = clampedWidth;
+    } else if (colId === 'destination') {
+      updates.source = clampedWidth;
+    }
+
+    onUpdate({
+      layout: {
+        ...node.layout,
+        columnWidths: {
+          ...customColumnWidths,
+          ...updates
+        }
+      }
+    });
+  }, [node.layout, customColumnWidths, onUpdate]);
+
   const nodeRef = useRef(null);
   const registeredAnchorsRef = useRef(new Set()); // Track anchors we've registered for cleanup
   const nodeScale = node.scale || 1;
@@ -3193,8 +3279,13 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [themeColors?.header?.hex]);
 
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
+  // Merge calculated widths with user-customized widths (custom widths override calculated)
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
-  const sharedColumnWidths = useMemo(() => calculateColumnWidths(allPorts), [allPorts]);
+  const sharedColumnWidths = useMemo(() => {
+    const calculated = calculateColumnWidths(allPorts);
+    // Merge custom widths, ensuring they override calculated values
+    return { ...calculated, ...customColumnWidths };
+  }, [allPorts, customColumnWidths]);
   // COLLAPSED view uses tighter widths (no dropdown padding, smaller minimums)
   const sharedCollapsedColumnWidths = useMemo(() => calculateCollapsedColumnWidths(allPorts), [allPorts]);
 
@@ -3987,6 +4078,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
+            onColumnResize={handleColumnResize}
           />
         );
       case 'output':
@@ -4009,6 +4101,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             connectedAnchorIds={connectedAnchorIds}
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
+            onColumnResize={handleColumnResize}
           />
         );
       default:
@@ -4023,7 +4116,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds,
     sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
-    leftSectionWidth, rightSectionWidth
+    leftSectionWidth, rightSectionWidth, handleColumnResize
   ]);
 
   // Handle click to select (shift+click to add to selection)
