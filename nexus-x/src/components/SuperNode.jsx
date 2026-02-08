@@ -1,4 +1,42 @@
-import { useState, useRef, useEffect, useLayoutEffect, memo, Fragment } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react';
+
+/**
+ * ============================================
+ * SUPERNODE COMPONENT - Performance Optimized
+ * ============================================
+ *
+ * This component is heavily optimized with 126+ memoized values.
+ * It uses React.memo with a custom comparator to prevent unnecessary re-renders.
+ *
+ * PARENT COMPONENT REQUIREMENTS:
+ * --------------------------------
+ * To maintain optimal performance, the parent component MUST properly memoize these props:
+ *
+ * 1. connectedAnchorIds (Set) - MUST use useMemo:
+ *    ✅ const connectedAnchorIds = useMemo(() => {
+ *         const set = new Set();
+ *         connections.forEach(c => { set.add(c.from); set.add(c.to); });
+ *         return set;
+ *       }, [connections]);
+ *
+ * 2. usedSignalColors (Set) - MUST use useMemo:
+ *    ✅ const usedSignalColors = useMemo(() => {
+ *         const set = new Set();
+ *         Object.values(nodes).forEach(node => {
+ *           if (node.signalColor) set.add(node.signalColor);
+ *         });
+ *         return set;
+ *       }, [nodes]);
+ *
+ * 3. Callback props (onUpdate, onDelete, etc.) - SHOULD use useCallback:
+ *    ✅ const handleUpdate = useCallback((nodeId, updates) => {...}, [deps]);
+ *
+ * WARNING: If these props are not memoized, SuperNode will re-render on EVERY parent render,
+ * bypassing all 126+ internal optimizations!
+ *
+ * Development mode includes warnings that detect unstable props automatically.
+ * Set ENABLE_PROFILING = true inside SuperNode to measure render times.
+ */
 
 // ============================================
 // CONSTANTS - Single source of truth for sizes
@@ -9,30 +47,11 @@ const SIZES = {
   DELETE: 'w-4',            // 16px
   PADDING_X: 'px-1.5',      // slightly tighter
   PADDING_Y: 'py-1',        // slightly tighter
+  ROW_HEIGHT: 30,           // Approximate row height in pixels
+  SPACING_SNAP: 15,         // Snap spacing to half-row increments (ROW_HEIGHT / 2)
 };
 
 // Colors per section type
-const SECTION_COLORS = {
-  input: {
-    accent: 'emerald',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500',
-  },
-  output: {
-    accent: 'amber',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
-    border: 'border-amber-500',
-  },
-  system: {
-    accent: 'purple',
-    bg: 'bg-purple-500/10',
-    text: 'text-purple-400',
-    border: 'border-purple-500',
-  },
-};
-
 // Dropdown options
 const RESOLUTIONS = [
   '640x480', '800x600', '1024x768',
@@ -50,16 +69,37 @@ const CONNECTOR_TYPES = [
   'HDMI', 'SDI', '12G SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
 ];
 
+// Signal colors in ranked priority order (1 = most preferred)
 const SIGNAL_COLORS = [
-  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
-  { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
-  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
-  { id: 'violet', hex: '#8b5cf6', label: 'Violet' },
-  { id: 'pink', hex: '#ec4899', label: 'Pink' },
-  { id: 'red', hex: '#ef4444', label: 'Red' },
-  { id: 'orange', hex: '#f97316', label: 'Orange' },
-  { id: 'yellow', hex: '#eab308', label: 'Yellow' },
+  { id: 'crimson', hex: '#e63946', label: 'Crimson' },
+  { id: 'vermilion', hex: '#d62828', label: 'Vermilion' },
+  { id: 'raspberry', hex: '#c9184a', label: 'Raspberry' },
+  { id: 'rose', hex: '#db5075', label: 'Rose' },
+  { id: 'maroon', hex: '#9b2226', label: 'Maroon' },
+  { id: 'marigold', hex: '#ff9f1c', label: 'Marigold' },
+  { id: 'burnt-orange', hex: '#d4700a', label: 'Burnt Orange' },
+  { id: 'antique-gold', hex: '#c4a35a', label: 'Antique Gold' },
+  { id: 'bronze', hex: '#bb7733', label: 'Bronze' },
+  { id: 'saddle', hex: '#a4641e', label: 'Saddle' },
+  { id: 'lime', hex: '#8ac926', label: 'Lime' },
+  { id: 'kelly-green', hex: '#38b000', label: 'Kelly Green' },
+  { id: 'fern', hex: '#6a994e', label: 'Fern' },
+  { id: 'forest', hex: '#2d6a4f', label: 'Forest' },
+  { id: 'olive', hex: '#606c38', label: 'Olive' },
+  { id: 'cornflower', hex: '#4895ef', label: 'Cornflower' },
+  { id: 'cerulean', hex: '#219ebc', label: 'Cerulean' },
+  { id: 'aqua', hex: '#2ec4b6', label: 'Aqua' },
+  { id: 'ocean', hex: '#168aad', label: 'Ocean' },
+  { id: 'deep-teal', hex: '#087e8b', label: 'Deep Teal' },
+  { id: 'ultraviolet', hex: '#8338ec', label: 'Ultraviolet' },
+  { id: 'indigo', hex: '#5e60ce', label: 'Indigo' },
+  { id: 'plum', hex: '#7b2d8e', label: 'Plum' },
+  { id: 'amethyst', hex: '#6c63a0', label: 'Amethyst' },
+  { id: 'midnight', hex: '#1d3557', label: 'Midnight' },
 ];
+
+// Signal colors lookup Map for O(1) access by id
+const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
 
 // Hex color values for theming (Tailwind 500/400 equivalents)
 const HEX_COLORS = {
@@ -83,8 +123,61 @@ const HEX_COLORS = {
   lime:    { 500: '#84cc16', 400: '#a3e635' },
 };
 
+// Common input field className for consistency
+const INPUT_FIELD_CLASS = "w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600";
+
+// System section wrapper style (static)
+// minWidth: 0 allows flex shrinking
+const SYSTEM_WRAPPER_STYLE = { position: 'relative', zIndex: 1, isolation: 'isolate', minWidth: 0 };
+
+// Checkmark button size (static)
+const CHECKMARK_BUTTON_STYLE = { width: '28px', height: '28px' };
+
+// Drop zone z-index style (static)
+const DROP_ZONE_STYLE = { zIndex: 10000 };
+
+// Settings dropdown z-index (static) - solid background to hide content behind
+const SETTINGS_DROPDOWN_STYLE = { zIndex: 9999, backgroundColor: '#27272a' };
+
+// Spacing drag handle style (static)
+const SPACING_HANDLE_STYLE = {
+  width: '20px',
+  height: '20px',
+  background: '#27272a',
+  border: '1px solid #3f3f46',
+  borderRadius: '3px',
+  color: HEX_COLORS.zinc[500],
+  fontSize: '16px',
+  fontWeight: 'bold',
+  cursor: 'ns-resize',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  lineHeight: '1',
+  transition: 'all 0.2s',
+  userSelect: 'none',
+};
+
+// Utility function to convert hex color to rgba (extracted to avoid duplication)
+const hexToRgba = (hex, alpha) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+// Dark color scheme style for select elements (static)
+const DARK_COLOR_SCHEME_STYLE = { colorScheme: 'dark' };
+
+// White text color style (static)
+const WHITE_TEXT_STYLE = { color: '#ffffff' };
+
+// Shared event handlers (prevents anonymous function creation)
+const stopPropagation = (e) => e.stopPropagation();
+
 // Generate cohesive color theme from signal color
-// Returns hex values for inline styles
+// Uses a SINGLE color for the entire node (header, system, input, output)
+// Gradients are preserved via opacity variations
 const getThemeColors = (signalColorId) => {
   // No color selected = neutral zinc theme
   if (!signalColorId) {
@@ -97,25 +190,28 @@ const getThemeColors = (signalColorId) => {
     };
   }
 
-  // Color family mappings - each signal color gets related variants
-  const themes = {
-    emerald: { base: 'emerald', system: 'teal',    input: 'emerald', output: 'green' },
-    cyan:    { base: 'cyan',    system: 'sky',     input: 'cyan',    output: 'teal' },
-    blue:    { base: 'blue',    system: 'indigo',  input: 'blue',    output: 'sky' },
-    violet:  { base: 'violet',  system: 'purple',  input: 'violet',  output: 'indigo' },
-    pink:    { base: 'pink',    system: 'fuchsia', input: 'pink',    output: 'rose' },
-    red:     { base: 'red',     system: 'rose',    input: 'red',     output: 'orange' },
-    orange:  { base: 'orange',  system: 'amber',   input: 'orange',  output: 'yellow' },
-    yellow:  { base: 'yellow',  system: 'amber',   input: 'yellow',  output: 'lime' },
-  };
+  // Look up the signal color from the list
+  const signalColor = SIGNAL_COLORS_BY_ID.get(signalColorId);
+  if (!signalColor) {
+    const zinc = HEX_COLORS.zinc;
+    return {
+      header: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      system: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      input:  { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+      output: { hex: zinc[500], hexLight: zinc[400], hexDark: zinc[600] },
+    };
+  }
 
-  const theme = themes[signalColorId] || themes.cyan;
+  // Use the SAME color for everything - gradients come from opacity
+  const hex = signalColor.hex;
+  // Generate lighter variant by adding transparency or computing lighter shade
+  const hexLight = hex + 'cc'; // 80% opacity for "light" variant
 
   return {
-    header: { hex: HEX_COLORS[theme.base][500],   hexLight: HEX_COLORS[theme.base][400] },
-    system: { hex: HEX_COLORS[theme.system][500], hexLight: HEX_COLORS[theme.system][400] },
-    input:  { hex: HEX_COLORS[theme.input][500],  hexLight: HEX_COLORS[theme.input][400] },
-    output: { hex: HEX_COLORS[theme.output][500], hexLight: HEX_COLORS[theme.output][400] },
+    header: { hex, hexLight },
+    system: { hex, hexLight },
+    input:  { hex, hexLight },
+    output: { hex, hexLight },
   };
 };
 
@@ -165,6 +261,10 @@ const CAPTURE_CARDS = [
   { id: 'custom', label: 'Custom...' },
 ];
 
+// Pre-mapped label arrays (computed once at module load)
+const SOFTWARE_PRESET_LABELS = SOFTWARE_PRESETS.map(s => s.label);
+const CAPTURE_CARD_LABELS = CAPTURE_CARDS.map(c => c.label);
+
 // Barco Tri-Combo Cards (DP, HDMI, 4x 12G SDI)
 const CARD_PRESETS = {
   'tri-combo-in': {
@@ -200,11 +300,11 @@ const CARD_PRESETS = {
 // Dropdown that switches to text input for custom values
 // ============================================
 
-const SelectWithCustom = ({
+const SelectWithCustom = memo(({
   value,
   options,
   onChange,
-  placeholder = 'Choose',
+  placeholder = 'Select',
   className = '',
   isSelected = false,
 }) => {
@@ -227,13 +327,13 @@ const SelectWithCustom = ({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full text-center ${
+  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
   if (isCustomMode) {
     return (
-      <div className={`flex items-center w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
+      <div className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
         <input
           ref={inputRef}
           type="text"
@@ -258,9 +358,9 @@ const SelectWithCustom = ({
               setCustomText(value || '');
             }
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={stopPropagation}
           placeholder="Type custom..."
-          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
+          className="flex-1 min-w-0 w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
@@ -293,20 +393,21 @@ const SelectWithCustom = ({
           onChange(newValue);
         }
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={stopPropagation}
       className={`${baseStyle} ${className}`}
     >
       <option value="">{placeholder}</option>
       {/* Show custom value as first option if it exists */}
       {isCustomValue && (
-        <option value={value}>{value} (custom)</option>
+        <option value={value}>{value}</option>
       )}
       {options.map(opt => (
         <option key={opt} value={opt}>{opt}</option>
       ))}
     </select>
   );
-};
+});
+SelectWithCustom.displayName = 'SelectWithCustom';
 
 // ============================================
 // CARD WRAPPER COMPONENT
@@ -314,26 +415,38 @@ const SelectWithCustom = ({
 // Minimal header that doesn't break column alignment
 // ============================================
 
-const CardWrapper = ({
+const CardWrapper = memo(({
   card,
   children,
-  type,
   onToggleCollapse,
   onRemoveCard,
   anchorSide,
   colors: passedColors
 }) => {
-  // Use passed hex colors or fallback to zinc
-  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHex = useMemo(() => passedColors?.hex || HEX_COLORS.zinc[500], [passedColors?.hex]);
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
   const isReversed = anchorSide === 'right';
+
+  // Memoized style objects (prevent recreation on every render)
+  const stripeStyle = useMemo(() => ({ backgroundColor: `${colorHex}66` }), [colorHex]);
+  const labelBarStyle = useMemo(() => ({ backgroundColor: `${colorHex}1a` }), [colorHex]);
+  const iconStyle = useMemo(() => ({ color: colorHexLight }), [colorHexLight]);
+  const nameStyle = useMemo(() => ({ color: colorHexLight }), [colorHexLight]);
+
+  // Memoized event handlers
+  const handleToggle = useCallback(() => onToggleCollapse && onToggleCollapse(card.id), [onToggleCollapse, card.id]);
+  const handleRemove = useCallback((e) => {
+    e.stopPropagation();
+    onRemoveCard && onRemoveCard(card.id);
+  }, [onRemoveCard, card.id]);
 
   return (
     <div className="relative">
       {/* Colored stripe indicator on anchor side */}
       <div
         className={`absolute top-0 bottom-0 w-1 ${isReversed ? 'right-0' : 'left-0'}`}
-        style={{ backgroundColor: `${colorHex}66` }} // ~40% opacity
+        style={stripeStyle}
       />
 
       {/* Card label bar - minimal, symmetric */}
@@ -342,20 +455,21 @@ const CardWrapper = ({
           flex items-center justify-between
           py-0.5 text-[9px] font-mono
           cursor-pointer select-none
-          ${isReversed ? 'flex-row-reverse pl-2 pr-1' : 'pl-1 pr-2'}
+          px-1
+          ${isReversed ? 'flex-row-reverse' : ''}
         `}
-        style={{ backgroundColor: `${colorHex}1a` }} // ~10% opacity
-        onClick={() => onToggleCollapse && onToggleCollapse(card.id)}
+        style={labelBarStyle}
+        onClick={handleToggle}
       >
         {/* Left/anchor side: collapse + name */}
         <div className={`flex items-center gap-1 ${isReversed ? 'flex-row-reverse' : ''}`}>
           <span
             className={`transition-transform ${card.collapsed ? '' : 'rotate-90'}`}
-            style={{ color: colorHexLight }}
+            style={iconStyle}
           >
             ▶
           </span>
-          <span className="font-bold tracking-wider" style={{ color: colorHexLight }}>
+          <span className="font-bold tracking-wider" style={nameStyle}>
             {card.name}
           </span>
           <span className="text-zinc-500 bg-zinc-700/50 px-1 rounded">
@@ -365,10 +479,7 @@ const CardWrapper = ({
 
         {/* Right side: remove button */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveCard && onRemoveCard(card.id);
-          }}
+          onClick={handleRemove}
           className="text-zinc-500 hover:text-red-400 px-1"
           title="Remove card"
         >
@@ -380,13 +491,15 @@ const CardWrapper = ({
       {!card.collapsed && children}
     </div>
   );
-};
+});
+CardWrapper.displayName = 'CardWrapper';
 
 // Column definitions - ALL row elements as columns for template layout
 // minWidth is the minimum, but columns can grow based on content
 const COLUMN_DEFS = {
+  spacing: { id: 'spacing', label: '', minWidth: 20, draggable: false },
   anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
-  delete: { id: 'delete', label: '🗑', minWidth: 24, draggable: true },
+  delete: { id: 'delete', label: '🗑', minWidth: 32, draggable: true },
   port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
   source: { id: 'source', label: 'Source', minWidth: 90, draggable: true },
   destination: { id: 'destination', label: 'Destination', minWidth: 90, draggable: true },
@@ -396,18 +509,32 @@ const COLUMN_DEFS = {
   flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
 };
 
-// Estimate text width in pixels (monospace font at 10px ≈ 6px per character)
-const CHAR_WIDTH = 6;
-const PADDING = 16; // px padding inside cell
+// Collapsed view column configuration
+// These are the columns users can choose from for collapsed view (1-3 columns)
+const COLLAPSED_ELIGIBLE_COLUMNS = ['port', 'source', 'destination', 'connector', 'resolution', 'rate'];
+const DEFAULT_COLLAPSED_COLUMNS_INPUT = ['port', 'source'];
+const DEFAULT_COLLAPSED_COLUMNS_OUTPUT = ['port', 'destination'];
+const MIN_COLLAPSED_COLUMNS = 1;
+const MAX_COLLAPSED_COLUMNS = 3;
 
-const estimateTextWidth = (text) => {
+// Width calculation constants
+const CHAR_WIDTH = 7; // Character width for text estimation
+const PADDING = 16; // Padding inside cells
+const DROPDOWN_ARROW_WIDTH = 20; // Width reserved for native select dropdown arrow
+const SEPARATOR_WIDTH = 9; // 1px content + 8px margins (mx-2)
+
+const estimateTextWidth = (text, isDropdown = false) => {
   if (!text) return 0;
-  return text.length * CHAR_WIDTH + PADDING;
+  const baseWidth = text.length * CHAR_WIDTH + PADDING;
+  const width = isDropdown ? baseWidth + DROPDOWN_ARROW_WIDTH : baseWidth;
+  // Return calculated width without artificial cap - let node expand to fit all columns
+  return width;
 };
 
 // Calculate dynamic column widths based on port data
 const calculateColumnWidths = (ports) => {
   const widths = {
+    spacing: COLUMN_DEFS.spacing.minWidth,
     anchor: COLUMN_DEFS.anchor.minWidth,
     delete: COLUMN_DEFS.delete.minWidth,
     port: COLUMN_DEFS.port.minWidth,
@@ -419,25 +546,82 @@ const calculateColumnWidths = (ports) => {
     flip: COLUMN_DEFS.flip.minWidth,
   };
 
-  // Also consider header labels
-  widths.source = Math.max(widths.source, estimateTextWidth('Source'));
-  widths.destination = Math.max(widths.destination, estimateTextWidth('Destination'));
-  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector'));
-  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution'));
-  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate'));
+  // Also consider header labels and placeholder text (with dropdown arrow width)
+  widths.source = Math.max(widths.source, estimateTextWidth('Source', true));
+  widths.destination = Math.max(widths.destination, estimateTextWidth('Destination', true));
+  widths.connector = Math.max(widths.connector, estimateTextWidth('Connector', true), estimateTextWidth('Type', true));
+  widths.resolution = Math.max(widths.resolution, estimateTextWidth('Resolution', true), estimateTextWidth('Choose', true));
+  widths.rate = Math.max(widths.rate, estimateTextWidth('Rate', true), estimateTextWidth('Choose', true));
 
-  // Scan all ports to find max width needed
+  // Scan all ports to find max width needed (with dropdown arrow width)
   ports.forEach(port => {
+    if (port.source) {
+      widths.source = Math.max(widths.source, estimateTextWidth(port.source, true));
+    }
+    if (port.destination) {
+      widths.destination = Math.max(widths.destination, estimateTextWidth(port.destination, true));
+    }
     if (port.connector) {
-      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector));
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector, true));
     }
     if (port.resolution) {
-      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution));
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution, true));
     }
     if (port.refreshRate) {
-      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate));
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate, true));
     }
   });
+
+  // Make source and destination use the same width for alignment
+  const maxSourceDestWidth = Math.max(widths.source, widths.destination);
+  widths.source = maxSourceDestWidth;
+  widths.destination = maxSourceDestWidth;
+
+  return widths;
+};
+
+// Calculate COMPACT column widths for collapsed view only (no dropdown padding, tighter fit)
+const calculateCollapsedColumnWidths = (ports) => {
+  // Smaller minimums for collapsed view - display only, no dropdowns
+  const COLLAPSED_MIN_WIDTHS = {
+    spacing: COLUMN_DEFS.spacing.minWidth,
+    anchor: COLUMN_DEFS.anchor.minWidth,
+    delete: COLUMN_DEFS.delete.minWidth,
+    port: 44,         // Tighter: "IN 99" or "OUT 99" fits in ~44px
+    source: 60,       // Tighter minimum for text display
+    destination: 80,  // More breathing room for collapsed side-by-side
+    connector: 60,    // Tighter minimum for text display
+    resolution: 80,   // More breathing room for collapsed side-by-side
+    rate: 44,         // Tighter: rates are short like "60Hz"
+    flip: COLUMN_DEFS.flip.minWidth,
+  };
+
+  const widths = { ...COLLAPSED_MIN_WIDTHS };
+
+  // Scan ports and calculate width WITHOUT dropdown arrow padding
+  // (collapsed view just displays text, no dropdowns)
+  ports.forEach(port => {
+    if (port.source) {
+      widths.source = Math.max(widths.source, estimateTextWidth(port.source, false));
+    }
+    if (port.destination) {
+      widths.destination = Math.max(widths.destination, estimateTextWidth(port.destination, false));
+    }
+    if (port.connector) {
+      widths.connector = Math.max(widths.connector, estimateTextWidth(port.connector, false));
+    }
+    if (port.resolution) {
+      widths.resolution = Math.max(widths.resolution, estimateTextWidth(port.resolution, false));
+    }
+    if (port.refreshRate) {
+      widths.rate = Math.max(widths.rate, estimateTextWidth(port.refreshRate, false));
+    }
+  });
+
+  // Keep source and destination aligned with each other
+  const maxSourceDestWidth = Math.max(widths.source, widths.destination);
+  widths.source = maxSourceDestWidth;
+  widths.destination = maxSourceDestWidth;
 
   return widths;
 };
@@ -446,23 +630,35 @@ const calculateColumnWidths = (ports) => {
 const DATA_COLUMNS = ['delete', 'port', 'connector', 'resolution', 'rate'];
 
 // Build full column order based on mode
-// dataOrder now includes delete and port, so we just add anchor at start and flip at end
+// Spacing positioned between anchor and port columns
 const getFullColumnOrder = (dataOrder, canToggleAnchor, isReversed) => {
   // Base order: anchor, data columns (includes delete, port, etc.), flip (if stacked)
   const baseOrder = canToggleAnchor
     ? ['anchor', ...dataOrder, 'flip']
     : ['anchor', ...dataOrder];
 
-  // Reverse entire array if anchor is on right
+  // Insert spacing after anchor (between anchor and delete/port)
+  const withSpacing = [baseOrder[0], 'spacing', ...baseOrder.slice(1)];
+
+  // Reverse if anchor is on right
+  return isReversed ? [...withSpacing].reverse() : withSpacing;
+};
+
+// Build collapsed column order (simplified: anchor + selected columns only)
+// No spacing, delete, or flip - just anchor and user-selected data columns
+const getCollapsedColumnOrder = (selectedColumns, isReversed) => {
+  const baseOrder = ['anchor', ...selectedColumns];
   return isReversed ? [...baseOrder].reverse() : baseOrder;
 };
 
 // ============================================
 // SIDE DROP ZONE COMPONENT
-// Appears on left/right of sections when dragging
+// Two modes:
+// - Full width for side-by-side swap (covers entire section)
+// - Edge mode for adding to side (small edge indicator)
 // ============================================
 
-const SideDropZone = ({ side, onDrop, isActive }) => (
+const SideDropZone = memo(({ side, onDrop, fullWidth = false }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -481,22 +677,79 @@ const SideDropZone = ({ side, onDrop, isActive }) => (
     onMouseUp={() => {
       onDrop(side);
     }}
-    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} w-16
-      border-2 border-dashed transition-all z-20 flex items-center justify-center
-      border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40`}
+    className={`absolute top-0 bottom-0 ${side === 'left' ? 'left-0' : 'right-0'} ${fullWidth ? 'w-full' : 'w-16'}
+      border-4 border-dashed transition-all flex items-center justify-center
+      border-emerald-400 bg-emerald-400/30 hover:bg-emerald-400/50 animate-pulse cursor-pointer px-1`}
+    style={DROP_ZONE_STYLE}
   >
-    <span className="text-cyan-300 text-[11px] font-mono font-bold pointer-events-none">
-      {side === 'left' ? '← DROP' : 'DROP →'}
+    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+      {fullWidth
+        ? (side === 'left' ? '◄◄◄ SWAP ◄◄◄' : '►►► SWAP ►►►')
+        : (side === 'left' ? '◄ DROP' : 'DROP ►')
+      }
     </span>
   </div>
-);
+));
+SideDropZone.displayName = 'SideDropZone';
+
+// ============================================
+// THREE ZONE DROP AREA COMPONENT
+// For stacked mode: shows left, center (swap), and right zones
+// ============================================
+
+const ThreeZoneDropArea = memo(({ onDropToSide, onDropToSwap }) => (
+  <div className="absolute inset-0 flex" style={DROP_ZONE_STYLE}>
+    {/* LEFT ZONE */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSide('left'); }}
+      onMouseUp={() => { onDropToSide('left'); }}
+      className="flex-1 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+        hover:bg-emerald-400/50 animate-pulse cursor-pointer flex items-center justify-center"
+    >
+      <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+        ◄◄◄ LEFT
+      </span>
+    </div>
+
+    {/* CENTER ZONE (SWAP) */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSwap(); }}
+      onMouseUp={() => { onDropToSwap(); }}
+      className="flex-1 border-4 border-dashed border-cyan-400 bg-cyan-400/30
+        hover:bg-cyan-400/50 animate-pulse cursor-pointer flex items-center justify-center mx-1"
+    >
+      <span className="text-cyan-200 text-[10px] font-bold pointer-events-none uppercase">
+        ⇅ SWAP ⇅
+      </span>
+    </div>
+
+    {/* RIGHT ZONE */}
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSide('right'); }}
+      onMouseUp={() => { onDropToSide('right'); }}
+      className="flex-1 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+        hover:bg-emerald-400/50 animate-pulse cursor-pointer flex items-center justify-center"
+    >
+      <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase">
+        RIGHT ►►►
+      </span>
+    </div>
+  </div>
+));
+ThreeZoneDropArea.displayName = 'ThreeZoneDropArea';
 
 // ============================================
 // BOTTOM DROP ZONE COMPONENT
 // Appears at bottom when dragging to add new row
 // ============================================
 
-const BottomDropZone = ({ onDrop }) => (
+const BottomDropZone = memo(({ onDrop }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -516,19 +769,24 @@ const BottomDropZone = ({ onDrop }) => (
     onMouseUp={() => {
       onDrop();
     }}
-    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
-      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer"
+    className="w-full h-16 border-4 border-dashed border-emerald-400 bg-emerald-400/30
+      flex items-center justify-center hover:bg-emerald-400/50 transition-all cursor-pointer
+      animate-pulse px-2"
+    style={DROP_ZONE_STYLE}
   >
-    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▼ DROP HERE FOR NEW ROW ▼</span>
+    <span className="text-emerald-200 text-[10px] font-bold pointer-events-none uppercase truncate">
+      ▼▼▼ DROP TO BOTTOM ▼▼▼
+    </span>
   </div>
-);
+));
+BottomDropZone.displayName = 'BottomDropZone';
 
 // ============================================
 // TOP DROP ZONE COMPONENT
 // Appears at top when dragging System section to move it to top position
 // ============================================
 
-const TopDropZone = ({ onDrop }) => (
+const TopDropZone = memo(({ onDrop }) => (
   <div
     onDragOver={(e) => {
       e.preventDefault();
@@ -548,62 +806,70 @@ const TopDropZone = ({ onDrop }) => (
     onMouseUp={() => {
       onDrop();
     }}
-    className="w-full h-10 border-2 border-dashed border-cyan-400 bg-cyan-400/20
-      flex items-center justify-center hover:bg-cyan-400/40 transition-all cursor-pointer mb-1"
+    className="absolute left-0 right-0 h-12 border-4 border-dashed border-emerald-400 bg-emerald-400/40
+      flex items-center justify-center hover:bg-emerald-400/60 transition-all cursor-pointer
+      animate-pulse px-2"
+    style={{ ...DROP_ZONE_STYLE, top: 0 }}
   >
-    <span className="text-cyan-300 text-[11px] font-bold pointer-events-none">▲ DROP HERE FOR TOP ▲</span>
+    <span className="text-emerald-200 text-[11px] font-bold pointer-events-none uppercase truncate">▲ DROP TO TOP ▲</span>
   </div>
-);
+));
+TopDropZone.displayName = 'TopDropZone';
 
 // ============================================
 // ANCHOR COMPONENT
 // ============================================
 
 // Visible anchor point built into the node column
-const Anchor = ({ anchorId, type, isActive, onClick, signalColor, isConnected, themeColor }) => {
-  const isInput = type === 'in';
+const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected }) => {
+  // Always use neutral gray for anchors
+  const baseColor = HEX_COLORS.zinc[500];
+  const lightColor = HEX_COLORS.zinc[400];
 
-  // Use theme color if provided, otherwise fallback to signal color or default
-  const baseColor = themeColor || (isInput ? '#71717a' : (signalColor || '#71717a')); // zinc-500 when off
-  const lightColor = themeColor ? `${themeColor}cc` : (isInput ? '#a1a1aa' : (signalColor ? `${signalColor}cc` : '#a1a1aa')); // zinc-400 when off
-
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     e.stopPropagation();
-    e.preventDefault(); // Prevent the subsequent click event
+    e.preventDefault();
     // Start wire connection
     onClick && onClick(anchorId, type);
-  };
+  }, [onClick, anchorId, type]);
 
   // Determine if anchor should be "lit" - when connected or actively being used
   const isLit = isConnected || isActive;
+
+  const anchorSize = isActive ? 8 : 7;
+  const fillColor = isLit ? baseColor : HEX_COLORS.zinc[600];
+  const borderColor = isLit ? lightColor : HEX_COLORS.zinc[500];
+  const opacityValue = isLit ? 1 : 0.4;
+
+  const anchorStyle = useMemo(() => ({
+    width: `${anchorSize}px`,
+    height: `${anchorSize}px`,
+    backgroundColor: fillColor,
+    opacity: opacityValue,
+    borderRadius: '50%',
+    border: `1px solid ${borderColor}`,
+    transition: 'all 0.15s ease',
+    cursor: 'crosshair',
+    boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
+  }), [anchorSize, fillColor, borderColor, opacityValue, isLit, isActive, baseColor]);
 
   return (
     <div
       data-anchor-id={anchorId}
       data-anchor-type={type}
-      className="w-3 h-3 shrink-0 flex items-center justify-center cursor-pointer select-none"
+      className="select-none port-anchor"
       onMouseDown={handleMouseDown}
-    >
-      <div
-        className="rounded-full transition-all"
-        style={{
-          width: isActive ? '8px' : '7px',
-          height: isActive ? '8px' : '7px',
-          backgroundColor: isLit ? baseColor : '#52525b', // zinc-600 when off
-          border: `1px solid ${isLit ? lightColor : '#71717a'}`, // zinc-500 when off
-          boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
-          opacity: isLit ? 1 : 0.4
-        }}
-      />
-    </div>
+      style={anchorStyle}
+    />
   );
-};
+});
+Anchor.displayName = 'Anchor';
 
 // ============================================
 // DELETE BUTTON COMPONENT
 // ============================================
 
-const DeleteButton = ({ onClick }) => (
+const DeleteButton = memo(({ onClick }) => (
   <button
     onClick={(e) => {
       e.stopPropagation();
@@ -613,7 +879,8 @@ const DeleteButton = ({ onClick }) => (
   >
     ×
   </button>
-);
+));
+DeleteButton.displayName = 'DeleteButton';
 
 // ============================================
 // PORT ROW COMPONENT
@@ -621,7 +888,7 @@ const DeleteButton = ({ onClick }) => (
 // ALL columns render in same order with markers between
 // ============================================
 
-const PortRow = ({
+const PortRow = memo(({
   port,
   type,
   anchorSide,
@@ -630,7 +897,6 @@ const PortRow = ({
   anchorId,
   isActive,
   onAnchorClick,
-  signalColor,
   canToggleAnchor,
   onToggleAnchor,
   columnOrder,
@@ -640,19 +906,46 @@ const PortRow = ({
   columnWidths = {}, // Dynamic column widths
   colors: passedColors,
   connectedAnchorIds,
-  themeColor,
+  onSpacingMouseDown, // Handler for spacing drag
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
-  // Use passed hex colors or fallback to zinc
-  const colorHexLight = passedColors?.hexLight || HEX_COLORS.zinc[400];
-  const isConnected = connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false;
 
-  // Use provided columnOrder or default
-  const dataOrder = columnOrder || DATA_COLUMNS;
+  // Track when hovering over anchor column
+  const [isAnchorHovered, setIsAnchorHovered] = useState(false);
 
-  // Get full column order (anchor, delete, data, flip) with proper reversal - SAME as ColumnHeaders
-  const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
+  // Pick a random color from SIGNAL_COLORS (memoized so it stays consistent for this row)
+  const randomHoverColor = useMemo(() => {
+    const randomIndex = Math.floor(Math.random() * SIGNAL_COLORS.length);
+    return SIGNAL_COLORS[randomIndex].hex + '20'; // 20 = ~12% opacity
+  }, []);
+
+  // Memoized color fallback
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
+
+  // Memoized connection check
+  const isConnected = useMemo(
+    () => connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false,
+    [connectedAnchorIds, anchorId]
+  );
+
+  // Memoized column order
+  const dataOrder = useMemo(() => columnOrder || DATA_COLUMNS, [columnOrder]);
+
+  // Memoized full column order with reversal
+  const fullColumnOrder = useMemo(
+    () => getFullColumnOrder(dataOrder, canToggleAnchor, isReversed),
+    [dataOrder, canToggleAnchor, isReversed]
+  );
+
+  // Generic memoized handler for field changes (bulk or single update)
+  const handleFieldChange = useCallback((field, value) => {
+    if (isSelected && onBulkUpdate) {
+      onBulkUpdate(field, value);
+    } else {
+      onUpdate({ [field]: value });
+    }
+  }, [isSelected, onBulkUpdate, onUpdate]);
 
   // Render column content based on column ID
   const renderColumnContent = (colId) => {
@@ -660,16 +953,25 @@ const PortRow = ({
     if (!colDef) return null;
 
     switch (colId) {
+      case 'spacing':
+        return (
+          <div
+            className="spacing-drag-handle nodrag"
+            onMouseDown={(e) => onSpacingMouseDown && onSpacingMouseDown(e, port.id, port.spacing || 0)}
+            title="Drag down to move row and create space above"
+            style={SPACING_HANDLE_STYLE}
+          >
+            ⋮
+          </div>
+        );
       case 'anchor':
         return (
           <Anchor
             anchorId={anchorId}
             type={type}
             isActive={isActive}
-            signalColor={signalColor}
             onClick={onAnchorClick}
             isConnected={isConnected}
-            themeColor={themeColor}
           />
         );
       case 'delete':
@@ -711,15 +1013,9 @@ const PortRow = ({
           <SelectWithCustom
             value={port.connector || ''}
             options={CONNECTOR_TYPES}
-            placeholder="Type"
+            placeholder="Select"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('connector', value);
-              } else {
-                onUpdate({ connector: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('connector', value)}
           />
         );
       case 'resolution':
@@ -727,15 +1023,9 @@ const PortRow = ({
           <SelectWithCustom
             value={port.resolution || ''}
             options={RESOLUTIONS}
-            placeholder="Choose"
+            placeholder="Select"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('resolution', value);
-              } else {
-                onUpdate({ resolution: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('resolution', value)}
           />
         );
       case 'rate':
@@ -743,47 +1033,29 @@ const PortRow = ({
           <SelectWithCustom
             value={port.refreshRate || ''}
             options={REFRESH_RATES}
-            placeholder="Choose"
+            placeholder="Select"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('refreshRate', value);
-              } else {
-                onUpdate({ refreshRate: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('refreshRate', value)}
           />
         );
       case 'source':
         return (
           <SelectWithCustom
             value={port.source || ''}
-            options={['Custom']}
-            placeholder="Source"
+            options={['Custom...']}
+            placeholder="Select"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('source', value);
-              } else {
-                onUpdate({ source: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('source', value)}
           />
         );
       case 'destination':
         return (
           <SelectWithCustom
             value={port.destination || ''}
-            options={['Custom']}
-            placeholder="Destination"
+            options={['Custom...']}
+            placeholder="Select"
             isSelected={isSelected}
-            onChange={(value) => {
-              if (isSelected && onBulkUpdate) {
-                onBulkUpdate('destination', value);
-              } else {
-                onUpdate({ destination: value });
-              }
-            }}
+            onChange={(value) => handleFieldChange('destination', value)}
           />
         );
       default:
@@ -792,27 +1064,51 @@ const PortRow = ({
   };
 
   // Get width for a column (use dynamic width if available, else minWidth)
-  const getColumnWidth = (colId) => {
+  const getColumnWidth = useCallback((colId) => {
     return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
-  };
+  }, [columnWidths]);
+
+  // Row style with hover background color
+  const rowStyle = useMemo(() => {
+    if (isAnchorHovered) {
+      console.log('✨ APPLYING ROW COLOR - Port', port.number, 'Color:', randomHoverColor);
+      return { backgroundColor: randomHoverColor };
+    }
+    return {};
+  }, [isAnchorHovered, randomHoverColor, port.number]);
 
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} hover:bg-zinc-800/50 group text-[12px] whitespace-nowrap w-full`}
+      className={`flex items-center ${SIZES.PADDING_Y} group text-[12px] whitespace-nowrap px-2`}
+      style={rowStyle}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
         if (!colDef) return null;
 
+        // Add hover handlers for anchor column
+        const isAnchorColumn = colId === 'anchor';
+        const columnProps = isAnchorColumn ? {
+          onMouseEnter: () => {
+            console.log('🟢 ANCHOR HOVER ENTER - Port', port.number, 'Color:', randomHoverColor);
+            setIsAnchorHovered(true);
+          },
+          onMouseLeave: () => {
+            console.log('🔴 ANCHOR HOVER LEAVE - Port', port.number);
+            setIsAnchorHovered(false);
+          },
+        } : {};
+
         return (
           <div key={colId} className="flex items-center">
-            {/* Marker between ALL columns (except first) - with spacing */}
+            {/* Divider between columns (except before first) */}
             {index > 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
             <span
               className="shrink-0 flex items-center justify-center"
-              style={{ width: `${getColumnWidth(colId)}px` }}
+              style={{ minWidth: `${getColumnWidth(colId)}px` }}
+              {...columnProps}
             >
               {renderColumnContent(colId)}
             </span>
@@ -821,49 +1117,60 @@ const PortRow = ({
       })}
     </div>
   );
-};
+});
+PortRow.displayName = 'PortRow';
 
 // ============================================
 // COLUMN HEADERS COMPONENT
 // Unified column structure - matches PortRow exactly
 // ============================================
 
-const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
+const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorderColumns, selectedCount = 0, totalCount = 0, onToggleSelectAll, columnWidths = {} }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
 
   // Get width for a column (use dynamic width if available, else minWidth)
-  const getColumnWidth = (colId) => {
+  const getColumnWidth = useCallback((colId) => {
     return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
-  };
+  }, [columnWidths]);
 
   // Use provided columnOrder or default
   const dataOrder = columnOrder || DATA_COLUMNS;
 
   // Selection state indicator
-  const getSelectionIndicator = () => {
+  const getSelectionIndicator = useCallback(() => {
     if (totalCount === 0) return '☐';
     if (selectedCount === 0) return '☐';
     if (selectedCount === totalCount) return '☑';
     return '▣'; // Partial selection
-  };
+  }, [totalCount, selectedCount]);
 
   // Get full column order (anchor, delete, data, flip) with proper reversal
   const fullColumnOrder = getFullColumnOrder(dataOrder, canToggleAnchor, isReversed);
 
-  const handleDragStart = (e, colId) => {
+  // Pre-compute column width styles (prevents calling getColumnWidth twice per column)
+  const columnStyles = useMemo(() => {
+    const styles = {};
+    fullColumnOrder.forEach(colId => {
+      const width = getColumnWidth(colId);
+      styles[colId] = { minWidth: `${width}px` };
+    });
+    return styles;
+  }, [fullColumnOrder, getColumnWidth]);
+
+  const handleDragStart = useCallback((e, colId) => {
     e.stopPropagation();
     setDraggedColumn(colId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('column-reorder', colId);
-  };
+  }, []);
 
-  const handleDragOver = (e) => {
+  const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-  };
+  }, []);
 
-  const handleDrop = (e, targetColId) => {
+  const handleDrop = useCallback((e, targetColId) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -887,17 +1194,17 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
 
     onReorderColumns(newOrder);
     setDraggedColumn(null);
-  };
+  }, [draggedColumn, dataOrder, onReorderColumns]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDraggedColumn(null);
-  };
+  }, []);
 
   return (
     <div
       data-column-zone="true"
       className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide w-full`}
+        text-[10px] font-mono text-white uppercase tracking-wide w-full px-2`}
     >
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -917,7 +1224,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
             }}
             onDrop={(e) => isDraggable && handleDrop(e, colId)}
           >
-            {/* Marker between ALL columns (except first) - with spacing */}
+            {/* Divider between columns (except before first) */}
             {index > 0 && (
               <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-2" />
             )}
@@ -936,7 +1243,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 className={`shrink-0 flex items-center justify-center gap-1 cursor-grab select-none transition-colors ${
                   selectedCount > 0 ? 'text-cyan-400' : 'text-white hover:text-zinc-300'
                 } ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px` }}
+                style={columnStyles[colId]}
                 title="Click to select all, drag to reorder"
               >
                 <span>{getSelectionIndicator()}</span>
@@ -954,7 +1261,7 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
                 className={`shrink-0 flex items-center justify-center transition-opacity
                   ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
                   ${isDragging ? 'opacity-50' : ''}`}
-                style={{ width: `${getColumnWidth(colId)}px` }}
+                style={columnStyles[colId]}
                 title={isDraggable ? "Drag to reorder" : undefined}
               >
                 {colDef.label}
@@ -965,60 +1272,437 @@ const ColumnHeaders = ({ anchorSide, canToggleAnchor, columnOrder, onReorderColu
       })}
     </div>
   );
-};
+});
+ColumnHeaders.displayName = 'ColumnHeaders';
+
+// ============================================
+// COLLAPSED COLUMN HEADERS
+// Matches ColumnHeaders structure but for collapsed view (1-3 columns)
+// ============================================
+
+const CollapsedColumnHeaders = memo(({
+  anchorSide,
+  selectedColumns,
+  onReorderColumns,
+  columnWidths = {},
+}) => {
+  const isReversed = anchorSide === 'right';
+  const [draggedColumn, setDraggedColumn] = useState(null);
+
+  // Get width for a column
+  const getColumnWidth = useCallback((colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+  }, [columnWidths]);
+
+  // Build full column order with anchor
+  const fullColumnOrder = useMemo(
+    () => getCollapsedColumnOrder(selectedColumns, isReversed),
+    [selectedColumns, isReversed]
+  );
+
+  // Pre-compute column width styles
+  const columnStyles = useMemo(() => {
+    const styles = {};
+    fullColumnOrder.forEach(colId => {
+      const width = getColumnWidth(colId);
+      styles[colId] = { minWidth: `${width}px` };
+    });
+    return styles;
+  }, [fullColumnOrder, getColumnWidth]);
+
+  // Drag handlers
+  const handleDragStart = useCallback((e, colId) => {
+    e.stopPropagation();
+    setDraggedColumn(colId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('collapsed-column-reorder', colId);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e, targetColId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedColumn || draggedColumn === targetColId) {
+      setDraggedColumn(null);
+      return;
+    }
+    // Only reorder data columns (not anchor)
+    if (targetColId === 'anchor' || draggedColumn === 'anchor') {
+      setDraggedColumn(null);
+      return;
+    }
+    const newOrder = [...selectedColumns];
+    const dragIdx = newOrder.indexOf(draggedColumn);
+    const targetIdx = newOrder.indexOf(targetColId);
+    if (dragIdx === -1 || targetIdx === -1) {
+      setDraggedColumn(null);
+      return;
+    }
+    newOrder.splice(dragIdx, 1);
+    newOrder.splice(targetIdx, 0, draggedColumn);
+    onReorderColumns(newOrder);
+    setDraggedColumn(null);
+  }, [draggedColumn, selectedColumns, onReorderColumns]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedColumn(null);
+  }, []);
+
+  return (
+    <div
+      className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
+        text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
+    >
+      {/* Spacer to match spacing handle column when reversed */}
+      {isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+
+      {fullColumnOrder.map((colId, index) => {
+        const colDef = COLUMN_DEFS[colId];
+        if (!colDef) return null;
+
+        const isDragging = draggedColumn === colId;
+        const isDraggable = colId !== 'anchor'; // All data columns draggable
+        // SOURCE and DESTINATION columns expand to fill remaining space
+        const isFlexColumn = colId === 'source' || colId === 'destination';
+
+        return (
+          <div
+            key={colId}
+            className={`flex items-center ${isFlexColumn ? 'flex-1 min-w-0' : ''}`}
+            onDragOver={isDraggable ? handleDragOver : undefined}
+            onDrop={isDraggable ? (e) => handleDrop(e, colId) : undefined}
+          >
+            {/* Leading divider before first column when reversed (data side) */}
+            {isReversed && index === 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+            )}
+            {/* Divider between columns (except before first) */}
+            {index > 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
+            )}
+            <span
+              draggable={isDraggable ? "true" : undefined}
+              onMouseDown={(e) => e.stopPropagation()}
+              onDragStart={isDraggable ? (e) => handleDragStart(e, colId) : undefined}
+              onDragEnd={handleDragEnd}
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1' : 'shrink-0'}
+                ${isDraggable ? 'cursor-grab select-none hover:text-zinc-300' : ''}
+                ${isDragging ? 'opacity-50' : ''}`}
+              style={columnStyles[colId]}
+              title={isDraggable ? "Drag to reorder" : undefined}
+            >
+              {colDef.label}
+            </span>
+            {/* Trailing divider after last column when NOT reversed (data side) */}
+            {!isReversed && index === fullColumnOrder.length - 1 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Spacer to match spacing handle column when NOT reversed */}
+      {!isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+    </div>
+  );
+});
+CollapsedColumnHeaders.displayName = 'CollapsedColumnHeaders';
+
+// ============================================
+// COLLAPSED PORT ROW
+// Matches PortRow structure but for collapsed view (1-3 columns)
+// ============================================
+
+const CollapsedPortRow = memo(({
+  port,
+  type,
+  anchorSide,
+  anchorId,
+  onAnchorClick,
+  selectedColumns,
+  columnWidths = {},
+  connectedAnchorIds,
+  onSpacingMouseDown,
+}) => {
+  const isOutput = type === 'out';
+  const isReversed = anchorSide === 'right';
+
+  // Spacing handle - shows on opposite side of anchor (both stacked and side-by-side)
+  const spacingHandle = useMemo(() => {
+    if (!onSpacingMouseDown) return null;
+    return (
+      <div className="flex items-center justify-center shrink-0" style={{ width: '24px' }}>
+        <div
+          className="spacing-drag-handle nodrag"
+          onMouseDown={(e) => onSpacingMouseDown(e, port.id, port.spacing || 0)}
+          title="Drag to adjust spacing"
+          style={SPACING_HANDLE_STYLE}
+        >
+          ⋮
+        </div>
+      </div>
+    );
+  }, [onSpacingMouseDown, port.id, port.spacing]);
+
+  // Check if connected
+  const isConnected = useMemo(
+    () => connectedAnchorIds ? connectedAnchorIds.has(anchorId) : false,
+    [connectedAnchorIds, anchorId]
+  );
+
+  // Build full column order with anchor
+  const fullColumnOrder = useMemo(
+    () => getCollapsedColumnOrder(selectedColumns, isReversed),
+    [selectedColumns, isReversed]
+  );
+
+  // Get width for a column
+  const getColumnWidth = useCallback((colId) => {
+    return columnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60;
+  }, [columnWidths]);
+
+  // Render column content based on column ID
+  const renderColumnContent = (colId) => {
+    switch (colId) {
+      case 'anchor':
+        return (
+          <Anchor
+            anchorId={anchorId}
+            type={type}
+            isActive={false}
+            onClick={onAnchorClick}
+            isConnected={isConnected}
+          />
+        );
+      case 'port':
+        return (
+          <span className="font-mono text-zinc-400">
+            {isOutput ? 'OUT' : 'IN'} {port.number}
+          </span>
+        );
+      case 'source':
+        return (
+          <span className="font-mono text-zinc-300 truncate">
+            {port.source || ''}
+          </span>
+        );
+      case 'destination':
+        return (
+          <span className="font-mono text-zinc-300 truncate">
+            {port.destination || ''}
+          </span>
+        );
+      case 'connector':
+        return (
+          <span className="font-mono text-zinc-300 truncate">
+            {port.connector || ''}
+          </span>
+        );
+      case 'resolution':
+        return (
+          <span className="font-mono text-zinc-300 truncate">
+            {port.resolution || ''}
+          </span>
+        );
+      case 'rate':
+        return (
+          <span className="font-mono text-zinc-300 truncate">
+            {port.refreshRate || ''}
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex items-center w-full py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity">
+      {/* Spacing handle on LEFT (inside) when reversed (INPUT on right in side-by-side) */}
+      {isReversed && spacingHandle}
+
+      {fullColumnOrder.map((colId, index) => {
+        const colDef = COLUMN_DEFS[colId];
+        if (!colDef) return null;
+
+        // SOURCE and DESTINATION columns expand to fill remaining space
+        const isFlexColumn = colId === 'source' || colId === 'destination';
+
+        return (
+          <div key={colId} className={`flex items-center ${isFlexColumn ? 'flex-1 min-w-0' : ''}`}>
+            {/* Leading divider before first column when reversed (data side) */}
+            {isReversed && index === 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+            )}
+            {/* Divider between columns (except before first) */}
+            {index > 0 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
+            )}
+            <span
+              className={`flex items-center justify-center ${isFlexColumn ? 'flex-1' : 'shrink-0'}`}
+              style={{ minWidth: `${getColumnWidth(colId)}px` }}
+            >
+              {renderColumnContent(colId)}
+            </span>
+            {/* Trailing divider after last column when NOT reversed (data side) */}
+            {!isReversed && index === fullColumnOrder.length - 1 && (
+              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Spacing handle on RIGHT (inside) when NOT reversed (OUTPUT on left in side-by-side) */}
+      {!isReversed && spacingHandle}
+    </div>
+  );
+});
+CollapsedPortRow.displayName = 'CollapsedPortRow';
+
+// ============================================
+// COLLAPSED COLUMN SELECTOR
+// Dropdown to pick which columns to show in collapsed view
+// ============================================
+
+const CollapsedColumnSelector = memo(({
+  selectedColumns,
+  onChange,
+  onClose,
+  anchorSide,
+}) => {
+  const toggleColumn = useCallback((colId) => {
+    const isSelected = selectedColumns.includes(colId);
+    if (isSelected) {
+      // Don't allow removing if at minimum
+      if (selectedColumns.length <= MIN_COLLAPSED_COLUMNS) return;
+      onChange(selectedColumns.filter(c => c !== colId));
+    } else {
+      // Don't allow adding if at maximum
+      if (selectedColumns.length >= MAX_COLLAPSED_COLUMNS) return;
+      onChange([...selectedColumns, colId]);
+    }
+    // Close dropdown after selection
+    onClose();
+  }, [selectedColumns, onChange, onClose]);
+
+  // Mirror alignment: left section aligns right, right section aligns left
+  const alignClass = anchorSide === 'left' ? 'right-0' : 'left-0';
+
+  return (
+    <div className={`absolute top-full ${alignClass} mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[160px]`}>
+      <div className="px-3 py-2 border-b border-zinc-700 text-[10px] text-zinc-400 uppercase">
+        Show columns ({selectedColumns.length}/{MAX_COLLAPSED_COLUMNS})
+      </div>
+      {COLLAPSED_ELIGIBLE_COLUMNS.map(colId => {
+        const colDef = COLUMN_DEFS[colId];
+        const isSelected = selectedColumns.includes(colId);
+        const isDisabled = isSelected
+          ? selectedColumns.length <= MIN_COLLAPSED_COLUMNS
+          : selectedColumns.length >= MAX_COLLAPSED_COLUMNS;
+
+        return (
+          <button
+            key={colId}
+            onClick={() => toggleColumn(colId)}
+            disabled={isDisabled}
+            className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2
+              ${isSelected ? 'text-cyan-400' : 'text-zinc-400'}
+              ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-700'}
+            `}
+          >
+            <span>{isSelected ? '☑' : '☐'}</span>
+            <span>{colDef?.label || colId}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+CollapsedColumnSelector.displayName = 'CollapsedColumnSelector';
 
 // ============================================
 // DRAGGABLE SECTION WRAPPER
 // Wraps sections with drag handle and drop zones
 // ============================================
 
-const DraggableSection = ({
+const DraggableSection = memo(({
   sectionId,
   children,
-  anchorSide,
-  onDragStart,
   onDragOver,
-  onDragEnd,
   onDrop,
   onDropToSide,
   isDraggedOver,
   isDragging,
-  showSideDropZones,
-  isSingleSectionRow,
+  showLeftDropZone,
+  showRightDropZone,
   draggedSection, // What section is currently being dragged
 }) => {
   // STRICT RULE: Side drop zones ONLY for Input/Output going side-by-side
-  // System can NEVER be side-by-side with anything
-  const isIOSection = sectionId === 'input' || sectionId === 'output';
-  const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-  const canShowSideZones = showSideDropZones && isIOSection && isDraggingIO;
+  // System can NEVER be side-by-side with anything (memoized)
+  const isIOSection = useMemo(() => sectionId === 'input' || sectionId === 'output', [sectionId]);
+  const isDraggingIO = useMemo(() => draggedSection === 'input' || draggedSection === 'output', [draggedSection]);
+
+  // Determine drop zone mode (memoized)
+  // - Both left and right = stacked mode (show 3 zones: left, center/swap, right)
+  // - Only left OR only right = side-by-side swap (show full-width zone)
+  const showThreeZones = useMemo(
+    () => showLeftDropZone && showRightDropZone,
+    [showLeftDropZone, showRightDropZone]
+  );
+  const showFullWidthSwap = useMemo(
+    () => (showLeftDropZone || showRightDropZone) && !showThreeZones,
+    [showLeftDropZone, showRightDropZone, showThreeZones]
+  );
+
+  // Memoized event handlers
+  const handleDragOver = useCallback((e) => onDragOver(e, sectionId), [onDragOver, sectionId]);
+  const handleDrop = useCallback((e) => onDrop(e, sectionId), [onDrop, sectionId]);
+  const handleMouseUp = useCallback(() => onDrop(null, sectionId), [onDrop, sectionId]);
 
   return (
     <div
-      onDragOver={(e) => onDragOver(e, sectionId)}
-      onDrop={(e) => onDrop(e, sectionId)}
-      // Also support mouse-based drops (for System section which uses mouse events)
-      onMouseUp={() => onDrop(null, sectionId)}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onMouseUp={handleMouseUp}
       className={`
         relative w-full
         transition-all duration-150
-        ${isDragging ? 'opacity-40' : ''}
-        ${isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
+        ${isDragging && sectionId !== 'system' ? 'opacity-40' : ''}
+        ${isDragging && sectionId === 'system' ? 'opacity-90' : ''}
+        ${!showThreeZones && isDraggedOver ? 'ring-2 ring-cyan-400 ring-inset' : ''}
       `}
     >
-      {/* Side drop zones - ONLY for Input/Output going side-by-side (system NEVER side-by-side) */}
-      {canShowSideZones && (
+      {/* ONLY for Input/Output (system NEVER side-by-side) */}
+      {isIOSection && isDraggingIO && (
         <>
-          <SideDropZone
-            side="left"
-            onDrop={(side) => onDropToSide(sectionId, side)}
-            isActive={false}
-          />
-          <SideDropZone
-            side="right"
-            onDrop={(side) => onDropToSide(sectionId, side)}
-            isActive={false}
-          />
+          {/* THREE ZONE MODE: Stacked layout - show left, center (swap), right */}
+          {showThreeZones && (
+            <ThreeZoneDropArea
+              onDropToSide={(side) => onDropToSide(sectionId, side)}
+              onDropToSwap={() => onDrop(null, sectionId)}
+            />
+          )}
+
+          {/* FULL WIDTH SWAP MODE: Side-by-side swap */}
+          {showFullWidthSwap && showLeftDropZone && (
+            <SideDropZone
+              side="left"
+              onDrop={(side) => onDropToSide(sectionId, side)}
+              isActive={false}
+              fullWidth={true}
+            />
+          )}
+          {showFullWidthSwap && showRightDropZone && (
+            <SideDropZone
+              side="right"
+              onDrop={(side) => onDropToSide(sectionId, side)}
+              isActive={false}
+              fullWidth={true}
+            />
+          )}
         </>
       )}
 
@@ -1026,19 +1710,19 @@ const DraggableSection = ({
       <div className="w-full">{children}</div>
     </div>
   );
-};
+});
+DraggableSection.displayName = 'DraggableSection';
 
 // ============================================
 // SECTION HEADER COMPONENT
 // Template: Title on anchor side, + button centered
 // ============================================
 
-const SectionHeader = ({
+const SectionHeader = memo(({
   type,
   title,
   anchorSide,
   onAdd,
-  onTitleChange,
   onDragStart,
   onDragEnd,
   sectionId,
@@ -1046,38 +1730,66 @@ const SectionHeader = ({
   collapsed,
   onToggleCollapse,
   colors: passedColors,
+  onOpenCollapsedSettings, // Gear icon callback for collapsed view
 }) => {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const isReversed = anchorSide === 'right';
   // Use passed hex colors or fallback to zinc
-  const colorHex = passedColors?.hex || HEX_COLORS.zinc[500];
   const colorHexLight = '#ffffff'; // White text for section headers
 
-  // Filter presets by section type (input/output)
-  const availablePresets = Object.entries(CARD_PRESETS)
-    .filter(([_, preset]) => preset.category === type)
-    .map(([id, preset]) => ({ id, ...preset }));
+  // Filter presets by section type (input/output) - memoized
+  const availablePresets = useMemo(
+    () => Object.entries(CARD_PRESETS)
+      .filter(([_, preset]) => preset.category === type)
+      .map(([id, preset]) => ({ id, ...preset })),
+    [type]
+  );
 
-  const handlePresetSelect = (presetId) => {
+  const handlePresetSelect = useCallback((presetId) => {
     const preset = CARD_PRESETS[presetId];
     if (preset && onApplyPreset) {
       onApplyPreset(preset.ports, presetId);
     }
     setShowPresetMenu(false);
-  };
+  }, [onApplyPreset]);
 
-  // Shared button style for consistency (color applied via inline style)
-  const buttonBaseStyle = "px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 rounded text-[12px] font-mono";
+  // Memoized event handlers
+  const handleAddClick = useCallback((e) => {
+    e.stopPropagation();
+    onAdd && onAdd();
+  }, [onAdd]);
 
-  // Buttons container - mirrored order: INPUTS [⊞][+] ... [+][⊞] OUTPUTS
-  const buttonsJSX = (
+  const handlePresetClick = useCallback((e) => {
+    e.stopPropagation();
+    setShowPresetMenu(prev => !prev);
+  }, []);
+
+  const handleMouseDown = useCallback((e) => e.stopPropagation(), []);
+
+  // Subtle hover background style - transparent until hovered
+  const buttonBaseStyle = "px-1.5 py-0.5 text-[11px] font-mono rounded hover:bg-zinc-600/60 transition-all cursor-pointer";
+
+  // Buttons container - mirrored order: INPUTS [⊞][+][⚙] ... [⚙][+][⊞] OUTPUTS - memoized
+  const buttonsJSX = useMemo(() => (
     <div className="flex items-center gap-1.5 shrink-0 relative">
       {isReversed ? (
         <>
+          {/* Gear button (only when collapsed) */}
+          {collapsed && onOpenCollapsedSettings && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenCollapsedSettings(); }}
+              onMouseDown={handleMouseDown}
+              className={buttonBaseStyle}
+              style={{ color: colorHexLight }}
+              title="Configure collapsed columns"
+            >
+              ⚙
+            </button>
+          )}
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleAddClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Add port"
@@ -1086,8 +1798,8 @@ const SectionHeader = ({
           </button>
           {/* Preset button */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handlePresetClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Load card preset"
@@ -1099,8 +1811,8 @@ const SectionHeader = ({
         <>
           {/* Preset button */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPresetMenu(!showPresetMenu); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handlePresetClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Load card preset"
@@ -1109,14 +1821,26 @@ const SectionHeader = ({
           </button>
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd && onAdd(); }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleAddClick}
+            onMouseDown={handleMouseDown}
             className={buttonBaseStyle}
             style={{ color: colorHexLight }}
             title="Add port"
           >
             +
           </button>
+          {/* Gear button (only when collapsed) */}
+          {collapsed && onOpenCollapsedSettings && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenCollapsedSettings(); }}
+              onMouseDown={handleMouseDown}
+              className={buttonBaseStyle}
+              style={{ color: colorHexLight }}
+              title="Configure collapsed columns"
+            >
+              ⚙
+            </button>
+          )}
         </>
       )}
 
@@ -1124,7 +1848,7 @@ const SectionHeader = ({
       {showPresetMenu && (
         <div
           className={`absolute top-full mt-1 bg-zinc-800 border border-zinc-600 rounded shadow-lg z-50 min-w-[180px] ${isReversed ? 'right-0' : 'left-0'}`}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={handleMouseDown}
         >
           <div className="px-2 py-1 text-[10px] text-zinc-500 border-b border-zinc-700 font-mono">
             CARD PRESETS
@@ -1147,18 +1871,11 @@ const SectionHeader = ({
         </div>
       )}
     </div>
-  );
+  ), [isReversed, handlePresetClick, handleMouseDown, handleAddClick, buttonBaseStyle, colorHexLight, showPresetMenu, availablePresets, handlePresetSelect, collapsed, onOpenCollapsedSettings]);
 
   // Create gradient background based on signal direction towards anchor
-  const gradientStyle = (() => {
+  const gradientStyle = useMemo(() => {
     const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
-    // Convert hex to rgba for gradient
-    const hexToRgba = (hex, alpha) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
 
     // Signal flows from anchor (reversed gradient)
     // If anchor is on left: gradient goes left to right (heavy on left, light on right)
@@ -1170,11 +1887,11 @@ const SectionHeader = ({
     return {
       background: `linear-gradient(${gradientDirection}, ${startColor}, ${endColor})`
     };
-  })();
+  }, [passedColors?.hexLight, anchorSide]);
 
   return (
     <div
-      className={`flex items-center justify-between gap-2 ${SIZES.PADDING_X} py-1 border-b border-zinc-700/50`}
+      className={`flex items-center justify-between gap-1 ${SIZES.PADDING_X} border-b border-zinc-700/50`}
       style={gradientStyle}
     >
       {isReversed ? (
@@ -1205,8 +1922,8 @@ const SectionHeader = ({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight }}
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight, transform: 'translateY(-8%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -1229,8 +1946,8 @@ const SectionHeader = ({
                 onDragEnd && onDragEnd();
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap"
-              style={{ color: colorHexLight }}
+              className="font-mono font-bold text-[12px] cursor-grab select-none hover:opacity-80 px-0.5 rounded whitespace-nowrap"
+              style={{ color: colorHexLight, transform: 'translateY(-8%)' }}
               title="Drag to reorder section"
             >
               {title}
@@ -1252,13 +1969,14 @@ const SectionHeader = ({
       )}
     </div>
   );
-};
+});
+SectionHeader.displayName = 'SectionHeader';
 
 // ============================================
 // IO SECTION COMPONENT (Input or Output)
 // ============================================
 
-const IOSection = ({
+const IOSection = memo(({
   type,
   data,
   anchorSide,
@@ -1266,7 +1984,6 @@ const IOSection = ({
   activeWire,
   onAnchorClick,
   onUpdate,
-  signalColor,
   canToggleAnchor,
   onToggleAnchorSide,
   onSectionDragStart,
@@ -1275,8 +1992,8 @@ const IOSection = ({
   onToggleCollapse,
   colors,
   connectedAnchorIds,
-  themeColor,
   sharedColumnWidths,
+  sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -1285,11 +2002,58 @@ const IOSection = ({
   // Multi-select state for bulk editing (Set of port IDs)
   const [selectedPorts, setSelectedPorts] = useState(new Set());
 
+  // Collapsed columns state (1-3 columns from COLLAPSED_ELIGIBLE_COLUMNS)
+  const defaultCollapsedCols = type === 'input' ? DEFAULT_COLLAPSED_COLUMNS_INPUT : DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
+  const [collapsedColumns, setCollapsedColumns] = useState(
+    () => data.collapsedColumnOrder || defaultCollapsedCols
+  );
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const columnSelectorRef = useRef(null);
+
+  // Close column selector when clicking outside
+  useEffect(() => {
+    if (!showColumnSelector) return;
+
+    const handleClickOutside = (e) => {
+      if (columnSelectorRef.current && !columnSelectorRef.current.contains(e.target)) {
+        setShowColumnSelector(false);
+      }
+    };
+
+    // Delay to avoid closing on the same click that opened it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColumnSelector]);
+
+  // Update collapsed columns and persist to data
+  const updateCollapsedColumns = useCallback((newColumns) => {
+    setCollapsedColumns(newColumns);
+    onUpdate({ collapsedColumnOrder: newColumns });
+  }, [onUpdate]);
+
+  // Close column selector
+  const closeColumnSelector = useCallback(() => {
+    setShowColumnSelector(false);
+  }, []);
+
   // Get cards from data (or empty array)
   const cards = data.cards || [];
 
+  // Memoize ports by ID for O(1) lookups (avoids O(n) .find() in delete/update operations)
+  const portsById = useMemo(() => new Map(data.ports.map(p => [p.id, p])), [data.ports]);
+
+  // Spacing drag state
+  const dragStartY = useRef(0);
+  const dragStartSpacing = useRef(0);
+
   // Toggle individual port selection
-  const togglePortSelection = (portId) => {
+  const togglePortSelection = useCallback((portId) => {
     setSelectedPorts(prev => {
       const next = new Set(prev);
       if (next.has(portId)) {
@@ -1299,18 +2063,64 @@ const IOSection = ({
       }
       return next;
     });
-  };
+  }, []);
 
   // Select all / deselect all
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedPorts.size === data.ports.length && data.ports.length > 0) {
       setSelectedPorts(new Set()); // Deselect all
     } else {
       setSelectedPorts(new Set(data.ports.map(p => p.id))); // Select all
     }
-  };
+  }, [selectedPorts.size, data.ports]);
 
-  const addPort = () => {
+  // Spacing drag handler with half-row snapping (RAF throttled)
+  const handleSpacingMouseDown = useCallback(
+    (e, portId, currentSpacing) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragStartY.current = e.clientY;
+      dragStartSpacing.current = currentSpacing || 0;
+
+      let rafId = null;
+      let pendingSpacing = null;
+
+      const handleMouseMove = (moveEvent) => {
+        const deltaY = moveEvent.clientY - dragStartY.current;
+        const rawSpacing = Math.max(0, dragStartSpacing.current + deltaY);
+
+        // Snap to half-row increments (15px)
+        const snapIncrement = SIZES.SPACING_SNAP;
+        const newSpacing = Math.round(rawSpacing / snapIncrement) * snapIncrement;
+
+        // Throttle updates using requestAnimationFrame
+        pendingSpacing = newSpacing;
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            if (pendingSpacing !== null) {
+              const newPorts = data.ports.map((port) =>
+                port.id === portId ? { ...port, spacing: pendingSpacing } : port
+              );
+              onUpdate({ ports: newPorts });
+            }
+            rafId = null;
+          });
+        }
+      };
+
+      const handleMouseUp = () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [data.ports, onUpdate]
+  );
+
+  const addPort = useCallback(() => {
     const prefix = type === 'input' ? 'in' : 'out';
     const newPort = {
       id: `${prefix}-${Date.now()}`,
@@ -1326,26 +2136,26 @@ const IOSection = ({
     if (collapsed && onToggleCollapse) {
       onToggleCollapse();
     }
-  };
+  }, [type, data.ports, collapsed, onToggleCollapse, onUpdate]);
 
-  const updatePort = (portId, updates) => {
+  const updatePort = useCallback((portId, updates) => {
     onUpdate({
       ports: data.ports.map(p => p.id === portId ? { ...p, ...updates } : p)
     });
-  };
+  }, [data.ports, onUpdate]);
 
   // Bulk update ONLY selected ports with a specific field value
-  const bulkUpdatePorts = (field, value) => {
+  const bulkUpdatePorts = useCallback((field, value) => {
     if (selectedPorts.size === 0) return;
     onUpdate({
       ports: data.ports.map(p =>
         selectedPorts.has(p.id) ? { ...p, [field]: value } : p
       )
     });
-  };
+  }, [data.ports, selectedPorts, onUpdate]);
 
-  const deletePort = (portId) => {
-    const port = data.ports.find(p => p.id === portId);
+  const deletePort = useCallback((portId) => {
+    const port = portsById.get(portId); // O(1) lookup instead of O(n) .find()
     const remainingPorts = data.ports.filter(p => p.id !== portId);
 
     // If port belonged to a card, check if card is now empty
@@ -1362,14 +2172,14 @@ const IOSection = ({
     const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
 
     onUpdate({ ports: renumberedPorts, cards: updatedCards });
-  };
+  }, [data.ports, cards, onUpdate, portsById]);
 
-  const reorderColumns = (newOrder) => {
+  const reorderColumns = useCallback((newOrder) => {
     onUpdate({ columnOrder: newOrder });
-  };
+  }, [onUpdate]);
 
   // Apply a preset - creates a card with grouped ports
-  const applyPreset = (presetPorts, presetId) => {
+  const applyPreset = useCallback((presetPorts, presetId) => {
     const prefix = type === 'input' ? 'in' : 'out';
     const preset = CARD_PRESETS[presetId];
     const cardId = `card-${Date.now()}`;
@@ -1404,85 +2214,117 @@ const IOSection = ({
     if (collapsed && onToggleCollapse) {
       onToggleCollapse();
     }
-  };
+  }, [type, data.ports, cards, collapsed, onToggleCollapse, onUpdate]);
 
   // Toggle card collapse
-  const toggleCardCollapse = (cardId) => {
+  const toggleCardCollapse = useCallback((cardId) => {
     onUpdate({
       cards: cards.map(c => c.id === cardId ? { ...c, collapsed: !c.collapsed } : c)
     });
-  };
+  }, [cards, onUpdate]);
 
   // Remove entire card and its ports
-  const removeCard = (cardId) => {
+  const removeCard = useCallback((cardId) => {
     const remainingPorts = data.ports.filter(p => p.cardId !== cardId);
     const renumberedPorts = remainingPorts.map((p, i) => ({ ...p, number: i + 1 }));
     onUpdate({
       ports: renumberedPorts,
       cards: cards.filter(c => c.id !== cardId)
     });
-  };
+  }, [data.ports, cards, onUpdate]);
 
   // Get column order from data or use default
   // Conditionally include 'source' for inputs or 'destination' for outputs
-  const baseColumns = sectionType === 'input'
-    ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
-    : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
+  const columnOrder = useMemo(() => {
+    const baseColumns = sectionType === 'input'
+      ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
+      : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
 
-  // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
-  const savedOrder = data.columnOrder || [];
-  const columnOrder = baseColumns.map(col => col).sort((a, b) => {
-    const aIdx = savedOrder.indexOf(a);
-    const bIdx = savedOrder.indexOf(b);
-    // If both are in saved order, use that order
-    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-    // If only one is in saved order, it comes first
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-    // Neither in saved order, use baseColumns order
-    return baseColumns.indexOf(a) - baseColumns.indexOf(b);
-  });
+    // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
+    const savedOrder = data.columnOrder || [];
+
+    // Create Maps for O(1) lookup instead of O(n) indexOf
+    const savedOrderMap = new Map(savedOrder.map((col, idx) => [col, idx]));
+    const baseColumnsMap = new Map(baseColumns.map((col, idx) => [col, idx]));
+
+    return baseColumns.map(col => col).sort((a, b) => {
+      const aIdx = savedOrderMap.get(a) ?? -1;
+      const bIdx = savedOrderMap.get(b) ?? -1;
+      // If both are in saved order, use that order
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      // If only one is in saved order, it comes first
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      // Neither in saved order, use baseColumns order
+      return (baseColumnsMap.get(a) ?? 0) - (baseColumnsMap.get(b) ?? 0);
+    });
+  }, [sectionType, data.columnOrder]);
 
   // Group ports: by cardId or standalone (null cardId)
-  const standalonePorts = data.ports.filter(p => !p.cardId);
-  const portsByCard = cards.map(card => ({
+  const standalonePorts = useMemo(() => data.ports.filter(p => !p.cardId), [data.ports]);
+  const portsByCard = useMemo(() => cards.map(card => ({
     card,
     ports: data.ports.filter(p => p.cardId === card.id)
-  }));
+  })), [cards, data.ports]);
 
   // Calculate dynamic column widths based on port content (use shared widths if provided)
-  const columnWidths = sharedColumnWidths || calculateColumnWidths(data.ports);
-
-  // Helper to render port rows
-  const renderPortRows = (ports) => (
-    ports.map(port => (
-      <PortRow
-        key={port.id}
-        port={port}
-        type={portType}
-        anchorSide={anchorSide}
-        onUpdate={(updates) => updatePort(port.id, updates)}
-        onDelete={() => deletePort(port.id)}
-        anchorId={`${nodeId}-${port.id}`}
-        isActive={activeWire?.from === `${nodeId}-${port.id}`}
-        onAnchorClick={onAnchorClick}
-        signalColor={type === 'output' ? signalColor : null}
-        canToggleAnchor={canToggleAnchor}
-        onToggleAnchor={onToggleAnchorSide}
-        columnOrder={columnOrder}
-        columnWidths={columnWidths}
-        isSelected={selectedPorts.has(port.id)}
-        onToggleSelection={() => togglePortSelection(port.id)}
-        onBulkUpdate={bulkUpdatePorts}
-        colors={colors}
-        connectedAnchorIds={connectedAnchorIds}
-        themeColor={themeColor}
-      />
-    ))
+  // Expanded view: full widths with dropdown padding
+  const columnWidths = useMemo(() =>
+    sharedColumnWidths || calculateColumnWidths(data.ports),
+    [sharedColumnWidths, data.ports]
+  );
+  // Collapsed view: tighter widths without dropdown padding
+  const collapsedColumnWidths = useMemo(() =>
+    sharedCollapsedColumnWidths || calculateCollapsedColumnWidths(data.ports),
+    [sharedCollapsedColumnWidths, data.ports]
   );
 
+  // Memoize spacing styles cache (common spacing values: 0, 15, 30, 45, 60, 75, 90)
+  // Most ports have spacing: 0, so cache eliminates object creation for majority of ports
+  const spacingStyleCache = useMemo(() => {
+    const cache = {};
+    for (let i = 0; i <= 90; i += 15) {
+      cache[i] = { marginTop: `${i}px` };
+    }
+    return cache;
+  }, []);
+
+  // Helper to render port rows with spacing support (memoized)
+  const renderPortRows = useCallback((ports) => (
+    ports.map(port => {
+      const spacing = port.spacing || 0;
+      // Use cached style for common values, create new for custom spacing
+      const style = spacingStyleCache[spacing] || { marginTop: `${spacing}px` };
+
+      return (
+        <div key={port.id} style={style}>
+          <PortRow
+            port={port}
+            type={portType}
+            anchorSide={anchorSide}
+            onUpdate={(updates) => updatePort(port.id, updates)}
+            onDelete={() => deletePort(port.id)}
+            anchorId={`${nodeId}-${port.id}`}
+            isActive={activeWire?.from === `${nodeId}-${port.id}`}
+            onAnchorClick={onAnchorClick}
+            canToggleAnchor={canToggleAnchor}
+            onToggleAnchor={onToggleAnchorSide}
+            columnOrder={columnOrder}
+            columnWidths={columnWidths}
+            isSelected={selectedPorts.has(port.id)}
+            onToggleSelection={() => togglePortSelection(port.id)}
+            onBulkUpdate={bulkUpdatePorts}
+            colors={colors}
+            connectedAnchorIds={connectedAnchorIds}
+            onSpacingMouseDown={handleSpacingMouseDown}
+          />
+        </div>
+      );
+    })
+  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
+
   return (
-    <div className="flex flex-col w-full border-t border-zinc-700/50">
+    <div className="flex flex-col border-t border-zinc-700/50 shrink-0 w-full">
       <SectionHeader
         type={sectionType}
         title={data.columnName}
@@ -1496,87 +2338,50 @@ const IOSection = ({
         collapsed={collapsed}
         onToggleCollapse={onToggleCollapse}
         colors={colors}
+        onOpenCollapsedSettings={() => setShowColumnSelector(true)}
       />
 
       {collapsed ? (
-        /* When collapsed, render minimal port rows to maintain exact anchor column positions */
-        <div className="w-full">
-          {data.ports.map((port) => {
-            // FORCE anchor positioning based on section type when collapsed:
-            // Input sections always have anchors on LEFT
-            // Output sections always have anchors on RIGHT
-            const shouldAnchorBeOnRight = type === 'output';
-            const dataOrder = columnOrder || ['delete', 'port', 'connector', 'resolution', 'rate'];
-            const fullColumnOrder = shouldAnchorBeOnRight
-              ? [...dataOrder, 'anchor']  // Anchor at end = right side
-              : ['anchor', ...dataOrder];  // Anchor at start = left side
+        /* When collapsed, render using same structure as expanded mode but with selected columns only */
+        <div className="w-full relative">
+          {/* Collapsed column headers - uses COMPACT widths */}
+          {data.ports.length > 0 && (
+            <CollapsedColumnHeaders
+              anchorSide={anchorSide}
+              selectedColumns={collapsedColumns}
+              onReorderColumns={updateCollapsedColumns}
+              columnWidths={collapsedColumnWidths}
+            />
+          )}
 
-            return (
-              <div key={port.id} className={`flex items-center py-0.5 opacity-40 hover:opacity-100 transition-opacity ${shouldAnchorBeOnRight ? 'justify-end' : 'justify-start'}`}>
-                {/* INPUT layout: [Anchor][Source] - all on left */}
-                {!shouldAnchorBeOnRight && (() => {
-                  const anchorId = `${nodeId}-${port.id}`;
-                  const isConnected = connectedAnchorIds?.has(anchorId);
-                  return (
-                    <div className="flex items-center gap-2">
-                      {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
-                        <div
-                          data-anchor-id={anchorId}
-                          data-anchor-type="in"
-                          className="w-2 h-2 rounded-full cursor-pointer"
-                          style={{
-                            backgroundColor: isConnected ? (themeColor || '#71717a') : '#71717a',
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : '#a1a1aa') : '#a1a1aa'}`,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAnchorClick && onAnchorClick(anchorId, 'in');
-                          }}
-                          title={`${port.label || port.id} (collapsed)`}
-                        />
-                      </span>
-                      {/* Source */}
-                      <span className="shrink-0 text-[10px] text-zinc-600 truncate" style={{ width: `${columnWidths['source'] || 90}px` }}>
-                        {port.source || ''}
-                      </span>
-                    </div>
-                  );
-                })()}
+          {/* Column selector dropdown */}
+          {showColumnSelector && (
+            <div ref={columnSelectorRef} className="relative">
+              <CollapsedColumnSelector
+                selectedColumns={collapsedColumns}
+                onChange={updateCollapsedColumns}
+                onClose={closeColumnSelector}
+                anchorSide={anchorSide}
+              />
+            </div>
+          )}
 
-                {/* OUTPUT layout: [Destination][Anchor] - all on right */}
-                {shouldAnchorBeOnRight && (() => {
-                  const anchorId = `${nodeId}-${port.id}`;
-                  const isConnected = connectedAnchorIds?.has(anchorId);
-                  return (
-                    <div className="flex items-center gap-2">
-                      {/* Destination */}
-                      <span className="shrink-0 text-[10px] text-zinc-600 truncate text-right" style={{ width: `${columnWidths['destination'] || 90}px` }}>
-                        {port.destination || ''}
-                      </span>
-                      {/* Anchor */}
-                      <span className="shrink-0 flex items-center justify-center" style={{ width: '24px' }}>
-                        <div
-                          data-anchor-id={anchorId}
-                          data-anchor-type="out"
-                          className="w-2 h-2 rounded-full cursor-pointer"
-                          style={{
-                            backgroundColor: isConnected ? (themeColor || (signalColor || '#71717a')) : '#71717a',
-                            border: `1px solid ${isConnected ? (themeColor ? `${themeColor}cc` : (signalColor ? `${signalColor}cc` : '#a1a1aa')) : '#a1a1aa'}`,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAnchorClick && onAnchorClick(anchorId, 'out');
-                          }}
-                          title={`${port.label || port.id} (collapsed)`}
-                        />
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            );
-          })}
+          {/* Collapsed port rows - uses COMPACT widths */}
+          {data.ports.map(port => (
+            <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
+              <CollapsedPortRow
+                port={port}
+                type={portType}
+                anchorSide={anchorSide}
+                anchorId={`${nodeId}-${port.id}`}
+                onAnchorClick={onAnchorClick}
+                selectedColumns={collapsedColumns}
+                columnWidths={collapsedColumnWidths}
+                connectedAnchorIds={connectedAnchorIds}
+                onSpacingMouseDown={handleSpacingMouseDown}
+              />
+            </div>
+          ))}
         </div>
       ) : (
         <>
@@ -1593,7 +2398,7 @@ const IOSection = ({
             />
           )}
 
-          <div className="flex-1 w-full">
+          <div className="flex-1 relative">
             {data.ports.length === 0 ? (
               <div className={`${SIZES.PADDING_X} py-2 text-zinc-600 font-mono italic text-[11px]`}>
                 No {type}s
@@ -1624,31 +2429,32 @@ const IOSection = ({
       )}
     </div>
   );
-};
+});
+IOSection.displayName = 'IOSection';
 
 // ============================================
-// SYSTEM SECTION COMPONENT
+// SYSTEM HEADER COMPONENT
+// Specialized header for System section with approved fields display
 // ============================================
 
-const SystemSection = ({
-  data,
-  onUpdate,
+const SystemHeader = memo(({
   collapsed,
   onToggleCollapse,
-  onSectionDragStart,
-  onSectionDragEnd,
-  colors,
-  isSideBySideView = false, // When true, INPUT/OUTPUT are side-by-side, use wider layout
+  onDragStart,
+  onDragEnd,
+  sectionId,
+  colors: passedColors,
+  approvedFields,
 }) => {
-  // Use passed hex colors or fallback to zinc
-  const colorHex = colors?.hex || HEX_COLORS.zinc[500];
-  const colorHexLight = colors?.hexLight || HEX_COLORS.zinc[400];
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHexLight = useMemo(() => passedColors?.hexLight || HEX_COLORS.zinc[400], [passedColors?.hexLight]);
 
   // Track drag state for visual feedback
   const [isDragging, setIsDragging] = useState(false);
 
-  // Use MOUSE EVENTS instead of HTML5 drag API
-  const handleMouseDown = (e) => {
+  // Use MOUSE EVENTS for drag (not HTML5 drag API)
+  // This is needed for System section to work properly with drop zones
+  const handleMouseDown = useCallback((e) => {
     // Only left mouse button
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -1657,7 +2463,7 @@ const SystemSection = ({
     setIsDragging(true);
 
     // Manually trigger the drag start
-    onSectionDragStart && onSectionDragStart(e, 'system');
+    onDragStart && onDragStart(e, sectionId);
 
     // Global mouse handlers for drag
     const handleMouseMove = (moveEvent) => {
@@ -1666,207 +2472,409 @@ const SystemSection = ({
 
     const handleMouseUp = () => {
       setIsDragging(false);
-      onSectionDragEnd && onSectionDragEnd();
+      onDragEnd && onDragEnd();
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  };
+  }, [onDragStart, sectionId, onDragEnd]);
+
+  // Create gradient background
+  const gradientStyle = useMemo(() => {
+    const baseColor = passedColors?.hexLight || HEX_COLORS.zinc[400];
+
+    const startColor = hexToRgba(baseColor, 0.4);
+    const endColor = hexToRgba(baseColor, 0);
+
+    return {
+      background: `linear-gradient(to right, ${startColor}, ${endColor})`
+    };
+  }, [passedColors?.hexLight]);
+
+  // Check if there are any approved fields to display (memoized)
+  const hasDisplayFields = useMemo(
+    () => approvedFields && (
+      approvedFields['Platform'] ||
+      approvedFields['Software'] ||
+      approvedFields['Capture'] ||
+      approvedFields['IP Address']
+    ),
+    [approvedFields]
+  );
+
+  // Pre-calculate approved fields display elements (compact, wrapping layout)
+  const displayFieldsContent = useMemo(() => {
+    if (!hasDisplayFields) return null;
+
+    const parts = [];
+    if (approvedFields['IP Address']) {
+      parts.push(
+        <span key="ip" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <span style={{ opacity: 0.6 }}>IP:</span> {approvedFields['IP Address']}
+        </span>
+      );
+    }
+    if (approvedFields['Software']) {
+      parts.push(
+        <span key="software" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <span style={{ opacity: 0.6 }}>SW:</span> {approvedFields['Software']}
+        </span>
+      );
+    }
+    if (approvedFields['Platform']) {
+      parts.push(
+        <span key="platform" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          {approvedFields['Platform']}
+        </span>
+      );
+    }
+    if (approvedFields['Capture']) {
+      parts.push(
+        <span key="capture" className="px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          {approvedFields['Capture']}
+        </span>
+      );
+    }
+    return parts;
+  }, [hasDisplayFields, approvedFields]);
+
+  return (
+    <div
+      data-section-drag="true"
+      onMouseDown={handleMouseDown}
+      className={`flex items-center gap-2 px-2 border-b border-zinc-700/50 cursor-grab select-none ${isDragging ? 'cursor-grabbing' : ''}`}
+      style={{
+        ...gradientStyle,
+      }}
+      title="Drag to reorder section"
+    >
+      <div className="flex items-center gap-1 shrink-0">
+        <span
+          className="font-mono font-bold text-[12px] hover:opacity-80 px-1 rounded whitespace-nowrap pointer-events-none"
+          style={WHITE_TEXT_STYLE}
+        >
+          SYSTEM
+        </span>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onToggleCollapse && onToggleCollapse();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
+          style={{ fontFamily: 'inherit', color: colorHexLight }}
+          title={collapsed ? 'Expand section' : 'Collapse section'}
+        >
+          ▸
+        </span>
+      </div>
+
+      {/* Display approved fields (excluding Manufacturer/Model which go to title bar) */}
+      {hasDisplayFields ? (
+        <div className="flex-1 min-w-0 px-2 font-mono pointer-events-none" style={{ color: '#ffffff', overflow: 'hidden' }}>
+          <div className="flex items-center gap-1 flex-wrap" style={{ maxHeight: '32px', lineHeight: '1.2', overflow: 'hidden' }}>
+            {displayFieldsContent}
+          </div>
+        </div>
+      ) : (
+        <span className="flex-1 pointer-events-none" />
+      )}
+    </div>
+  );
+});
+SystemHeader.displayName = 'SystemHeader';
+
+// ============================================
+// SYSTEM SECTION COMPONENT
+// ============================================
+
+const SystemSection = memo(({
+  data,
+  onUpdate,
+  collapsed,
+  onToggleCollapse,
+  onSectionDragStart,
+  onSectionDragEnd,
+  colors,
+  leftSectionWidth,
+  rightSectionWidth,
+  leftSectionCollapsed,
+  rightSectionCollapsed,
+  areIOSideBySide,
+}) => {
+  // Use passed hex colors or fallback to zinc (memoized)
+  const colorHex = useMemo(() => colors?.hex || HEX_COLORS.zinc[500], [colors?.hex]);
+
+  // Handler for approving field/value (used by checkmark button and Enter key)
+  const handleApprove = useCallback(() => {
+    const field = data.selectedField || 'Manufacturer';
+    const value = data.selectedValue || '';
+
+    // Don't approve empty values
+    if (!value || !value.trim()) {
+      return;
+    }
+
+    // Add to approved fields - create NEW object to trigger React re-render
+    const approvedFields = {
+      ...(data.approvedFields || {}),
+      [field]: value
+    };
+
+    onUpdate({
+      approvedFields: approvedFields,
+      selectedValue: '' // Clear value after approve
+    });
+  }, [data.selectedField, data.selectedValue, data.approvedFields, onUpdate]);
+
+  // Memoized background style (prevents object recreation)
+  const sectionStyle = useMemo(() => ({ backgroundColor: `${colorHex}0d` }), [colorHex]);
+
+  // CSS Grid style for aligning dropdowns with left/right sections
+  // Uses different strategies based on collapse states:
+  // - One collapsed: collapsed side gets fixed width, expanded side fills remaining space (1fr)
+  // - Both expanded or both collapsed: use fr units for proportional distribution
+  const gridStyle = useMemo(() => {
+    // Only align with IO sections when they are side-by-side
+    if (areIOSideBySide && leftSectionWidth && rightSectionWidth) {
+      // When left is collapsed and right is expanded: left fixed, right fills
+      if (leftSectionCollapsed && !rightSectionCollapsed) {
+        return {
+          display: 'grid',
+          gridTemplateColumns: `${leftSectionWidth}px 1fr`,
+          gap: '16px',
+          alignItems: 'stretch',
+        };
+      }
+      // When right is collapsed and left is expanded: left fills, right fixed
+      if (!leftSectionCollapsed && rightSectionCollapsed) {
+        return {
+          display: 'grid',
+          gridTemplateColumns: `1fr ${rightSectionWidth}px`,
+          gap: '16px',
+          alignItems: 'stretch',
+        };
+      }
+      // Both expanded or both collapsed: use proportional fr units
+      return {
+        display: 'grid',
+        gridTemplateColumns: `${leftSectionWidth}fr ${rightSectionWidth}fr`,
+        gap: '16px',
+        alignItems: 'stretch',
+      };
+    }
+    // When IO sections are stacked, constrain to parent width (determined by IO sections)
+    // Left: field selector, Right: value input + checkmark
+    // Use minmax(0, 1fr) to allow columns to shrink below content size
+    return {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+      gap: '8px',
+      alignItems: 'stretch',
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden', // Force content to clip
+    };
+  }, [areIOSideBySide, leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed]);
 
   return (
     <div
       className="flex flex-col border-t border-zinc-700/50"
-      style={{ backgroundColor: `${colorHex}0d` }}
+      style={sectionStyle}
     >
-      {/* Header row - Using MOUSE EVENTS for drag */}
-      <div
-        data-section-drag="true"
-        onMouseDown={handleMouseDown}
-        className="flex items-center px-2 py-1.5 border-b border-zinc-700/50 cursor-grab select-none"
-        style={{
-          backgroundColor: isDragging ? `${colorHexLight}40` : `${colorHex}1a`,
-        }}
-        title="Drag to reorder section"
-      >
-        <div className="flex items-center gap-1">
-          <span
-            className="font-mono font-bold text-[12px] hover:opacity-80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none"
-            style={{ color: '#ffffff' }}
-          >
-            SYSTEM
-          </span>
-          {/* Collapse toggle */}
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onToggleCollapse && onToggleCollapse();
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className={`text-[11px] cursor-pointer hover:opacity-80 px-0.5 rounded transition-transform shrink-0 pointer-events-auto ${collapsed ? '' : 'rotate-90'}`}
-            style={{ fontFamily: 'inherit', color: colorHexLight }}
-            title={collapsed ? 'Expand section' : 'Collapse section'}
-          >
-            ▸
-          </span>
-        </div>
+      {/* Use SystemHeader component */}
+      <SystemHeader
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        onDragStart={onSectionDragStart}
+        onDragEnd={onSectionDragEnd}
+        sectionId="system"
+        colors={colors}
+        approvedFields={data.approvedFields}
+      />
 
-        {/* Display approved fields in header (excluding Manufacturer and Model which are in title bar) */}
-        {data.approvedFields && (data.approvedFields['Platform'] || data.approvedFields['Software'] || data.approvedFields['Capture'] || data.approvedFields['IP Address']) && (
-          <div className="flex-1 px-2 pointer-events-none text-[9px] font-mono opacity-70">
-            <div className="truncate">
-              {data.approvedFields['IP Address'] && <span>IP: {data.approvedFields['IP Address']}</span>}
-              {data.approvedFields['Platform'] && <span className={data.approvedFields['IP Address'] ? 'ml-1' : ''}>{data.approvedFields['IP Address'] ? '| ' : ''}{data.approvedFields['Platform']}</span>}
-              {data.approvedFields['Software'] && <span className="ml-1">| {data.approvedFields['Software']}</span>}
-              {data.approvedFields['Capture'] && <span className="ml-1">| {data.approvedFields['Capture']}</span>}
-            </div>
-          </div>
-        )}
-        {(!data.approvedFields || (!data.approvedFields['Platform'] && !data.approvedFields['Software'] && !data.approvedFields['Capture'] && !data.approvedFields['IP Address'])) && <span className="flex-1 pointer-events-none" />}
-      </div>
-
+      {/* Content when expanded - dropdowns aligned with left/right section widths using CSS Grid */}
       {!collapsed && (
-        <div className="p-2 text-[11px] w-full">
-          {/* Two dropdown system with checkmark in same row */}
-          <div className="relative w-full">
-            {/* Grid layout for dropdowns when side-by-side view */}
-            <div className={isSideBySideView ? "grid grid-cols-2 gap-1 w-full items-center" : "flex gap-2 items-center w-full"}>
-              {/* Left: Field Type dropdown with custom text input */}
-              <div className="flex items-center flex-1">
-                <SelectWithCustom
-                  value={data.selectedField || 'Manufacturer'}
-                  options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
-                  placeholder="Select field..."
-                  onChange={(value) => {
-                    onUpdate({ selectedField: value, selectedValue: '' });
-                  }}
-                />
-              </div>
+        <div className="py-2">
+          <div style={gridStyle}>
+            {/* Column 1: Field selector - aligns with left section */}
+            <SelectWithCustom
+              value={data.selectedField || 'Manufacturer'}
+              options={['Manufacturer', 'Model', 'Platform', 'Software', 'Capture', 'IP Address', 'Custom...']}
+              placeholder="Select field..."
+              onChange={(value) => onUpdate({ selectedField: value, selectedValue: '' })}
+              className="h-[26px] min-w-0"
+            />
 
-              {/* Right: Value dropdown/input (changes based on left selection) */}
-              <div className="flex items-center gap-1">
-                <div className="flex-1">
-                  {(!data.selectedField || data.selectedField === 'Manufacturer') && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={MANUFACTURERS}
-                      placeholder="Select manufacturer..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Model' && (
-                    <input
-                      type="text"
-                      value={data.selectedValue || ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onUpdate({ selectedValue: e.target.value });
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Enter model..."
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
-                    />
-                  )}
-                  {data.selectedField === 'Platform' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={PLATFORMS}
-                      placeholder="Select platform..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Software' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={SOFTWARE_PRESETS.map(s => s.label)}
-                      placeholder="Select software..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'Capture' && (
-                    <SelectWithCustom
-                      value={data.selectedValue || ''}
-                      options={CAPTURE_CARDS.map(c => c.label)}
-                      placeholder="Select capture card..."
-                      onChange={(value) => onUpdate({ selectedValue: value })}
-                    />
-                  )}
-                  {data.selectedField === 'IP Address' && (
-                    <input
-                      type="text"
-                      value={data.selectedValue || ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onUpdate({ selectedValue: e.target.value });
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Enter IP address..."
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 font-mono text-zinc-300 text-[10px] placeholder-zinc-600"
-                    />
-                  )}
-                </div>
-
-                {/* Checkmark Button - in side-by-side view, show inline */}
-                {isSideBySideView && (
-                  <button
-                    onClick={(e) => {
+            {/* Column 2: Value input + Checkmark - aligns with right section */}
+            <div className="flex items-stretch gap-2 w-full min-w-0">
+              <div className="flex-1 flex items-stretch min-w-0">
+                {(!data.selectedField || data.selectedField === 'Manufacturer') && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={MANUFACTURERS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px] min-w-0"
+                  />
+                )}
+                {data.selectedField === 'Model' && (
+                  <input
+                    type="text"
+                    value={data.selectedValue || ''}
+                    onChange={(e) => {
                       e.stopPropagation();
-                      const field = data.selectedField || 'Manufacturer';
-                      const value = data.selectedValue || '';
-
-                      // Add to approved fields
-                      const approvedFields = data.approvedFields || {};
-                      approvedFields[field] = value;
-
-                      onUpdate({
-                        approvedFields: approvedFields,
-                        selectedValue: '' // Clear value after approve
-                      });
+                      onUpdate({ selectedValue: e.target.value });
                     }}
-                    className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
-                    title="Approve and add to header"
-                    style={{ minWidth: '28px', height: '28px' }}
-                  >
-                    ✓
-                  </button>
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleApprove();
+                      }
+                    }}
+                    onClick={stopPropagation}
+                    placeholder="Enter..."
+                    className={`${INPUT_FIELD_CLASS} h-[26px] min-w-0`}
+                  />
+                )}
+                {data.selectedField === 'Platform' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={PLATFORMS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px] min-w-0"
+                  />
+                )}
+                {data.selectedField === 'Software' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={SOFTWARE_PRESET_LABELS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px] min-w-0"
+                  />
+                )}
+                {data.selectedField === 'Capture' && (
+                  <SelectWithCustom
+                    value={data.selectedValue || ''}
+                    options={CAPTURE_CARD_LABELS}
+                    placeholder="Select..."
+                    onChange={(value) => onUpdate({ selectedValue: value })}
+                    className="h-[26px] min-w-0"
+                  />
+                )}
+                {data.selectedField === 'IP Address' && (
+                  <input
+                    type="text"
+                    value={data.selectedValue || ''}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      onUpdate({ selectedValue: e.target.value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleApprove();
+                      }
+                    }}
+                    onClick={stopPropagation}
+                    placeholder="Enter..."
+                    className={`${INPUT_FIELD_CLASS} h-[26px] min-w-0`}
+                  />
                 )}
               </div>
+              {/* Checkmark Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApprove();
+                }}
+                className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white border border-zinc-600 rounded text-[11px] flex items-center justify-center shrink-0"
+                title="Approve and add to header (or press Enter)"
+                style={CHECKMARK_BUTTON_STYLE}
+              >
+                ✓
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-};
+});
+SystemSection.displayName = 'SystemSection';
 
 // ============================================
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors }) => {
   const [showSettings, setShowSettings] = useState(false);
-  const signalColorHex = node.signalColor
-    ? SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex
-    : null;
+  const settingsRef = useRef(null);
 
-  const getSoftwareLabel = () => {
-    const softwareId = node.system?.software;
-    if (!softwareId || softwareId === 'none') return null;
-    const software = SOFTWARE_PRESETS.find(s => s.id === softwareId);
-    return software ? software.label : null;
-  };
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showSettings) return;
 
-  const displayTitle = () => {
-    const softwareLabel = getSoftwareLabel();
-    if (softwareLabel) {
-      return `${softwareLabel} ${node.title}`.toUpperCase();
+    const handleClickOutside = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setShowSettings(false);
+      }
+    };
+
+    // Use setTimeout to avoid closing immediately on the same click that opened it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSettings]);
+
+  // Memoize signal color object lookup (O(1) Map access instead of O(n) find)
+  const signalColorObj = useMemo(
+    () => node.signalColor ? SIGNAL_COLORS_BY_ID.get(node.signalColor) || null : null,
+    [node.signalColor]
+  );
+
+  const signalColorHex = useMemo(
+    () => signalColorObj?.hex || null,
+    [signalColorObj]
+  );
+
+  // Sort colors: unused first (in priority order), used colors at bottom
+  // Show top 10 unused, or all remaining + used if fewer than 8 unused
+  const sortedSignalColors = useMemo(() => {
+    const unused = SIGNAL_COLORS.filter(c => !usedSignalColors?.has(c.id));
+    const used = SIGNAL_COLORS.filter(c => usedSignalColors?.has(c.id));
+
+    // If 8 or fewer unused colors remain, show all of them plus used ones
+    if (unused.length <= 8) {
+      return [...unused, ...used];
     }
-    return node.title;
-  };
+    // Otherwise show top 10 unused, then used colors
+    return [...unused.slice(0, 10), ...used];
+  }, [usedSignalColors]);
 
-  const handleResetSystemSettings = () => {
+  // Manufacturer and Model from approved fields (displayed separately)
+  const manufacturer = useMemo(() =>
+    node.system?.approvedFields?.['Manufacturer'] || '',
+    [node.system?.approvedFields]
+  );
+  const model = useMemo(() =>
+    node.system?.approvedFields?.['Model'] || '',
+    [node.system?.approvedFields]
+  );
+
+  const handleResetSystemSettings = useCallback(() => {
     onUpdate({
       system: {
         ...node.system,
@@ -1876,76 +2884,112 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
       }
     });
     setShowSettings(false);
-  };
+  }, [node.system, onUpdate]);
 
-  // Use theme header colors (hex values for inline styles)
-  const headerHex = themeColors?.header?.hex || HEX_COLORS.zinc[700];
+  // Settings menu handlers
+  const handleSavePresetClick = useCallback((e) => {
+    e.stopPropagation();
+    // TODO: Implement save preset
+    setShowSettings(false);
+  }, []);
+
+  const handleSetDefaultClick = useCallback((e) => {
+    e.stopPropagation();
+    // TODO: Implement set as default
+    setShowSettings(false);
+  }, []);
+
+  const toggleSettingsMenu = useCallback((e) => {
+    e.stopPropagation();
+    setShowSettings(prev => !prev);
+  }, []);
+
+  // Section visibility toggles
+  const toggleSectionVisibility = useCallback((section) => {
+    const visibleKey = `${section}Visible`;
+    const currentVisible = node.layout[visibleKey] !== false; // Default to true
+    onUpdate({ layout: { ...node.layout, [visibleKey]: !currentVisible } });
+  }, [node.layout, onUpdate]);
+
+  // Compute visibility states (default to true)
+  const inputVisible = node.layout.inputVisible !== false;
+  const outputVisible = node.layout.outputVisible !== false;
+  const systemVisible = node.layout.systemVisible !== false;
+
+  // Use theme header colors (hex values for inline styles) - memoized
+  const headerHex = useMemo(
+    () => themeColors?.header?.hex || HEX_COLORS.zinc[700],
+    [themeColors?.header?.hex]
+  );
   const headerTextHex = '#ffffff'; // White text for all headers
+
+  // Memoized title bar style (prevents object recreation on every render)
+  const titleBarStyle = useMemo(() => ({
+    borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
+    backgroundColor: `${headerHex}33`, // 20% opacity
+  }), [signalColorHex, headerHex]);
+
+  // Memoized signal label for title attribute
+  const signalLabel = useMemo(
+    () => signalColorObj ? `Signal: ${signalColorObj.label || 'None'}` : 'No Signal Color',
+    [signalColorObj]
+  );
+
+  // Memoized color picker style
+  const colorPickerStyle = useMemo(() => ({
+    backgroundColor: signalColorHex || HEX_COLORS.zinc[600],
+    boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
+    borderColor: signalColorHex ? `${signalColorHex}cc` : HEX_COLORS.zinc[500]
+  }), [signalColorHex]);
 
   return (
     <div
       className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
-      style={{
-        borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
-        backgroundColor: `${headerHex}33`, // 20% opacity
-      }}
+      style={titleBarStyle}
     >
-      {/* Left corner - Manufacturer/Model and Color picker */}
+      {/* Left corner - Color picker + Manufacturer/Model */}
       <div className="flex items-center gap-2 z-10">
-        {(node.system?.approvedFields?.['Manufacturer'] || node.system?.approvedFields?.['Model']) && (
-          <div className="flex flex-col gap-0 font-mono leading-tight" style={{ color: headerTextHex }}>
-            {node.system?.approvedFields?.['Manufacturer'] && (
-              <div className="opacity-90 text-[12px]">{node.system.approvedFields['Manufacturer']}</div>
-            )}
-            {node.system?.approvedFields?.['Model'] && (
-              <div className="opacity-70 text-[10px]">{node.system.approvedFields['Model']}</div>
-            )}
-          </div>
-        )}
-
         {/* Signal color picker - rounded square style */}
-        <div className="relative">
+        <div className="relative flex items-center gap-1.5">
           <select
             value={node.signalColor || ''}
             onChange={(e) => onUpdate({ signalColor: e.target.value || null })}
-            onClick={(e) => e.stopPropagation()}
+            onClick={stopPropagation}
             className="appearance-none cursor-pointer opacity-0 absolute inset-0 w-full h-full bg-zinc-800 text-zinc-300"
             title="Signal color"
-            style={{
-              colorScheme: 'dark'
-            }}
+            style={DARK_COLOR_SCHEME_STYLE}
           >
             <option value="" className="bg-zinc-800 text-zinc-300">No Color</option>
-            {SIGNAL_COLORS.map(color => (
+            {sortedSignalColors.map(color => (
               <option key={color.id} value={color.id} className="bg-zinc-800 text-zinc-300">
-                {color.label}
+                {color.label}{usedSignalColors?.has(color.id) ? ' •' : ''}
               </option>
             ))}
           </select>
           <div
-            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 border-zinc-600 pointer-events-none"
-            style={{
-              backgroundColor: signalColorHex || '#52525b',
-              boxShadow: signalColorHex ? `0 0 6px ${signalColorHex}66` : 'none',
-              borderColor: signalColorHex ? `${signalColorHex}cc` : '#71717a'
-            }}
-            title={node.signalColor ? `Signal: ${SIGNAL_COLORS.find(c => c.id === node.signalColor)?.label || 'None'}` : 'No Signal Color'}
+            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 pointer-events-none"
+            style={colorPickerStyle}
+            title={signalLabel}
           />
         </div>
-      </div>
 
-      {/* Centered title - absolutely positioned at exact 50% mark */}
-      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap">
-        <span className="font-mono font-bold text-lg" style={{ color: headerTextHex }}>{displayTitle()}</span>
+        {/* Manufacturer + Model stacked display */}
+        {(manufacturer || model) && (
+          <div className="flex flex-col leading-tight pointer-events-none">
+            {manufacturer && (
+              <span className="font-mono font-bold text-[13px]" style={{ color: headerTextHex }}>{manufacturer}</span>
+            )}
+            {model && (
+              <span className="font-mono text-[10px] text-zinc-400">{model}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Settings button - top right */}
-      <div className="flex items-center gap-1 ml-auto z-10 relative">
+      <div ref={settingsRef} className="flex items-center gap-1 ml-auto relative" style={{ zIndex: showSettings ? 10000 : 10 }}>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowSettings(!showSettings);
-          }}
+          onClick={toggleSettingsMenu}
           className="text-zinc-300 hover:text-white text-[16px] px-1"
           title="Node settings"
         >
@@ -1955,25 +2999,18 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
         {/* Settings dropdown menu */}
         {showSettings && (
           <div
-            className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-50 py-1 min-w-[160px]"
-            onClick={(e) => e.stopPropagation()}
+            className="absolute top-full right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg py-1 min-w-[160px]"
+            style={SETTINGS_DROPDOWN_STYLE}
+            onClick={stopPropagation}
           >
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Implement save preset
-                setShowSettings(false);
-              }}
+              onClick={handleSavePresetClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               Save Preset
             </button>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Implement set as default
-                setShowSettings(false);
-              }}
+              onClick={handleSetDefaultClick}
               className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               Set as Default
@@ -1984,45 +3021,156 @@ const TitleBar = ({ node, onUpdate, onDelete, themeColors }) => {
             >
               Reset System Settings
             </button>
+
+            {/* Section visibility divider */}
+            <div className="border-t border-zinc-600 my-1" />
+            <div className="px-3 py-1 text-[10px] text-zinc-500 uppercase tracking-wide">Sections</div>
+
+            {/* Input section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('input');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>Input Section</span>
+              <span className={inputVisible ? 'text-green-400' : 'text-zinc-500'}>{inputVisible ? '✓' : '○'}</span>
+            </button>
+
+            {/* Output section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('output');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>Output Section</span>
+              <span className={outputVisible ? 'text-green-400' : 'text-zinc-500'}>{outputVisible ? '✓' : '○'}</span>
+            </button>
+
+            {/* System section toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSectionVisibility('system');
+              }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+            >
+              <span>System Section</span>
+              <span className={systemVisible ? 'text-green-400' : 'text-zinc-500'}>{systemVisible ? '✓' : '○'}</span>
+            </button>
+
+            {/* Device Type section */}
+            <div className="border-t border-zinc-600 my-1" />
+            <div className="px-3 py-1 text-[10px] text-zinc-500 uppercase tracking-wide">Device Type</div>
+
+            {[
+              { id: 'router', label: 'Router' },
+              { id: 'switcher', label: 'Switcher' },
+              { id: 'source', label: 'Source' },
+              { id: 'destination', label: 'Destination' },
+            ].map(role => {
+              const roles = node.deviceRoles || [];
+              const isChecked = roles.includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentRoles = node.deviceRoles || [];
+                    const newRoles = isChecked
+                      ? currentRoles.filter(r => r !== role.id)
+                      : [...currentRoles, role.id];
+                    onUpdate({ deviceRoles: newRoles });
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white flex items-center justify-between"
+                >
+                  <span>{role.label}</span>
+                  <span className={isChecked ? 'text-green-400' : 'text-zinc-500'}>{isChecked ? '✓' : '○'}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
     </div>
   );
-};
+});
+TitleBar.displayName = 'TitleBar';
 
 // ============================================
 // RESIZE HANDLE COMPONENT
 // ============================================
 
-const ResizeHandle = ({ onResizeStart }) => (
+// Resize handle styles (static)
+const RESIZE_HIT_AREA_STYLE = {
+  position: 'absolute',
+  bottom: -15,
+  right: -15,
+  width: 30,
+  height: 30,
+  cursor: 'nwse-resize',
+  zIndex: 20,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const RESIZE_DOT_STYLE = {
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  backgroundColor: HEX_COLORS.blue[500],
+  opacity: 0.7,
+};
+
+const ResizeHandle = memo(({ onResizeStart }) => (
   <div
-    style={{
-      position: 'absolute',
-      bottom: -6,
-      right: -6,
-      width: 12,
-      height: 12,
-      borderRadius: '50%',
-      backgroundColor: '#3b82f6',
-      opacity: 0.7,
-      cursor: 'nwse-resize',
-      zIndex: 20,
-    }}
+    style={RESIZE_HIT_AREA_STYLE}
     onMouseDown={(e) => {
       e.stopPropagation();
       e.preventDefault();
       onResizeStart(e);
     }}
-    className="hover:opacity-100 hover:scale-110 transition-all"
-  />
-);
+  >
+    <div
+      style={RESIZE_DOT_STYLE}
+      className="hover:opacity-100 hover:scale-110 transition-all"
+    />
+  </div>
+));
+ResizeHandle.displayName = 'ResizeHandle';
 
 // ============================================
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, connectedAnchorIds }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors }) {
+  // ============================================
+  // PERFORMANCE PROFILING (Development Only)
+  // ============================================
+  const ENABLE_PROFILING = false;
+  const SLOW_RENDER_THRESHOLD = 50;
+
+  const renderStartTime = useRef(0);
+  if (ENABLE_PROFILING && process.env.NODE_ENV === 'development') {
+    renderStartTime.current = performance.now();
+  }
+
+  useEffect(() => {
+    if (ENABLE_PROFILING && process.env.NODE_ENV === 'development' && renderStartTime.current > 0) {
+      const renderTime = performance.now() - renderStartTime.current;
+      if (renderTime > SLOW_RENDER_THRESHOLD) {
+        console.warn(`⚠️ SuperNode ${node.id} slow render: ${renderTime.toFixed(2)}ms`);
+      } else {
+        console.log(`✓ SuperNode ${node.id} render: ${renderTime.toFixed(2)}ms`);
+      }
+    }
+  });
+  // ============================================
+
   const isDraggingRef = useRef(false);
   const hasDraggedRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
@@ -2035,17 +3183,130 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const [dragOverSection, setDragOverSection] = useState(null);
 
   const nodeRef = useRef(null);
+  const registeredAnchorsRef = useRef(new Set()); // Track anchors we've registered for cleanup
   const nodeScale = node.scale || 1;
 
   // Generate cohesive theme colors from signal color
-  const themeColors = getThemeColors(node.signalColor);
+  const themeColors = useMemo(() => getThemeColors(node.signalColor), [node.signalColor]);
 
-  // Extract theme color for anchors (use the header/main color)
-  const anchorThemeColor = themeColors.header?.hex || null;
+  // Section visibility flags (default to true)
+  const inputVisible = node.layout.inputVisible !== false;
+  const outputVisible = node.layout.outputVisible !== false;
+  const systemVisible = node.layout.systemVisible !== false;
+
+  // Memoize divider gradient style for side-by-side sections
+  // Gradient fades from solid at top to transparent at bottom
+  const dividerGradientStyle = useMemo(() => {
+    const color = themeColors?.header?.hex || '#10b981';
+    return {
+      width: '4px',
+      background: `linear-gradient(to bottom, ${color} 0%, ${color}80 60%, transparent 100%)`,
+      borderRadius: '2px',
+    };
+  }, [themeColors?.header?.hex]);
 
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
-  const sharedColumnWidths = calculateColumnWidths(allPorts);
+  const sharedColumnWidths = useMemo(() => calculateColumnWidths(allPorts), [allPorts]);
+  // COLLAPSED view uses tighter widths (no dropdown padding, smaller minimums)
+  const sharedCollapsedColumnWidths = useMemo(() => calculateCollapsedColumnWidths(allPorts), [allPorts]);
+
+  // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
+  // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
+  // Gaps between columns: 8px each (via mx-2 on separator)
+  // Calculate section widths directly (eliminates callback chain that caused dependency cascades)
+  const inputContentWidth = useMemo(() => {
+    const columns = [
+      sharedColumnWidths.spacing,     // 20 (spacing drag handle - ALWAYS included)
+      sharedColumnWidths.anchor,      // 24
+      sharedColumnWidths.delete,      // 24
+      sharedColumnWidths.port,        // 52
+      sharedColumnWidths.source,      // dynamic
+      sharedColumnWidths.connector,   // dynamic
+      sharedColumnWidths.resolution,  // dynamic
+      sharedColumnWidths.rate,        // dynamic
+    ];
+    const numGaps = columns.length - 1; // gaps between columns
+    const gapWidth = SEPARATOR_WIDTH; // 9px (1px content + 8px mx-2 margins)
+    return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
+  }, [sharedColumnWidths]);
+
+  const outputContentWidth = useMemo(() => {
+    const columns = [
+      sharedColumnWidths.spacing,     // 20 (spacing drag handle - ALWAYS included)
+      sharedColumnWidths.anchor,      // 24
+      sharedColumnWidths.delete,      // 24
+      sharedColumnWidths.port,        // 52
+      sharedColumnWidths.destination, // dynamic (uses destination instead of source)
+      sharedColumnWidths.connector,   // dynamic
+      sharedColumnWidths.resolution,  // dynamic
+      sharedColumnWidths.rate,        // dynamic
+    ];
+    const numGaps = columns.length - 1; // gaps between columns
+    const gapWidth = SEPARATOR_WIDTH; // 9px (1px content + 8px mx-2 margins)
+    return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
+  }, [sharedColumnWidths]);
+
+  // Container widths include buffer for borders, CardWrapper stripe (4px), padding, and breathing room
+  // Increased from +20 to +50 to prevent column overlap/cutoff in side-by-side mode
+  const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
+  const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
+
+  // Get actual collapsed columns (or defaults)
+  const inputCollapsedColumns = node.inputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
+  const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
+
+  // Early check if Input and Output are side-by-side (needed for width calculations)
+  // This checks if both 'input' and 'output' appear in the same row array
+  const ioSideBySide = useMemo(() => {
+    const rows = node.layout.rows || (node.layout.sectionOrder || ['system', 'input', 'output']).map(s => [s]);
+    return rows.some(row => row.includes('input') && row.includes('output'));
+  }, [node.layout.rows, node.layout.sectionOrder]);
+
+  // Collapsed section widths - calculated from actual selected columns
+  // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3) + spacing handle (20, side-by-side only)
+  const COLLAPSED_OUTER_PADDING = 8;  // px-1 on each side
+  const COLLAPSED_DIVIDER = 5;        // 1px line + mx-0.5 margins (2px each side)
+  const COLLAPSED_EDGE_DIVIDER = 3;   // 1px line + ml-0.5 or mr-0.5 (2px)
+  const ANCHOR_WIDTH = 24;
+  const COLLAPSED_SPACING_HANDLE = 24; // Spacing handle wrapper width (side-by-side only)
+
+  // MINIMUM HEADER WIDTH - ensures section is never narrower than its header
+  // Header structure: px-2 padding (16) + gap-1 (4) + title ~50px + arrow ~16px + gap-1 (4) + 3 buttons (72) + 2 gaps (12) + minimal breathing room
+  // This sets the floor so node width = MAX(header width, content width)
+  const SECTION_HEADER_MIN_WIDTH = 200;
+
+  const inputCollapsedWidth = useMemo(() => {
+    // Use COLLAPSED column widths (tighter, no dropdown padding)
+    const columnsWidth = inputCollapsedColumns.reduce((sum, colId) =>
+      sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const numDividers = inputCollapsedColumns.length; // dividers between anchor and columns, and between columns
+    // Always include spacing handle width (shown in both stacked and side-by-side)
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Ensure section is at least as wide as the header (header sets minimum floor)
+    return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
+  }, [sharedCollapsedColumnWidths, inputCollapsedColumns]);
+
+  const outputCollapsedWidth = useMemo(() => {
+    // Use COLLAPSED column widths (tighter, no dropdown padding)
+    const columnsWidth = outputCollapsedColumns.reduce((sum, colId) =>
+      sum + (sharedCollapsedColumnWidths[colId] || COLUMN_DEFS[colId]?.minWidth || 60), 0);
+    const numDividers = outputCollapsedColumns.length; // dividers between columns and anchor, and between columns
+    // Always include spacing handle width (shown in both stacked and side-by-side)
+    const contentWidth = COLLAPSED_OUTER_PADDING + ANCHOR_WIDTH + (numDividers * COLLAPSED_DIVIDER) + columnsWidth + COLLAPSED_EDGE_DIVIDER + COLLAPSED_SPACING_HANDLE;
+    // Ensure section is at least as wide as the header (header sets minimum floor)
+    return Math.max(contentWidth, SECTION_HEADER_MIN_WIDTH);
+  }, [sharedCollapsedColumnWidths, outputCollapsedColumns]);
+
+  // Computed widths based on collapsed state (memoized to avoid recalculation)
+  const computedInputSectionWidth = useMemo(() =>
+    node.layout.inputCollapsed ? inputCollapsedWidth : inputSectionWidth,
+    [node.layout.inputCollapsed, inputCollapsedWidth, inputSectionWidth]
+  );
+  const computedOutputSectionWidth = useMemo(() =>
+    node.layout.outputCollapsed ? outputCollapsedWidth : outputSectionWidth,
+    [node.layout.outputCollapsed, outputCollapsedWidth, outputSectionWidth]
+  );
 
   // ===========================================
   // SECTION LAYOUT RULES (STRICT)
@@ -2057,83 +3318,182 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   // ===========================================
 
   // Get rows from layout (default: all sections stacked)
-  const getRows = () => {
-    if (node.layout.rows) {
-      return node.layout.rows;
-    }
-    // Fallback: convert sectionOrder to rows
-    const sectionOrder = node.layout.sectionOrder || ['system', 'input', 'output'];
-    return sectionOrder.map(s => [s]);
-  };
+  // Filter out hidden sections and force stacked layout when only one I/O section is visible
+  const layoutRows = useMemo(() => {
+    // Build visibility map
+    const visibilityMap = {
+      input: inputVisible,
+      output: outputVisible,
+      system: systemVisible,
+    };
 
-  const layoutRows = getRows();
+    let rows;
+    if (node.layout.rows) {
+      rows = node.layout.rows;
+    } else {
+      // Fallback: convert sectionOrder to rows
+      const sectionOrder = node.layout.sectionOrder || ['system', 'input', 'output'];
+      rows = sectionOrder.map(s => [s]);
+    }
+
+    // Filter out hidden sections from each row
+    const filteredRows = rows
+      .map(row => row.filter(section => visibilityMap[section]))
+      .filter(row => row.length > 0); // Remove empty rows
+
+    // ENFORCE: If only one I/O section is visible, it cannot be side-by-side
+    // Split any row that has a single I/O section alongside nothing (already handled by filter)
+    // But also: if Input or Output is hidden, the other cannot be side-by-side with System
+    // System can NEVER be side-by-side anyway, so this is mainly about I/O together
+    // If one of Input/Output is hidden, the visible one should be in its own row (stacked)
+    const bothIOVisible = inputVisible && outputVisible;
+    if (!bothIOVisible) {
+      // Force each section into its own row (stacked layout)
+      return filteredRows.flatMap(row => row.map(section => [section]));
+    }
+
+    return filteredRows;
+  }, [node.layout.rows, node.layout.sectionOrder, inputVisible, outputVisible, systemVisible]);
 
   // Compute anchor local offsets via scoped DOM queries (only when layout changes)
+  // Only register anchors for visible sections
   useLayoutEffect(() => {
     if (!registerAnchor || !nodeRef.current) return;
     const scale = node.scale || 1;
     const nodeRect = nodeRef.current.getBoundingClientRect();
     const totalScale = zoom * scale;
 
-    node.inputSection.ports.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
-      if (anchorEl) {
-        const r = anchorEl.getBoundingClientRect();
-        registerAnchor(anchorId, {
-          nodeId: node.id,
-          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
-          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'in'
-        });
-      }
-    });
+    // Build set of current anchor IDs from ports (only for visible sections)
+    const currentAnchorIds = new Set();
 
-    node.outputSection.ports.forEach((port) => {
-      const anchorId = `${node.id}-${port.id}`;
-      const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
-      if (anchorEl) {
-        const r = anchorEl.getBoundingClientRect();
-        registerAnchor(anchorId, {
-          nodeId: node.id,
-          localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
-          localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
-          type: 'out'
-        });
+    // Only register input anchors if input section is visible
+    if (inputVisible) {
+      node.inputSection.ports.forEach((port) => {
+        const anchorId = `${node.id}-${port.id}`;
+        currentAnchorIds.add(anchorId);
+        const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+        if (anchorEl) {
+          const r = anchorEl.getBoundingClientRect();
+          registerAnchor(anchorId, {
+            nodeId: node.id,
+            localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+            localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+            type: 'in'
+          });
+        }
+      });
+    }
+
+    // Only register output anchors if output section is visible
+    if (outputVisible) {
+      node.outputSection.ports.forEach((port) => {
+        const anchorId = `${node.id}-${port.id}`;
+        currentAnchorIds.add(anchorId);
+        const anchorEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
+        if (anchorEl) {
+          const r = anchorEl.getBoundingClientRect();
+          registerAnchor(anchorId, {
+            nodeId: node.id,
+            localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
+            localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+            type: 'out'
+          });
+        }
+      });
+    }
+
+    // Clean up stale anchors that no longer exist
+    if (unregisterAnchors) {
+      const staleAnchors = [];
+      for (const anchorId of registeredAnchorsRef.current) {
+        if (!currentAnchorIds.has(anchorId)) {
+          staleAnchors.push(anchorId);
+        }
       }
-    });
-  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, node.id, zoom]);
+      if (staleAnchors.length > 0) {
+        unregisterAnchors(staleAnchors);
+      }
+    }
+
+    // Update tracked anchors
+    registeredAnchorsRef.current = currentAnchorIds;
+  }, [node.inputSection, node.outputSection, node.scale, node.layout, registerAnchor, unregisterAnchors, node.id, zoom, inputVisible, outputVisible]);
 
   // Resize handling
-  const handleResizeStart = (e) => {
+  const handleResizeStart = useCallback((e) => {
+    const rect = nodeRef.current.getBoundingClientRect();
+    const canvas = nodeRef.current?.closest('[data-canvas]');
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+
     setIsResizing(true);
-    setResizeStart({ x: e.clientX, y: e.clientY, scale: node.scale || 1 });
-  };
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      scale: node.scale || 1,
+      nodeX: node.position.x,
+      nodeY: node.position.y,
+      // Store unscaled dimensions (current size / current scale / zoom)
+      unscaledWidth: rect.width / zoom / (node.scale || 1),
+      unscaledHeight: rect.height / zoom / (node.scale || 1),
+      canvasLeft: canvasRect.left,
+      canvasTop: canvasRect.top
+    });
+  }, [node.scale, node.position.x, node.position.y, zoom]);
 
   useEffect(() => {
     if (!isResizing) return;
 
+    let rafId = null;
+    let pendingScale = null;
+
     const handleResizeMove = (e) => {
-      const deltaX = e.clientX - resizeStart.x;
-      const deltaY = e.clientY - resizeStart.y;
-      const scaleDelta = (deltaX + deltaY) / 400;
-      const newScale = Math.max(0.5, Math.min(2.0, resizeStart.scale + scaleDelta));
-      onUpdate({ scale: newScale });
+      // Calculate mouse position in canvas coordinates (accounting for zoom)
+      const mouseCanvasX = (e.clientX - resizeStart.canvasLeft) / zoom;
+      const mouseCanvasY = (e.clientY - resizeStart.canvasTop) / zoom;
+
+      // Calculate what scale would place the bottom-right corner at the mouse
+      // bottomRight = nodePosition + (unscaledDimensions * scale)
+      // Solve for scale: scale = (mousePos - nodePos) / unscaledDimensions
+      const scaleFromX = (mouseCanvasX - resizeStart.nodeX) / resizeStart.unscaledWidth;
+      const scaleFromY = (mouseCanvasY - resizeStart.nodeY) / resizeStart.unscaledHeight;
+
+      // Use the average to maintain proportional scaling
+      const targetScale = (scaleFromX + scaleFromY) / 2;
+
+      // Clamp to reasonable bounds (30% to 300%)
+      const newScale = Math.max(0.3, Math.min(3.0, targetScale));
+
+      // Throttle updates using requestAnimationFrame
+      pendingScale = newScale;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingScale !== null) {
+            onUpdate({ scale: pendingScale });
+          }
+          rafId = null;
+        });
+      }
     };
 
-    const handleResizeEnd = () => setIsResizing(false);
+    const handleResizeEnd = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      setIsResizing(false);
+    };
 
     window.addEventListener('mousemove', handleResizeMove);
     window.addEventListener('mouseup', handleResizeEnd);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleResizeMove);
       window.removeEventListener('mouseup', handleResizeEnd);
     };
-  }, [isResizing, resizeStart, onUpdate]);
+  }, [isResizing, resizeStart, onUpdate, zoom]);
 
   // Node drag handling
   // Uses refs + document listeners (not useState/useEffect) for reliable click-vs-drag detection
-  const handleMouseDown = (e) => {
+  const handleMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
 
     // Check if click is within a column-drag zone (allows column reordering)
@@ -2199,11 +3559,18 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  };
+  }, [isResizing, zoom, gridSize, snapToGrid, onUpdate]);
+
+  // Helper to clean layout rows (remove nulls and empty rows)
+  const cleanLayoutRows = useCallback((rows) => {
+    return rows
+      .map(row => row.filter(s => s !== null))
+      .filter(row => row.length > 0);
+  }, []);
 
   // Section drag handlers
   // Supports both HTML5 drag events (Input/Output) and mouse events (System)
-  const handleSectionDragStart = (e, sectionId) => {
+  const handleSectionDragStart = useCallback((e, sectionId) => {
     e.stopPropagation();
     setDraggedSection(sectionId);
     // Only set dataTransfer for HTML5 drag events (not mouse events)
@@ -2211,9 +3578,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('section-reorder', sectionId);
     }
-  };
+  }, []);
 
-  const handleSectionDragOver = (e, sectionId) => {
+  const handleSectionDragOver = useCallback((e, sectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
@@ -2236,16 +3603,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     if (sectionId === 'system' && draggedRowLength > 1) return;
 
     setDragOverSection(sectionId);
-  };
+  }, [draggedSection, layoutRows]);
 
-  const handleSectionDragEnd = () => {
+  const handleSectionDragEnd = useCallback(() => {
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, []);
 
   // Drop on section (swap positions in same row or move to different row)
   // STRICT RULE: System can only be at TOP or BOTTOM (never middle, never side-by-side)
-  const handleSectionDrop = (e, targetSectionId) => {
+  const handleSectionDrop = useCallback((e, targetSectionId) => {
     // Only handle if we're actually dragging a section (not a column header)
     if (!draggedSection) return;
 
@@ -2263,16 +3630,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const newRows = layoutRows.map(row => [...row]);
 
-    // Find positions
-    let draggedRowIdx = -1, draggedColIdx = -1;
-    let targetRowIdx = -1, targetColIdx = -1;
-
-    newRows.forEach((row, ri) => {
-      row.forEach((sid, ci) => {
-        if (sid === draggedSection) { draggedRowIdx = ri; draggedColIdx = ci; }
-        if (sid === targetSectionId) { targetRowIdx = ri; targetColIdx = ci; }
-      });
-    });
+    // Find positions using findIndex (exits early, more efficient than forEach)
+    const draggedRowIdx = newRows.findIndex(row => row.includes(draggedSection));
+    const draggedColIdx = draggedRowIdx >= 0 ? newRows[draggedRowIdx].indexOf(draggedSection) : -1;
+    const targetRowIdx = newRows.findIndex(row => row.includes(targetSectionId));
+    const targetColIdx = targetRowIdx >= 0 ? newRows[targetRowIdx].indexOf(targetSectionId) : -1;
 
     if (draggedRowIdx === -1 || targetRowIdx === -1) {
       setDraggedSection(null);
@@ -2299,23 +3661,36 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       return;
     }
 
+    // ENFORCE: System must stay at TOP or BOTTOM row (never middle)
+    // After swap, System goes to targetRowIdx if System is being dragged,
+    // or to draggedRowIdx if something is swapping with System
+    if (draggedSection === 'system' || targetSectionId === 'system') {
+      const systemDestRowIdx = draggedSection === 'system' ? targetRowIdx : draggedRowIdx;
+      const rowCount = newRows.length;
+
+      // Middle row = not first (0) and not last (rowCount - 1)
+      if (rowCount > 2 && systemDestRowIdx > 0 && systemDestRowIdx < rowCount - 1) {
+        setDraggedSection(null);
+        setDragOverSection(null);
+        return;
+      }
+    }
+
     // Swap positions
     newRows[draggedRowIdx][draggedColIdx] = targetSectionId;
     newRows[targetRowIdx][targetColIdx] = draggedSection;
 
     // Clean up empty rows
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to side (create or join column)
   // STRICT RULE: Only Input and Output can be side-by-side
-  const handleDropToSide = (targetSectionId, side) => {
+  const handleDropToSide = useCallback((targetSectionId, side) => {
     if (!draggedSection || draggedSection === targetSectionId) {
       setDraggedSection(null);
       return;
@@ -2330,68 +3705,70 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const newRows = layoutRows.map(row => [...row]);
 
-    // Find positions
-    let draggedRowIdx = -1, draggedColIdx = -1;
-    let targetRowIdx = -1, targetColIdx = -1;
-
-    newRows.forEach((row, ri) => {
-      row.forEach((sid, ci) => {
-        if (sid === draggedSection) { draggedRowIdx = ri; draggedColIdx = ci; }
-        if (sid === targetSectionId) { targetRowIdx = ri; targetColIdx = ci; }
-      });
-    });
+    // Find positions using findIndex (exits early, more efficient than forEach)
+    const draggedRowIdx = newRows.findIndex(row => row.includes(draggedSection));
+    const draggedColIdx = draggedRowIdx >= 0 ? newRows[draggedRowIdx].indexOf(draggedSection) : -1;
+    const targetRowIdx = newRows.findIndex(row => row.includes(targetSectionId));
+    const targetColIdx = targetRowIdx >= 0 ? newRows[targetRowIdx].indexOf(targetSectionId) : -1;
 
     if (draggedRowIdx === -1 || targetRowIdx === -1) {
       setDraggedSection(null);
       return;
     }
 
-    // Remove dragged section from its current position
-    newRows[draggedRowIdx][draggedColIdx] = null;
+    // CASE 1: Already in same row - just swap positions
+    if (draggedRowIdx === targetRowIdx) {
+      const targetRow = newRows[targetRowIdx];
+      // Simple swap
+      [targetRow[draggedColIdx], targetRow[targetColIdx]] = [targetRow[targetColIdx], targetRow[draggedColIdx]];
+    }
+    // CASE 2: Different rows
+    else {
+      // Remove dragged section from its current position
+      newRows[draggedRowIdx][draggedColIdx] = null;
 
-    // Check target row
-    const targetRow = newRows[targetRowIdx];
-    const targetSectionsCount = targetRow.filter(Boolean).length;
+      // Check target row (count BEFORE we removed the dragged section)
+      const targetRow = newRows[targetRowIdx];
+      const targetSectionsCount = targetRow.filter(Boolean).length;
 
-    if (targetSectionsCount === 2) {
-      // Row already has 2 sections - swap with the one at the drop position
-      const swapColIdx = side === 'left' ? 0 : 1;
-      const swappedSection = targetRow[swapColIdx];
+      if (targetSectionsCount === 2) {
+        // Row already has 2 sections - swap with the one at the drop position
+        const swapColIdx = side === 'left' ? 0 : 1;
+        const swappedSection = targetRow[swapColIdx];
 
-      // Put dragged section in the swap position
-      targetRow[swapColIdx] = draggedSection;
+        // Put dragged section in the swap position
+        targetRow[swapColIdx] = draggedSection;
 
-      // Put swapped section where dragged came from
-      newRows[draggedRowIdx][draggedColIdx] = swappedSection;
-    } else {
-      // Row has 1 section - add dragged section to create columns
-      if (side === 'left') {
-        // Insert at beginning
-        targetRow.unshift(draggedSection);
-      } else {
-        // Add at end
-        targetRow.push(draggedSection);
-      }
+        // Put swapped section where dragged came from
+        newRows[draggedRowIdx][draggedColIdx] = swappedSection;
+      } else if (targetSectionsCount === 1) {
+        // Row has 1 section - add dragged section to create columns
+        if (side === 'left') {
+          // Insert at beginning
+          targetRow.unshift(draggedSection);
+        } else {
+          // Add at end
+          targetRow.push(draggedSection);
+        }
 
-      // Ensure max 2
-      while (targetRow.length > 2) {
-        targetRow.pop();
+        // Ensure max 2
+        while (targetRow.length > 2) {
+          targetRow.pop();
+        }
       }
     }
 
     // Clean up: remove nulls and empty rows
-    const cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    const cleanedRows = cleanLayoutRows(newRows);
 
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to bottom (create new row at bottom)
   // CONSTRAINT: System always goes to very bottom; IO inserts above system if system is at bottom
-  const handleDropToBottom = () => {
+  const handleDropToBottom = useCallback(() => {
     if (!draggedSection) return;
 
     const newRows = layoutRows.map(row => [...row]);
@@ -2405,9 +3782,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     });
 
     // Clean up nulls first
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     // If dragging system, it goes to very bottom
     if (draggedSection === 'system') {
@@ -2425,11 +3800,11 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Drop to top (create new row at top)
   // CONSTRAINT: Only System section can drop to top position
-  const handleDropToTop = () => {
+  const handleDropToTop = useCallback(() => {
     if (!draggedSection) return;
     // Only System section can use the top drop zone
     if (draggedSection !== 'system') return;
@@ -2445,9 +3820,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     });
 
     // Clean up nulls first
-    let cleanedRows = newRows
-      .map(row => row.filter(s => s !== null))
-      .filter(row => row.length > 0);
+    let cleanedRows = cleanLayoutRows(newRows);
 
     // System goes to very top
     cleanedRows.unshift([draggedSection]);
@@ -2455,61 +3828,153 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     onUpdate({ layout: { ...node.layout, rows: cleanedRows } });
     setDraggedSection(null);
     setDragOverSection(null);
-  };
+  }, [draggedSection, layoutRows, node.layout, onUpdate]);
 
   // Get anchor side for a section based on its position
-  const getAnchorSide = (sectionId, rowIndex, colIndex, isSingleSectionRow) => {
+  // RULE: When side-by-side, anchors ALWAYS face OUTWARD (left section = left anchors, right section = right anchors)
+  const getAnchorSide = useCallback((sectionId, colIndex, isSingleSectionRow) => {
     if (!isSingleSectionRow) {
-      // In columns: left col = left anchors, right col = right anchors
+      // Side-by-side: anchors face OUTWARD (opposite side from divider)
+      // colIndex 0 = leftmost section = anchors on LEFT (outside)
+      // colIndex 1 = rightmost section = anchors on RIGHT (outside)
       return colIndex === 0 ? 'left' : 'right';
     }
     // Single section row: use stored preference
     if (sectionId === 'input') return node.layout.inputAnchorSide || 'left';
     if (sectionId === 'output') return node.layout.outputAnchorSide || 'right';
     return 'left';
-  };
+  }, [node.layout.inputAnchorSide, node.layout.outputAnchorSide]);
 
   // Check if two sections are in the same row (side-by-side)
-  const areInSameRow = (section1, section2) => {
+  const areInSameRow = useCallback((section1, section2) => {
     return layoutRows.some(row => row.includes(section1) && row.includes(section2));
-  };
+  }, [layoutRows]);
 
-  // Anchor side toggles
-  const toggleInputAnchorSide = () => {
+  // Anchor side toggles (memoized)
+  const toggleInputAnchorSide = useCallback(() => {
     onUpdate({
       layout: {
         ...node.layout,
         inputAnchorSide: node.layout.inputAnchorSide === 'right' ? 'left' : 'right'
       }
     });
-  };
+  }, [onUpdate, node.layout]);
 
-  const toggleOutputAnchorSide = () => {
+  const toggleOutputAnchorSide = useCallback(() => {
     onUpdate({
       layout: {
         ...node.layout,
         outputAnchorSide: node.layout.outputAnchorSide === 'left' ? 'right' : 'left'
       }
     });
-  };
+  }, [onUpdate, node.layout]);
 
-  // Check if Input and Output are in the same row (side-by-side)
-  const areIOSideBySide = areInSameRow('input', 'output');
+  // Section update handlers (memoized to prevent re-renders)
+  const handleSystemUpdate = useCallback((updates) => {
+    // Ensure approvedFields is initialized and preserved across all updates
+    const currentSystem = node.system || {};
+    const currentApprovedFields = currentSystem.approvedFields || {};
 
-  // Render section content
-  const renderSectionContent = (sectionId, anchorSide, canToggleAnchor) => {
+    // If updates contains approvedFields, use it; otherwise preserve current
+    const newApprovedFields = updates.approvedFields !== undefined
+      ? updates.approvedFields
+      : currentApprovedFields;
+
+    onUpdate({
+      system: {
+        ...currentSystem,
+        ...updates,
+        approvedFields: newApprovedFields
+      }
+    });
+  }, [onUpdate, node.system]);
+
+  const handleInputUpdate = useCallback((updates) => {
+    onUpdate({ inputSection: { ...node.inputSection, ...updates } });
+  }, [onUpdate, node.inputSection]);
+
+  const handleOutputUpdate = useCallback((updates) => {
+    onUpdate({ outputSection: { ...node.outputSection, ...updates } });
+  }, [onUpdate, node.outputSection]);
+
+  // Section collapse handlers (memoized)
+  const handleSystemCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, systemCollapsed: !node.layout.systemCollapsed } });
+  }, [onUpdate, node.layout]);
+
+  const handleInputCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } });
+  }, [onUpdate, node.layout]);
+
+  const handleOutputCollapseToggle = useCallback(() => {
+    onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } });
+  }, [onUpdate, node.layout]);
+
+  // Check if Input and Output are in the same row (side-by-side) - memoized
+  const areIOSideBySide = useMemo(
+    () => areInSameRow('input', 'output'),
+    [areInSameRow]
+  );
+
+  // Calculate left/right section widths and collapse states based on actual layout position
+  // This determines which section is visually on the left vs right when side-by-side
+  const { leftSectionWidth, rightSectionWidth, leftSectionCollapsed, rightSectionCollapsed } = useMemo(() => {
+    if (!areIOSideBySide) {
+      // When stacked, default to input=left, output=right for System section alignment
+      return {
+        leftSectionWidth: computedInputSectionWidth,
+        rightSectionWidth: computedOutputSectionWidth,
+        leftSectionCollapsed: node.layout.inputCollapsed,
+        rightSectionCollapsed: node.layout.outputCollapsed
+      };
+    }
+    // Find the row containing both INPUT and OUTPUT to determine left/right order
+    const sideBySideRow = layoutRows.find(row =>
+      row.includes('input') && row.includes('output')
+    );
+    if (sideBySideRow) {
+      const leftSection = sideBySideRow[0]; // First element is on the left
+      return {
+        leftSectionWidth: leftSection === 'input'
+          ? computedInputSectionWidth
+          : computedOutputSectionWidth,
+        rightSectionWidth: leftSection === 'input'
+          ? computedOutputSectionWidth
+          : computedInputSectionWidth,
+        leftSectionCollapsed: leftSection === 'input'
+          ? node.layout.inputCollapsed
+          : node.layout.outputCollapsed,
+        rightSectionCollapsed: leftSection === 'input'
+          ? node.layout.outputCollapsed
+          : node.layout.inputCollapsed,
+      };
+    }
+    return {
+      leftSectionWidth: computedInputSectionWidth,
+      rightSectionWidth: computedOutputSectionWidth,
+      leftSectionCollapsed: node.layout.inputCollapsed,
+      rightSectionCollapsed: node.layout.outputCollapsed
+    };
+  }, [areIOSideBySide, layoutRows, computedInputSectionWidth, computedOutputSectionWidth, node.layout.inputCollapsed, node.layout.outputCollapsed]);
+
+  // Render section content (memoized to prevent recreation on every render)
+  const renderSectionContent = useCallback((sectionId, anchorSide, canToggleAnchor) => {
     switch (sectionId) {
       case 'system':
         return (
           <SystemSection
             data={node.system}
-            onUpdate={(updates) => onUpdate({ system: { ...node.system, ...updates } })}
+            onUpdate={handleSystemUpdate}
             collapsed={node.layout.systemCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, systemCollapsed: !node.layout.systemCollapsed } })}
+            onToggleCollapse={handleSystemCollapseToggle}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             colors={themeColors.system}
-            isSideBySideView={areIOSideBySide}
+            leftSectionWidth={leftSectionWidth}
+            rightSectionWidth={rightSectionWidth}
+            leftSectionCollapsed={leftSectionCollapsed}
+            rightSectionCollapsed={rightSectionCollapsed}
+            areIOSideBySide={areIOSideBySide}
           />
         );
       case 'input':
@@ -2521,17 +3986,17 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             nodeId={node.id}
             activeWire={activeWire}
             onAnchorClick={onAnchorClick}
-            onUpdate={(updates) => onUpdate({ inputSection: { ...node.inputSection, ...updates } })}
+            onUpdate={handleInputUpdate}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchorSide={toggleInputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.inputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, inputCollapsed: !node.layout.inputCollapsed } })}
+            onToggleCollapse={handleInputCollapseToggle}
             colors={themeColors.input}
             connectedAnchorIds={connectedAnchorIds}
-            themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
           />
         );
       case 'output':
@@ -2543,72 +4008,241 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             nodeId={node.id}
             activeWire={activeWire}
             onAnchorClick={onAnchorClick}
-            onUpdate={(updates) => onUpdate({ outputSection: { ...node.outputSection, ...updates } })}
-            signalColor={node.signalColor}
+            onUpdate={handleOutputUpdate}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchorSide={toggleOutputAnchorSide}
             onSectionDragStart={handleSectionDragStart}
             onSectionDragEnd={handleSectionDragEnd}
             collapsed={node.layout.outputCollapsed}
-            onToggleCollapse={() => onUpdate({ layout: { ...node.layout, outputCollapsed: !node.layout.outputCollapsed } })}
+            onToggleCollapse={handleOutputCollapseToggle}
             colors={themeColors.output}
             connectedAnchorIds={connectedAnchorIds}
-            themeColor={anchorThemeColor}
             sharedColumnWidths={sharedColumnWidths}
+            sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
           />
         );
       default:
         return null;
     }
-  };
+  }, [
+    node.system, node.inputSection, node.outputSection, node.layout.systemCollapsed,
+    node.layout.inputCollapsed, node.layout.outputCollapsed, node.id, node.signalColor,
+    handleSystemUpdate, handleInputUpdate, handleOutputUpdate,
+    handleSystemCollapseToggle, handleInputCollapseToggle, handleOutputCollapseToggle,
+    toggleInputAnchorSide, toggleOutputAnchorSide,
+    handleSectionDragStart, handleSectionDragEnd,
+    themeColors, activeWire, onAnchorClick, connectedAnchorIds,
+    sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
+    leftSectionWidth, rightSectionWidth
+  ]);
 
   // Handle click to select (shift+click to add to selection)
-  const handleClick = (e) => {
+  const handleClick = useCallback((e) => {
     e.stopPropagation();
     if (onSelect && !hasDraggedRef.current) {
       onSelect(node.id, e.shiftKey);
     }
-  };
+  }, [onSelect, node.id]);
+
+  // Node width is now determined by content naturally (no explicit width constraints)
+  // This allows sections to size based on their content and the node wraps to fit
+
+  // Memoized helper functions for wrapper styling (prevent recreation on every render)
+  const getWrapperClassName = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
+    // When stacked, don't force full width - let content determine width
+    if (isSingleSectionRow) return '';
+    // When collapsed, don't use flex-1 (let it shrink to content)
+    if (isCollapsed) return '';
+    // When expanded, don't use flex-1 if we have a fixed width
+    const hasFixedWidth = (sectionId === 'input' || sectionId === 'output') && (inputSectionWidth || outputSectionWidth);
+    if (hasFixedWidth) return '';
+    // Fallback: use flex-1
+    return 'flex-1';
+  }, [inputSectionWidth, outputSectionWidth]);
+
+  // Memoize wrapper styles for each section state (prevents object recreation)
+  const inputCollapsedStyle = useMemo(
+    () => ({ width: `${inputCollapsedWidth}px`, flexShrink: 0 }),
+    [inputCollapsedWidth]
+  );
+  const outputCollapsedStyle = useMemo(
+    () => ({ width: `${outputCollapsedWidth}px`, flexShrink: 0 }),
+    [outputCollapsedWidth]
+  );
+  const inputExpandedStyle = useMemo(
+    () => inputSectionWidth ? { minWidth: `${inputSectionWidth}px`, flexShrink: 0 } : {},
+    [inputSectionWidth]
+  );
+  const outputExpandedStyle = useMemo(
+    () => outputSectionWidth ? { minWidth: `${outputSectionWidth}px`, flexShrink: 0 } : {},
+    [outputSectionWidth]
+  );
+  const emptyStyle = useMemo(() => ({}), []);
+  const fullWidthStyle = useMemo(() => ({ width: '100%' }), []);
+
+  // Wrapper style for section containers in side-by-side layout
+  const getWrapperStyle = useCallback((sectionId, isSingleSectionRow, isCollapsed) => {
+    // In stacked mode (single section row), sections should fill full width
+    if (isSingleSectionRow) return fullWidthStyle;
+
+    // Use collapsed width when collapsed, minWidth when expanded
+    if (isCollapsed) {
+      if (sectionId === 'input') return inputCollapsedStyle;
+      if (sectionId === 'output') return outputCollapsedStyle;
+    } else {
+      if (sectionId === 'input') return inputExpandedStyle;
+      if (sectionId === 'output') return outputExpandedStyle;
+    }
+    return emptyStyle;
+  }, [inputCollapsedStyle, outputCollapsedStyle, inputExpandedStyle, outputExpandedStyle, emptyStyle, fullWidthStyle]);
+
+  // Memoized dragged section row index (prevents repeated findIndex in render loop and drop zone calculations)
+  const draggedSectionRowIndex = useMemo(
+    () => draggedSection ? layoutRows.findIndex(row => row.includes(draggedSection)) : -1,
+    [draggedSection, layoutRows]
+  );
+
+  // Memoized column index of dragged section within its row
+  const draggedColIndex = useMemo(
+    () => draggedSection && draggedSectionRowIndex >= 0
+      ? layoutRows[draggedSectionRowIndex].indexOf(draggedSection)
+      : -1,
+    [draggedSection, draggedSectionRowIndex, layoutRows]
+  );
+
+  // Calculate drop zone visibility for a section (memoized to prevent recalculation in render loop)
+  const calculateDropZones = useCallback((sectionId, rowIndex, colIndex) => {
+    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+    const isTargetIO = sectionId === 'input' || sectionId === 'output';
+    let showLeftDropZone = false;
+    let showRightDropZone = false;
+
+    if (draggedSection && isDraggingIO && isTargetIO && draggedSection !== sectionId) {
+      const draggedRowIdx = draggedSectionRowIndex;
+      const targetRowIdx = rowIndex;
+
+      // CASE 1: Side-by-side (same row) - show drop zone on opposite side only
+      if (draggedRowIdx === targetRowIdx) {
+        const targetColIdx = colIndex;
+
+        if (draggedColIndex < targetColIdx) {
+          // Dragging left section, show drop zone on RIGHT side of right section
+          showRightDropZone = true;
+        } else {
+          // Dragging right section, show drop zone on LEFT side of left section
+          showLeftDropZone = true;
+        }
+      }
+      // CASE 2: Stacked (different rows) - show drop zones on adjacent section
+      else {
+        const isRowAbove = targetRowIdx === draggedRowIdx - 1;
+        const isRowBelow = targetRowIdx === draggedRowIdx + 1;
+
+        if (isRowAbove || isRowBelow) {
+          // Show three-zone drop area on section directly above or below
+          showLeftDropZone = true;
+          showRightDropZone = true;
+        }
+      }
+    }
+
+    return { showLeftDropZone, showRightDropZone };
+  }, [draggedSection, draggedSectionRowIndex, draggedColIndex]);
+
+  // Memoized top drop zone (prevents IIFE recreation on every render)
+  const topDropZone = useMemo(() => {
+    // Only show for System section drag
+    if (draggedSection !== 'system') return null;
+    // Check if system is already solo at top
+    const firstRow = layoutRows[0];
+    const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
+    if (systemAlreadyAtTop) return null;
+    return <TopDropZone onDrop={handleDropToTop} />;
+  }, [draggedSection, layoutRows, handleDropToTop]);
+
+  // Memoized bottom drop zone (prevents IIFE recreation on every render)
+  const bottomDropZone = useMemo(() => {
+    if (!draggedSection) return null;
+    const lastRow = layoutRows[layoutRows.length - 1];
+    const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
+    // System: show bottom zone only if not already at bottom
+    if (draggedSection === 'system') {
+      return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
+    }
+    // IO sections: show bottom zone ONLY when side-by-side
+    // In stacked mode, use the three-zone drop area on adjacent section instead
+    const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
+    if (isDraggingIO) {
+      const isSideBySide = layoutRows[draggedSectionRowIndex]?.length > 1;
+      // Show bottom zone only if side-by-side
+      if (isSideBySide) {
+        return <BottomDropZone onDrop={handleDropToBottom} />;
+      }
+    }
+    return null;
+  }, [draggedSection, layoutRows, draggedSectionRowIndex, handleDropToBottom]);
+
+  // Memoized scale badge style (prevents style object recreation on every render)
+  const scaleBadgeStyle = useMemo(
+    () => ({ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }),
+    [nodeScale]
+  );
+
+  // Memoized System section event handlers (prevent inline arrow function recreation)
+  const handleSystemDragOver = useCallback((e) => handleSectionDragOver(e, 'system'), [handleSectionDragOver]);
+  const handleSystemDrop = useCallback((e) => handleSectionDrop(e, 'system'), [handleSectionDrop]);
+  const handleSystemMouseUp = useCallback(() => handleSectionDrop(null, 'system'), [handleSectionDrop]);
+
+  // Memoized main wrapper className (prevents string concatenation on every render)
+  const wrapperClassName = useMemo(() => {
+    const baseClasses = 'absolute bg-zinc-900 border rounded-lg shadow-xl select-none';
+    const borderClasses = isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700';
+    const cursorClasses = isDraggingVisual ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab';
+    return `${baseClasses} ${borderClasses} ${cursorClasses}`;
+  }, [isSelected, isDraggingVisual, isResizing]);
+
+  // Memoized zIndex calculation (prevents ternary chain on every render)
+  const wrapperZIndex = useMemo(() =>
+    isDraggingVisual || isResizing ? 100 : isSelected ? 80 : 70,
+    [isDraggingVisual, isResizing, isSelected]
+  );
+
+  // Memoized transform string (prevents template literal creation on every render)
+  const wrapperTransform = useMemo(() => `scale(${nodeScale})`, [nodeScale]);
 
   return (
     <div
       ref={nodeRef}
-      data-node-id={node.id}
-      className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
-        isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
-      } ${
-        isDraggingVisual ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
-      }`}
-      style={{
-        left: node.position.x,
-        top: node.position.y,
-        width: 'auto',
-        minWidth: 320,
-        zIndex: isDraggingVisual || isResizing ? 100 : isSelected ? 80 : 70,
-        transform: `scale(${nodeScale})`,
-        transformOrigin: 'top left',
-        isolation: 'isolate', // Create new stacking context
-      }}
-      onMouseDown={handleMouseDown}
-      onClick={handleClick}
-    >
-      <TitleBar node={node} onUpdate={onUpdate} onDelete={onDelete} themeColors={themeColors} />
+      className={wrapperClassName}
+        style={{
+          left: node.position.x,
+          top: node.position.y,
+          width: !areIOSideBySide
+            ? (node.layout.inputCollapsed && node.layout.outputCollapsed
+                ? Math.max(computedInputSectionWidth, computedOutputSectionWidth)
+                : 'fit-content')
+            : undefined,
+          zIndex: wrapperZIndex,
+          transform: wrapperTransform,
+          transformOrigin: 'top left',
+          isolation: 'isolate',
+          willChange: isDraggingVisual || isResizing ? 'transform, left, top' : 'auto',
+          contain: 'layout style',
+        }}
+        onMouseDown={handleMouseDown}
+        onClick={handleClick}
+      >
+      <TitleBar
+        node={node}
+        onUpdate={onUpdate}
+        themeColors={themeColors}
+        usedSignalColors={usedSignalColors}
+      />
 
       {/* Row-based layout */}
-      <div className="flex flex-col">
-        {/* Top drop zone - visible when dragging System and System is not already at top */}
-        {(() => {
-          // Only show for System section drag
-          if (draggedSection !== 'system') return null;
-
-          // Check if system is already solo at top
-          const firstRow = layoutRows[0];
-          const systemAlreadyAtTop = firstRow?.length === 1 && firstRow[0] === 'system';
-
-          if (systemAlreadyAtTop) return null;
-
-          return <TopDropZone onDrop={handleDropToTop} />;
-        })()}
+      <div className="flex flex-col relative">
+        {/* Top drop zone - overlays first row when dragging System to top */}
+        {topDropZone}
 
         {layoutRows.map((row, rowIndex) => {
           const isSingleSectionRow = row.length === 1;
@@ -2617,26 +4251,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           const rowKey = row.join('-');
 
           return (
-            <div key={rowKey} className={`flex ${!isSingleSectionRow ? 'gap-3' : ''} items-stretch`}>
+            <div key={rowKey} className="flex items-stretch">
               {row.map((sectionId, colIndex) => {
                 const isLastInRow = colIndex === row.length - 1;
                 if (!sectionId) return null;
 
-                const anchorSide = getAnchorSide(sectionId, rowIndex, colIndex, isSingleSectionRow);
+                const anchorSide = getAnchorSide(sectionId, colIndex, isSingleSectionRow);
                 const canToggleAnchor = isSingleSectionRow && sectionId !== 'system';
-                // Side drop zones only when:
-                // 1. Dragging an IO section (not system)
-                // 2. Target is IO section (not system)
-                // 3. Target is not the dragged section
-                // 4. NOT already side-by-side (if same row, just swap - no zones needed)
-                // STRICT RULE: System can NEVER be side-by-side
-                const isDraggingIO = draggedSection === 'input' || draggedSection === 'output';
-                const isTargetIO = sectionId === 'input' || sectionId === 'output';
-                const showSideDropZones = draggedSection &&
-                  isDraggingIO &&
-                  isTargetIO &&
-                  draggedSection !== sectionId &&
-                  !areInSameRow(draggedSection, sectionId);
+
+                // Calculate which side drop zones to show based on layout (memoized)
+                const { showLeftDropZone, showRightDropZone } = calculateDropZones(sectionId, rowIndex, colIndex);
 
                 // Force React to REMOUNT SystemSection when row position changes
                 // This ensures event handlers are freshly attached
@@ -2645,31 +4269,39 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                     <Fragment key={`system-row-${rowIndex}`}>
                       <div
                         className={isSingleSectionRow ? 'w-full' : 'flex-1'}
-                        style={{ position: 'relative', zIndex: 9999, isolation: 'isolate' }}
-                        onDragOver={(e) => handleSectionDragOver(e, 'system')}
-                        onDrop={(e) => handleSectionDrop(e, 'system')}
+                        style={SYSTEM_WRAPPER_STYLE}
+                        onDragOver={handleSystemDragOver}
+                        onDrop={handleSystemDrop}
                         // Also support mouse-based drops
-                        onMouseUp={() => handleSectionDrop(null, 'system')}
+                        onMouseUp={handleSystemMouseUp}
                       >
                         {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                       </div>
-                      {/* Divider between sections when side-by-side */}
-                      {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                      {/* Divider after non-last sections when side-by-side */}
+                      {!isSingleSectionRow && !isLastInRow && (
                         <div
-                          className="self-stretch"
-                          style={{
-                            width: '2.5px',
-                            background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
-                          }}
+                          className="mx-1.5 self-stretch shrink-0"
+                          style={dividerGradientStyle}
                         />
                       )}
                     </Fragment>
                   );
                 }
 
+                // Check if section is collapsed
+                const isCollapsed = sectionId === 'input'
+                  ? node.layout.inputCollapsed
+                  : sectionId === 'output'
+                  ? node.layout.outputCollapsed
+                  : node.layout.systemCollapsed;
+
                 return (
                   <Fragment key={sectionId}>
-                    <div className={isSingleSectionRow ? 'w-full' : 'flex-1'}>
+                    {/* Section wrapper */}
+                    <div
+                      className={getWrapperClassName(sectionId, isSingleSectionRow, isCollapsed)}
+                      style={getWrapperStyle(sectionId, isSingleSectionRow, isCollapsed)}
+                    >
                       <DraggableSection
                         sectionId={sectionId}
                         anchorSide={anchorSide}
@@ -2680,21 +4312,19 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
                         onDropToSide={handleDropToSide}
                         isDragging={draggedSection === sectionId}
                         isDraggedOver={dragOverSection === sectionId}
-                        showSideDropZones={showSideDropZones}
+                        showLeftDropZone={showLeftDropZone}
+                        showRightDropZone={showRightDropZone}
                         isSingleSectionRow={isSingleSectionRow}
                         draggedSection={draggedSection}
                       >
                         {renderSectionContent(sectionId, anchorSide, canToggleAnchor)}
                       </DraggableSection>
                     </div>
-                    {/* Divider between sections when side-by-side */}
-                    {!isSingleSectionRow && !isLastInRow && themeColors?.header?.hex && (
+                    {/* Divider after non-last sections when side-by-side */}
+                    {!isSingleSectionRow && !isLastInRow && (
                       <div
-                        className="self-stretch"
-                        style={{
-                          width: '2.5px',
-                          background: `linear-gradient(to bottom, ${themeColors.header.hex}ff, ${themeColors.header.hex}00)`,
-                        }}
+                        className="mx-1.5 self-stretch shrink-0"
+                        style={dividerGradientStyle}
                       />
                     )}
                   </Fragment>
@@ -2704,21 +4334,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
           );
         })}
 
-        {/* Bottom drop zone - visible when dragging any section to a new bottom row */}
-        {(() => {
-          if (!draggedSection) return null;
-
-          const lastRow = layoutRows[layoutRows.length - 1];
-          const isSystemAlreadyAtBottom = lastRow?.length === 1 && lastRow[0] === 'system';
-
-          // System: show bottom zone only if not already at bottom
-          if (draggedSection === 'system') {
-            return !isSystemAlreadyAtBottom ? <BottomDropZone onDrop={handleDropToBottom} /> : null;
-          }
-
-          // IO sections: always show bottom zone (they can always move to bottom)
-          return <BottomDropZone onDrop={handleDropToBottom} />;
-        })()}
+        {/* Bottom drop zone - visible based on layout and dragged section */}
+        {bottomDropZone}
       </div>
 
       <ResizeHandle onResizeStart={handleResizeStart} />
@@ -2726,7 +4343,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       {nodeScale !== 1 && (
         <div
           className="absolute -bottom-5 left-0 text-[10px] font-mono text-zinc-500"
-          style={{ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }}
+          style={scaleBadgeStyle}
         >
           {Math.round(nodeScale * 100)}%
         </div>
@@ -2735,10 +4352,42 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   );
 }
 
-export default memo(SuperNode, (prev, next) =>
-  prev.node === next.node &&
-  prev.zoom === next.zoom &&
-  prev.isSelected === next.isSelected &&
-  prev.activeWire === next.activeWire &&
-  prev.snapToGrid === next.snapToGrid
-);
+export default memo(SuperNode, (prev, next) => {
+  // Development warnings for unstable props (only in dev mode)
+  if (process.env.NODE_ENV === 'development') {
+    // Warn if connectedAnchorIds isn't properly memoized (parent should use useMemo)
+    if (prev.connectedAnchorIds !== next.connectedAnchorIds) {
+      // Check if Set contents are actually the same (parent recreating Set unnecessarily)
+      const prevArr = Array.from(prev.connectedAnchorIds).sort();
+      const nextArr = Array.from(next.connectedAnchorIds).sort();
+      if (JSON.stringify(prevArr) === JSON.stringify(nextArr)) {
+        console.warn('⚠️ SuperNode: connectedAnchorIds Set recreated with same contents. Parent should memoize with useMemo.');
+      }
+    }
+
+    // Warn if usedSignalColors isn't properly memoized
+    if (prev.usedSignalColors !== next.usedSignalColors) {
+      const prevArr = Array.from(prev.usedSignalColors).sort();
+      const nextArr = Array.from(next.usedSignalColors).sort();
+      if (JSON.stringify(prevArr) === JSON.stringify(nextArr)) {
+        console.warn('⚠️ SuperNode: usedSignalColors Set recreated with same contents. Parent should memoize with useMemo.');
+      }
+    }
+  }
+
+  // Memo comparison (return true if props are equal = skip re-render)
+  return prev.node === next.node &&
+    prev.zoom === next.zoom &&
+    prev.isSelected === next.isSelected &&
+    prev.activeWire === next.activeWire &&
+    prev.snapToGrid === next.snapToGrid &&
+    prev.gridSize === next.gridSize &&
+    prev.onUpdate === next.onUpdate &&
+    prev.onDelete === next.onDelete &&
+    prev.onAnchorClick === next.onAnchorClick &&
+    prev.registerAnchor === next.registerAnchor &&
+    prev.unregisterAnchors === next.unregisterAnchors &&
+    prev.onSelect === next.onSelect &&
+    prev.connectedAnchorIds === next.connectedAnchorIds &&
+    prev.usedSignalColors === next.usedSignalColors;
+});

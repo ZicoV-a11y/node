@@ -24,7 +24,8 @@
       "Bash(npm run build:*)",
       "Bash(start:*)",
       "Bash(code --install-extension:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(git merge:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\zval\\Documents\\VEEessEFF3"

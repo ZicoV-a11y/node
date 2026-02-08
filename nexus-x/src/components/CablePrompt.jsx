@@ -24,6 +24,23 @@ const CABLE_TYPES = [
   'Custom...'
 ];
 
+const CABLE_LENGTHS = [
+  '3 ft',
+  '5 ft',
+  '10 ft',
+  '15 ft',
+  '25 ft',
+  '50 ft',
+  '100 ft',
+  '150 ft',
+  '200 ft',
+  '250 ft',
+  '300 ft',
+  '500 ft',
+  '1000 ft',
+  'Custom...'
+];
+
 export default function CablePrompt({ onSubmit, onCancel, initialData = null }) {
   // Check if we're editing (initial data provided)
   const isEditing = !!initialData;
@@ -38,18 +55,32 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
   const [customType, setCustomType] = useState(
     isInitialCustom ? initialType : ''
   );
-  const [length, setLength] = useState(initialData?.cableLength || '');
+
+  // Determine if initial length is in the preset list or custom
+  const initialLength = initialData?.cableLength || '';
+  const isInitialLengthCustom = initialLength && !CABLE_LENGTHS.includes(initialLength);
+
+  const [length, setLength] = useState(
+    isInitialLengthCustom ? 'Custom...' : initialLength
+  );
+  const [customLength, setCustomLength] = useState(
+    isInitialLengthCustom ? initialLength : ''
+  );
+
   const [rpCode, setRpCode] = useState(initialData?.rpCode || '');
   const [description, setDescription] = useState(initialData?.description || '');
 
   const isCustomType = cableType === 'Custom...';
   const finalCableType = isCustomType ? customType : cableType;
 
+  const isCustomLength = length === 'Custom...';
+  const finalLength = isCustomLength ? customLength : length;
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
       cableType: finalCableType,
-      cableLength: length,
+      cableLength: finalLength,
       rpCode,
       description
     });
@@ -124,14 +155,35 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
             <label className="block text-xs font-mono text-zinc-300 mb-1.5">
               Cable Length
             </label>
-            <input
-              type="text"
+            <select
               value={length}
               onChange={(e) => setLength(e.target.value)}
-              placeholder="e.g., 15m, 50ft, 10 meters..."
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
+              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm font-mono text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="">Select length...</option>
+              {CABLE_LENGTHS.map((len) => (
+                <option key={len} value={len}>
+                  {len}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {/* Custom Length Input (if Custom selected) */}
+          {isCustomLength && (
+            <div>
+              <label className="block text-xs font-mono text-zinc-300 mb-1.5">
+                Custom Cable Length
+              </label>
+              <input
+                type="text"
+                value={customLength}
+                onChange={(e) => setCustomLength(e.target.value)}
+                placeholder="e.g., 15m, 75ft, 10 meters..."
+                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+          )}
 
           {/* RP Code */}
           <div>

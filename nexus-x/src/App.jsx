@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
@@ -15,6 +15,9 @@ import ChangelogPopup from './components/ChangelogPopup';
 import { APP_VERSION } from './config/version';
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
+const ZOOM_BOUNDS = { MIN: 0.05, MAX: 8 };
+const ZOOM_STEP = { IN: 1.2, OUT: 0.8 };
+const ESTIMATED_NODE_SIZE = { WIDTH: 200, HEIGHT: 150 }; // For fitView calculations
 
 const SIGNAL_COLORS = [
   { id: 'emerald', hex: '#10b981' },
@@ -27,6 +30,13 @@ const SIGNAL_COLORS = [
   { id: 'yellow', hex: '#eab308' },
 ];
 
+// Signal colors lookup Map for O(1) access by id
+const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
+const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
+
+// Extract nodeId from anchorId (format: "node-123-portId" -> "node-123")
+const getNodeIdFromAnchor = (anchorId) => anchorId.split('-').slice(0, -1).join('-');
+
 // Dash patterns for enhanced wires
 const DASH_PATTERNS = [
   { id: 'solid', pattern: null, label: '───' },
@@ -35,6 +45,107 @@ const DASH_PATTERNS = [
   { id: 'short', pattern: '4 4', label: '· · ·' },
   { id: 'dashdot', pattern: '12 4 4 4', label: '─·─·' },
 ];
+
+// Memoized Cable component - only re-renders when its specific anchor positions change
+const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, selectedWires, onWireClick }) => {
+  const isEnhanced = conn.enhanced || false;
+
+  if (!wirePath) return null;
+
+  return (
+    <g>
+      {/* Selection highlight */}
+      {isSelected && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke="#22d3ee"
+          strokeWidth={8}
+          strokeOpacity={0.3}
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* Enhanced: White outline */}
+      {isEnhanced && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={5}
+          strokeDasharray={conn.dashPattern || undefined}
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* Main wire */}
+      <path
+        d={wirePath}
+        fill="none"
+        stroke={wireColor}
+        strokeWidth={2}
+        strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
+        strokeLinecap="round"
+        style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }}
+      />
+
+      {/* Enhanced: Animated flow */}
+      {isEnhanced && (
+        <path
+          d={wirePath}
+          fill="none"
+          stroke={wireColor}
+          strokeWidth={1}
+          strokeDasharray="4 12"
+          strokeOpacity={0.6}
+          strokeLinecap="round"
+          className="animate-wire-flow"
+        />
+      )}
+
+      {/* Cable length label */}
+      {conn.length && fromPos && toPos && (
+        <text
+          x={(fromPos.x + toPos.x) / 2}
+          y={(fromPos.y + toPos.y) / 2 - 8}
+          fill={wireColor}
+          fontSize="10"
+          textAnchor="middle"
+          className="select-none pointer-events-none"
+          style={{ textShadow: '0 0 3px rgba(0,0,0,0.8)' }}
+        >
+          {conn.length}
+        </text>
+      )}
+
+      {/* Invisible click hit area */}
+      <path
+        d={wirePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        strokeLinecap="round"
+        className="pointer-events-auto cursor-pointer"
+        onClick={(e) => onWireClick(e, conn.id)}
+      />
+    </g>
+  );
+}, (prev, next) => {
+  // Custom comparison - only re-render if these specific props changed
+  return (
+    prev.wirePath === next.wirePath &&
+    prev.wireColor === next.wireColor &&
+    prev.isSelected === next.isSelected &&
+    prev.conn.enhanced === next.conn.enhanced &&
+    prev.conn.dashPattern === next.conn.dashPattern &&
+    prev.conn.length === next.conn.length &&
+    prev.fromPos?.x === next.fromPos?.x &&
+    prev.fromPos?.y === next.fromPos?.y &&
+    prev.toPos?.x === next.toPos?.x &&
+    prev.toPos?.y === next.toPos?.y
+  );
+});
+Cable.displayName = 'Cable';
 
 // Create empty node with default config
 const createNode = (id) => ({
@@ -72,58 +183,6 @@ const createNode = (id) => ({
   }
 });
 
-// Create a Laptop node (source with capture card)
-const createLaptopNode = (id) => ({
-  id,
-  title: 'LAPTOP',
-  signalColor: 'emerald',
-  position: { x: 100, y: 100 },
-  scale: 0.5, // Default 50% scale
-  layout: {
-    systemPosition: 'top',
-    ioArrangement: 'columns',
-    inputPosition: 'left',
-    inputAnchorSide: 'left',
-    outputAnchorSide: 'right',
-    sectionOrder: ['system', 'input', 'output'],
-    systemCollapsed: false
-  },
-  system: {
-    settings: [
-      { key: 'Model', value: 'MacBook Pro' },
-      { key: 'OS', value: 'macOS' },
-      { key: 'Capture', value: 'Blackmagic Decklink' }
-    ],
-    cards: []
-  },
-  inputSection: {
-    columnName: 'INPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
-    ports: [
-      {
-        id: 'in-1',
-        number: 1,
-        connector: 'SDI',
-        resolution: '1920x1080',
-        refreshRate: '59.94'
-      }
-    ]
-  },
-  outputSection: {
-    columnName: 'OUTPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
-    ports: [
-      {
-        id: 'out-1',
-        number: 1,
-        connector: 'HDMI',
-        resolution: '1920x1080',
-        refreshRate: '60'
-      }
-    ]
-  }
-});
-
 // Create SuperNode (unified drag-based layout with columns)
 const createSuperNode = (id) => ({
   id,
@@ -157,31 +216,66 @@ const createSuperNode = (id) => ({
     software: 'none',
     captureCard: 'none',
     settings: [],
-    cards: []
+    cards: [],
+    systemSectionStyle: 'aligned' // 'aligned' or 'simplified'
   },
   inputSection: {
     columnName: 'INPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    columnOrder: ['port', 'connector', 'source', 'resolution', 'rate'],
     ports: [
       {
         id: 'in-1',
         number: 1,
-        connector: '',      // Empty = "Type" placeholder
-        resolution: '',     // Empty = "Choose" placeholder
-        refreshRate: ''     // Empty = "Choose" placeholder
+        connector: 'HDMI',
+        source: 'LAPTOP 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'in-2',
+        number: 2,
+        connector: 'HDMI',
+        source: 'MACBOOKPRO 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'in-3',
+        number: 3,
+        connector: '',
+        source: '',
+        resolution: '',
+        refreshRate: ''
       }
     ]
   },
   outputSection: {
     columnName: 'OUTPUTS',
-    columnOrder: ['port', 'connector', 'resolution', 'rate'],
+    columnOrder: ['port', 'connector', 'destination', 'resolution', 'rate'],
     ports: [
       {
         id: 'out-1',
         number: 1,
-        connector: '',      // Empty = "Type" placeholder
-        resolution: '',     // Empty = "Choose" placeholder
-        refreshRate: ''     // Empty = "Choose" placeholder
+        connector: '12G SDI',
+        destination: 'BROMPTOM SX40',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'out-2',
+        number: 2,
+        connector: '12G SDI',
+        destination: 'PROJECTOR 1',
+        resolution: '3840x2160',
+        refreshRate: '60'
+      },
+      {
+        id: 'out-3',
+        number: 3,
+        connector: '',
+        destination: '',
+        resolution: '',
+        refreshRate: ''
       }
     ]
   }
@@ -191,9 +285,9 @@ export default function App() {
   // Paper and canvas settings (persisted to localStorage)
   const {
     paperSize, orientation, paperEnabled, setPaperEnabled,
-    customWidth, customHeight, snapToGrid, showRatioOverlay, gridSize,
+    customWidth, customHeight, snapToGrid, showRatioOverlay, showGridLines, gridSpacing, gridSize,
     canvasDimensions, handlePaperSizeChange, handleOrientationChange, toggleOrientation,
-    handleCustomSizeChange, toggleSnapToGrid, toggleRatioOverlay, centerPage: centerPageFn,
+    handleCustomSizeChange, toggleSnapToGrid, toggleRatioOverlay, toggleGridLines, setGridSpacing, centerPage: centerPageFn,
   } = useCanvasSettings();
 
   const [zoom, setZoom] = useState(0.75);
@@ -219,6 +313,31 @@ export default function App() {
 
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
+
+  // Create single Aligned System node on first load
+  useEffect(() => {
+    if (Object.keys(nodes).length === 0) {
+      const alignedNode = createSuperNode('aligned-demo');
+      alignedNode.title = 'ALIGNED SYSTEM';
+      alignedNode.position = { x: 100, y: 100 };
+      alignedNode.system.systemSectionStyle = 'aligned';
+      // Pre-populate with test data
+      alignedNode.inputSection.ports = [
+        { id: 'in-1', number: 1, source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'in-2', number: 2, source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'in-3', number: 3, source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+      ];
+      alignedNode.outputSection.ports = [
+        { id: 'out-1', number: 1, destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'out-2', number: 2, destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+        { id: 'out-3', number: 3, destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+      ];
+
+      setNodes({
+        [alignedNode.id]: alignedNode
+      });
+    }
+  }, []); // Empty deps - only run once on mount
 
   // Subcategory order tracking (categoryId -> array of subcategory IDs)
   const [subcategoryOrder, setSubcategoryOrder] = useState({});
@@ -269,6 +388,8 @@ export default function App() {
   const cachedExportBlob = useRef(null);
 
   // Multi-page grid (pages extend dynamically as nodes are placed)
+  // CRITICAL: Memoize node array to prevent creating new object references on every render
+  // Each node value should only change when that specific node's data changes
   const nodeArray = useMemo(() => Object.values(nodes), [nodes]);
   const pages = usePageGrid({
     nodes: nodeArray,
@@ -286,6 +407,25 @@ export default function App() {
     const maxY = Math.max(...pages.map(p => p.y + p.height));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }, [pages, paperEnabled]);
+
+  // Effective canvas bounds - extends to cover all pages (so mouse events work everywhere)
+  // Includes position offset for pages in negative space (above/left of origin)
+  const effectiveCanvasBounds = useMemo(() => {
+    if (!pageBounds) {
+      return { x: 0, y: 0, width: canvasDimensions.width, height: canvasDimensions.height };
+    }
+    // Canvas must start at the minimum coordinate and extend to cover everything
+    const minX = Math.min(0, pageBounds.x);
+    const minY = Math.min(0, pageBounds.y);
+    const maxX = Math.max(canvasDimensions.width, pageBounds.x + pageBounds.width);
+    const maxY = Math.max(canvasDimensions.height, pageBounds.y + pageBounds.height);
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [canvasDimensions, pageBounds]);
 
   // Node management
   const addNode = (typeOrConfig = 'generic') => {
@@ -322,18 +462,20 @@ export default function App() {
             newNode.inputSection.ports = preset.inputSection.ports.map((p, i) => ({
               id: `in-${i + 1}`,
               number: i + 1,
+              source: p.source || '',
               connector: p.connector || 'HDMI',
-              resolution: p.resolution || '1920x1080',
-              refreshRate: p.refreshRate || '60'
+              resolution: p.resolution || '',
+              refreshRate: p.refreshRate || ''
             }));
           }
           if (preset.outputSection?.ports) {
             newNode.outputSection.ports = preset.outputSection.ports.map((p, i) => ({
               id: `out-${i + 1}`,
               number: i + 1,
+              destination: p.destination || '',
               connector: p.connector || 'HDMI',
-              resolution: p.resolution || '1920x1080',
-              refreshRate: p.refreshRate || '60'
+              resolution: p.resolution || '',
+              refreshRate: p.refreshRate || ''
             }));
           }
         }
@@ -342,9 +484,7 @@ export default function App() {
       }
     }
     // Handle string type (legacy)
-    else if (typeOrConfig === 'laptop') {
-      newNode = createLaptopNode(nodeId);
-    } else if (typeOrConfig === 'supernode') {
+    else if (typeOrConfig === 'supernode') {
       newNode = createSuperNode(nodeId);
     } else {
       newNode = createNode(nodeId);
@@ -447,7 +587,6 @@ export default function App() {
 
   // Move a subcategory into or out of another subcategory
   const moveSubcategory = (categoryId, subcategoryId, newParentId) => {
-    console.log('moveSubcategory called:', { categoryId, subcategoryId, newParentId });
     setUserSubcategories(prev => {
       const updated = { ...prev };
 
@@ -458,7 +597,6 @@ export default function App() {
 
       if (updated[categoryId][subcategoryId]) {
         // Subcategory already in userSubcategories, just update parentId
-        console.log('Moving existing user subcategory:', subcategoryId, 'to parent:', newParentId);
         updated[categoryId] = {
           ...updated[categoryId],
           [subcategoryId]: {
@@ -473,7 +611,6 @@ export default function App() {
         const baseSub = baseSubcats.find(s => s.id === subcategoryId);
 
         if (baseSub) {
-          console.log('Adding built-in subcategory to userSubcategories:', subcategoryId, 'with parent:', newParentId);
           updated[categoryId] = {
             ...updated[categoryId],
             [subcategoryId]: {
@@ -482,8 +619,6 @@ export default function App() {
               parentId: newParentId
             }
           };
-        } else {
-          console.log('Subcategory not found:', subcategoryId);
         }
       }
 
@@ -608,7 +743,7 @@ export default function App() {
     if (visited.has(anchorId)) return null;
     visited.add(anchorId);
 
-    const nodeId = anchorId.split('-')[0] + '-' + anchorId.split('-')[1];
+    const nodeId = getNodeIdFromAnchor(anchorId);
     const node = nodes[nodeId];
 
     if (!node) return null;
@@ -628,7 +763,7 @@ export default function App() {
   // Get signal color for a connection
   const getConnectionColor = useCallback((conn) => {
     const sourceAnchorId = conn.from;
-    const nodeId = sourceAnchorId.split('-').slice(0, 2).join('-');
+    const nodeId = getNodeIdFromAnchor(sourceAnchorId);
     const node = nodes[nodeId];
 
     if (node?.signalColor) {
@@ -651,6 +786,15 @@ export default function App() {
     return set;
   }, [connections]);
 
+  // Pre-compute which signal colors are in use across all nodes
+  const usedSignalColors = useMemo(() => {
+    const set = new Set();
+    Object.values(nodes).forEach(node => {
+      if (node.signalColor) set.add(node.signalColor);
+    });
+    return set;
+  }, [nodes]);
+
   // Pre-compute wire colors to avoid recursive graph traversal per wire per render
   const connectionColorMap = useMemo(() => {
     const map = new Map();
@@ -660,7 +804,6 @@ export default function App() {
 
   // Connection management
   const handleAnchorClick = (anchorId, direction) => {
-    console.log('handleAnchorClick called:', anchorId, direction);
     if (!activeWire) {
       setActiveWire({ from: anchorId, direction });
     } else {
@@ -816,7 +959,7 @@ export default function App() {
     // Smoother zoom: clamp delta and use exponential scaling
     const delta = Math.max(-5, Math.min(5, -event.deltaY * 0.01));
     const zoomFactor = Math.pow(1.1, delta);
-    const newZoom = Math.max(0.05, Math.min(8, prevZoom * zoomFactor));
+    const newZoom = Math.max(ZOOM_BOUNDS.MIN, Math.min(ZOOM_BOUNDS.MAX, prevZoom * zoomFactor));
 
     // Adjust pan so the point under the cursor stays fixed
     const newPan = {
@@ -959,8 +1102,8 @@ export default function App() {
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     nodeArray.forEach(node => {
-      const w = 200 * (node.scale || 1);
-      const h = 150 * (node.scale || 1);
+      const w = ESTIMATED_NODE_SIZE.WIDTH * (node.scale || 1);
+      const h = ESTIMATED_NODE_SIZE.HEIGHT * (node.scale || 1);
       minX = Math.min(minX, node.position.x);
       minY = Math.min(minY, node.position.y);
       maxX = Math.max(maxX, node.position.x + w);
@@ -973,7 +1116,7 @@ export default function App() {
 
     const scaleX = rect.width / (contentWidth * (1 + padding * 2));
     const scaleY = rect.height / (contentHeight * (1 + padding * 2));
-    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.05), 8);
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), ZOOM_BOUNDS.MIN), ZOOM_BOUNDS.MAX);
 
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
@@ -989,8 +1132,8 @@ export default function App() {
     centerPage();
   };
 
-  // Zoom in/out from center of viewport
-  const zoomIn = useCallback(() => {
+  // Zoom at viewport center (shared logic for zoom in/out)
+  const zoomAtCenter = useCallback((newZoom) => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -998,7 +1141,6 @@ export default function App() {
     const cy = rect.height / 2;
     const prev = zoomRef.current;
     const prevPan = panRef.current;
-    const newZoom = Math.min(prev * 1.2, 8);
     setZoom(newZoom);
     setPan({
       x: cx - ((cx - prevPan.x) / prev) * newZoom,
@@ -1006,21 +1148,13 @@ export default function App() {
     });
   }, []);
 
+  const zoomIn = useCallback(() => {
+    zoomAtCenter(Math.min(zoomRef.current * ZOOM_STEP.IN, ZOOM_BOUNDS.MAX));
+  }, [zoomAtCenter]);
+
   const zoomOut = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const cx = rect.width / 2;
-    const cy = rect.height / 2;
-    const prev = zoomRef.current;
-    const prevPan = panRef.current;
-    const newZoom = Math.max(prev * 0.8, 0.05);
-    setZoom(newZoom);
-    setPan({
-      x: cx - ((cx - prevPan.x) / prev) * newZoom,
-      y: cy - ((cy - prevPan.y) / prev) * newZoom,
-    });
-  }, []);
+    zoomAtCenter(Math.max(zoomRef.current * ZOOM_STEP.OUT, ZOOM_BOUNDS.MIN));
+  }, [zoomAtCenter]);
 
   // Center page on mount and whenever canvas dimensions change (orientation, paper size)
   // rAF handles fast updates; timeout fallback catches initial load when flex layout isn't ready yet
@@ -1108,7 +1242,7 @@ export default function App() {
         return;
       }
 
-      // Cmd/Ctrl+V — paste copied nodes
+      // Cmd/Ctrl+V — paste copied nodes with auto-numbering
       if (mod && e.key === 'v') {
         if (clipboardRef.current.length > 0) {
           e.preventDefault();
@@ -1127,10 +1261,40 @@ export default function App() {
                 node.position.y + 40,
                 { isCenterTarget: false, snapToGrid, gridSize }
               );
+
+              // Auto-numbering: "NAME 1", "NAME 2", etc.
+              const title = node.title || 'Node';
+              const baseTitle = title.replace(/\s+\d+$/, '');
+
+              // Find highest existing number for nodes with this base title
+              let maxNum = 0;
+              Object.values(updated).forEach(n => {
+                const nTitle = n.title || '';
+                const nBase = nTitle.replace(/\s+\d+$/, '');
+                if (nBase === baseTitle) {
+                  const numMatch = nTitle.match(/\s+(\d+)$/);
+                  const num = numMatch ? parseInt(numMatch[1], 10) : 1;
+                  if (num > maxNum) maxNum = num;
+                }
+              });
+
+              // Rename original node to "NAME 1" if it doesn't have a number yet
+              const originalId = node.id;
+              const originalHasNum = updated[originalId]?.title?.match(/\s+\d+$/);
+              if (updated[originalId] && !originalHasNum) {
+                updated[originalId] = {
+                  ...updated[originalId],
+                  title: `${baseTitle} 1`,
+                };
+                if (maxNum < 1) maxNum = 1;
+              }
+
+              const copyNumber = maxNum + 1 + i;
               const newNode = {
                 ...structuredClone(node),
                 id: newId,
                 position,
+                title: `${baseTitle} ${copyNumber}`,
               };
               updated[newId] = newNode;
               existingForCollision.push(newNode);
@@ -1191,7 +1355,8 @@ export default function App() {
         positions[anchorId] = {
           x: node.position.x + offset.localX * s,
           y: node.position.y + offset.localY * s,
-          type: offset.type
+          type: offset.type,
+          side: offset.side || (offset.type === 'in' ? 'left' : 'right') // Default based on type
         };
       }
     });
@@ -1205,10 +1370,27 @@ export default function App() {
       if (existing &&
           existing.localX === offset.localX &&
           existing.localY === offset.localY &&
-          existing.type === offset.type) {
+          existing.type === offset.type &&
+          existing.side === offset.side) {
         return prev;
       }
       return { ...prev, [anchorId]: offset };
+    });
+  }, []);
+
+  // Unregister anchors (called when ports are deleted)
+  const unregisterAnchors = useCallback((anchorIds) => {
+    if (!anchorIds || anchorIds.length === 0) return;
+    setAnchorLocalOffsets(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of anchorIds) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
   }, []);
 
@@ -1218,13 +1400,24 @@ export default function App() {
   }, [computedAnchorPositions]);
 
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
+  // Routes wires OUTWARD from anchors based on their side (left/right) to avoid going through nodes
   const getWirePath = useCallback((fromId, toId) => {
     const from = getAnchorPosition(fromId);
     const to = getAnchorPosition(toId);
     if (!from || !to) return '';
 
-    const midX = (from.x + to.x) / 2;
-    return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+    // Calculate horizontal distance between anchors
+    const dx = Math.abs(to.x - from.x);
+    // Control point offset - minimum 50px, or 40% of distance for longer wires
+    const offset = Math.max(50, dx * 0.4);
+
+    // Determine control point X positions based on anchor sides
+    // Left-side anchors: control point extends LEFT (negative X)
+    // Right-side anchors: control point extends RIGHT (positive X)
+    const fromControlX = from.side === 'left' ? from.x - offset : from.x + offset;
+    const toControlX = to.side === 'left' ? to.x - offset : to.x + offset;
+
+    return `M ${from.x} ${from.y} C ${fromControlX} ${from.y}, ${toControlX} ${to.y}, ${to.x} ${to.y}`;
   }, [getAnchorPosition]);
 
   // Build current project data object
@@ -1275,8 +1468,8 @@ export default function App() {
   }, [centerPage]);
 
   // Fallback download for browsers without File System Access API
-  const fallbackDownload = (content, fileName) => {
-    const blob = new Blob([content], { type: 'application/json' });
+  const fallbackDownload = (content, fileName, type = 'application/json') => {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1407,13 +1600,7 @@ export default function App() {
     });
 
     // Download as file
-    const blob = new Blob([output], { type: 'text/javascript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'user-presets-export.js';
-    a.click();
-    URL.revokeObjectURL(url);
+    fallbackDownload(output, 'user-presets-export.js', 'text/javascript');
 
     alert(`Exported ${Object.keys(userPresets).length} preset categories!\n\nCheck your downloads for: user-presets-export.js\n\nCopy the code and paste into nodePresets.js, then commit to Git.`);
   }, [userPresets]);
@@ -1581,7 +1768,7 @@ export default function App() {
             >
               {exportProgress !== null
                 ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
-                : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
+                : 'Export PNG'
               }
             </button>
             <div className="relative">
@@ -1686,6 +1873,29 @@ export default function App() {
               Snap{snapToGrid ? ` ${gridSize}` : ''}
             </button>
             <button
+              onClick={toggleGridLines}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showGridLines
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-500'
+              }`}
+              title={showGridLines ? `Grid lines: ON (${gridSpacing}px)` : 'Grid lines: OFF'}
+            >
+              Grid
+            </button>
+            {showGridLines && (
+              <input
+                type="range"
+                min={10}
+                max={200}
+                step={10}
+                value={gridSpacing}
+                onChange={(e) => setGridSpacing(parseInt(e.target.value))}
+                className="w-20 accent-cyan-500"
+                title={`Grid spacing: ${gridSpacing}px`}
+              />
+            )}
+            <button
               onClick={toggleRatioOverlay}
               className={`px-2 py-1 border rounded text-xs font-mono ${
                 showRatioOverlay
@@ -1738,6 +1948,37 @@ export default function App() {
               title="Add SuperNode with drag-based column layout"
             >
               + SuperNode
+            </button>
+            <button
+              onClick={() => addNode({
+                type: 'supernode',
+                preset: {
+                  title: 'ALIGNED SYSTEM',
+                  signalColor: 'zinc',
+                  system: {
+                    manufacturer: null,
+                    model: null,
+                  },
+                  inputSection: {
+                    ports: [
+                      { source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+                    ]
+                  },
+                  outputSection: {
+                    ports: [
+                      { destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
+                      { destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
+                    ]
+                  }
+                }
+              })}
+              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-mono text-white"
+              title="Add Aligned System node for testing"
+            >
+              + Aligned
             </button>
           </div>
 
@@ -1857,11 +2098,25 @@ export default function App() {
         {/* Pan + Zoom container */}
         <div
           ref={transformRef}
+          className="relative"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0'
           }}
         >
+          {/* Canvas event overlay - covers all pages including negative space for selection */}
+          {/* Positioned before canvasRef so it renders below nodes (DOM order stacking) */}
+          <div
+            data-canvas="true"
+            className="absolute"
+            style={{
+              left: effectiveCanvasBounds.x,
+              top: effectiveCanvasBounds.y,
+              width: effectiveCanvasBounds.width,
+              height: effectiveCanvasBounds.height,
+            }}
+            onClick={handleCanvasClick}
+          />
           <div
             ref={canvasRef}
             data-canvas="true"
@@ -1870,22 +2125,24 @@ export default function App() {
               width: canvasDimensions.width,
               height: canvasDimensions.height,
               overflow: 'visible',
-              backgroundImage: paperEnabled ? `
+              backgroundImage: paperEnabled && showGridLines ? `
+                linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
               ` : 'none',
-              backgroundSize: paperEnabled ? '8px 8px' : undefined
+              backgroundSize: paperEnabled && showGridLines ? `${gridSpacing}px ${gridSpacing}px, ${gridSpacing}px ${gridSpacing}px, ${Math.max(2, gridSpacing / 10)}px ${Math.max(2, gridSpacing / 10)}px, ${Math.max(2, gridSpacing / 10)}px ${Math.max(2, gridSpacing / 10)}px` : undefined
             }}
             onClick={handleCanvasClick}
           >
           {/* Page grid overlay with per-page boundaries and margin guides */}
           {paperEnabled && (
-            <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
+            <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} showGridLines={showGridLines} gridSpacing={gridSpacing} />
           )}
 
-          {/* SVG Layer for Wires */}
+          {/* SVG Layer for Wires - z-index below nodes so dropdowns can appear above */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-[110]"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[50]"
             style={{ overflow: 'visible' }}
           >
             {/* SVG Anchor Points - rendered for all registered anchors */}
@@ -1894,23 +2151,12 @@ export default function App() {
               const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
               const isConnected = connectedAnchorIds.has(anchorId);
 
-              // Extract node ID from anchor ID (format: nodeId-portId)
-              const nodeId = anchorId.split('-').slice(0, -1).join('-');
+              const nodeId = getNodeIdFromAnchor(anchorId);
               const node = nodes[nodeId];
               const nodeColor = node?.signalColor;
 
-              // Get node's theme color (use header color)
-              const getNodeThemeColor = (signalColorId) => {
-                if (!signalColorId) return '#71717a'; // zinc-500 default
-                const colorMap = {
-                  emerald: '#10b981', cyan: '#06b6d4', blue: '#3b82f6',
-                  violet: '#8b5cf6', pink: '#ec4899', red: '#ef4444',
-                  orange: '#f97316', yellow: '#eab308'
-                };
-                return colorMap[signalColorId] || '#71717a';
-              };
-
-              const themeColor = getNodeThemeColor(nodeColor);
+              // Get node's theme color (use Map lookup)
+              const themeColor = SIGNAL_COLORS_BY_ID.get(nodeColor) || DEFAULT_THEME_COLOR;
               const themeLightColor = themeColor + 'cc'; // Add alpha for lighter version
 
               // Show dim/off when not connected, lit with theme color when connected
@@ -2081,7 +2327,7 @@ export default function App() {
             })}
           </svg>
 
-          {/* Nodes - conditionally render SuperNode for version 2 nodes */}
+          {/* Nodes */}
           {Object.values(nodes).map(node => {
             const NodeComponent = node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);
@@ -2097,8 +2343,10 @@ export default function App() {
                 onDelete={() => deleteNode(node.id)}
                 onAnchorClick={handleAnchorClick}
                 registerAnchor={registerAnchor}
+                unregisterAnchors={unregisterAnchors}
                 activeWire={activeWire}
                 connectedAnchorIds={connectedAnchorIds}
+                usedSignalColors={usedSignalColors}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {
