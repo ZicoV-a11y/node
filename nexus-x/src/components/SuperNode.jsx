@@ -324,7 +324,7 @@ const SelectWithCustom = memo(({
     setCustomText(value || '');
   }, [value]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-1 py-0.5 font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
+  const baseStyle = `bg-zinc-800 border rounded px-0.5 py-px font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
     isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -357,7 +357,7 @@ const SelectWithCustom = memo(({
           }}
           onClick={stopPropagation}
           placeholder="Type custom..."
-          className="flex-1 min-w-0 w-0 bg-transparent px-1 py-0.5 font-mono text-[11px] text-zinc-300 outline-none"
+          className="flex-1 min-w-0 w-0 bg-transparent px-0.5 py-px font-mono text-[11px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
@@ -492,18 +492,18 @@ const CardWrapper = memo(({
 CardWrapper.displayName = 'CardWrapper';
 
 // Column definitions - ALL row elements as columns for template layout
-// minWidth is the minimum, but columns can grow based on content
+// minWidth shows header text fully with minimal padding - columns expand for content
 const COLUMN_DEFS = {
   spacing: { id: 'spacing', label: '', minWidth: 20, draggable: false },
-  anchor: { id: 'anchor', label: '', minWidth: 24, draggable: true },
-  delete: { id: 'delete', label: '🗑', minWidth: 32, draggable: true },
-  port: { id: 'port', label: 'Port', minWidth: 52, draggable: true },
-  source: { id: 'source', label: 'Source', minWidth: 90, draggable: true },
-  destination: { id: 'destination', label: 'Destination', minWidth: 90, draggable: true },
-  connector: { id: 'connector', label: 'Connector', minWidth: 90, draggable: true },
-  resolution: { id: 'resolution', label: 'Resolution', minWidth: 90, draggable: true },
-  rate: { id: 'rate', label: 'Rate', minWidth: 60, draggable: true },
-  flip: { id: 'flip', label: '', minWidth: 42, draggable: true },
+  anchor: { id: 'anchor', label: '', minWidth: 22, draggable: true },
+  delete: { id: 'delete', label: '🗑', minWidth: 26, draggable: true },
+  port: { id: 'port', label: 'Port', minWidth: 54, draggable: true },       // □ PORT
+  source: { id: 'source', label: 'Source', minWidth: 56, draggable: true },       // SOURCE
+  destination: { id: 'destination', label: 'Destination', minWidth: 88, draggable: true }, // DESTINATION
+  connector: { id: 'connector', label: 'Connector', minWidth: 76, draggable: true },   // CONNECTOR
+  resolution: { id: 'resolution', label: 'Resolution', minWidth: 82, draggable: true },  // RESOLUTION
+  rate: { id: 'rate', label: 'Rate', minWidth: 44, draggable: true },        // RATE
+  flip: { id: 'flip', label: '', minWidth: 32, draggable: true },
 };
 
 // Collapsed view column configuration
@@ -514,10 +514,10 @@ const DEFAULT_COLLAPSED_COLUMNS_OUTPUT = ['port', 'destination'];
 const MIN_COLLAPSED_COLUMNS = 1;
 const MAX_COLLAPSED_COLUMNS = 3;
 
-// Width calculation constants
+// Width calculation constants - minimal but readable
 const CHAR_WIDTH = 7; // Character width for text estimation
-const PADDING = 16; // Padding inside cells
-const DROPDOWN_ARROW_WIDTH = 20; // Width reserved for native select dropdown arrow
+const PADDING = 12; // Padding inside cells (minimal but shows text)
+const DROPDOWN_ARROW_WIDTH = 18; // Width reserved for native select dropdown arrow
 const SEPARATOR_WIDTH = 9; // 1px content + 8px margins (mx-2)
 
 const estimateTextWidth = (text, isDropdown = false) => {
@@ -3346,12 +3346,16 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [themeColors?.header?.hex]);
 
   // Calculate shared column widths for INPUT and OUTPUT sections to ensure alignment
-  // Merge calculated widths with user-customized widths (custom widths override calculated)
+  // Calculated widths expand based on content - custom widths only set a floor (not a cap)
   const allPorts = [...(node.inputSection?.ports || []), ...(node.outputSection?.ports || [])];
   const sharedColumnWidths = useMemo(() => {
     const calculated = calculateColumnWidths(allPorts);
-    // Merge custom widths, ensuring they override calculated values
-    return { ...calculated, ...customColumnWidths };
+    // Use MAX of calculated and custom - content can always expand, custom sets minimum floor
+    const merged = { ...calculated };
+    Object.keys(customColumnWidths).forEach(key => {
+      merged[key] = Math.max(calculated[key] || 0, customColumnWidths[key] || 0);
+    });
+    return merged;
   }, [allPorts, customColumnWidths]);
   // COLLAPSED view uses tighter widths (no dropdown padding, smaller minimums)
   const sharedCollapsedColumnWidths = useMemo(() => calculateCollapsedColumnWidths(allPorts), [allPorts]);
@@ -3392,21 +3396,34 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return columns.reduce((sum, w) => sum + w, 0) + (numGaps * gapWidth);
   }, [sharedColumnWidths]);
 
-  // Container widths include buffer for borders, CardWrapper stripe (4px), padding, and breathing room
-  // Increased from +20 to +50 to prevent column overlap/cutoff in side-by-side mode
-  const inputSectionWidth = useMemo(() => inputContentWidth + 50, [inputContentWidth]);
-  const outputSectionWidth = useMemo(() => outputContentWidth + 50, [outputContentWidth]);
-
-  // Get actual collapsed columns (or defaults)
-  const inputCollapsedColumns = node.inputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
-  const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
-
   // Early check if Input and Output are side-by-side (needed for width calculations)
   // This checks if both 'input' and 'output' appear in the same row array
   const ioSideBySide = useMemo(() => {
     const rows = node.layout.rows || (node.layout.sectionOrder || ['system', 'input', 'output']).map(s => [s]);
     return rows.some(row => row.includes('input') && row.includes('output'));
   }, [node.layout.rows, node.layout.sectionOrder]);
+
+  // Container widths include buffer for borders, CardWrapper stripe (4px), padding, and breathing room
+  // When side-by-side, use the SAME width for both sections (max of the two) for symmetry
+  const inputSectionWidth = useMemo(() => {
+    const baseWidth = inputContentWidth + 50;
+    if (ioSideBySide) {
+      return Math.max(baseWidth, outputContentWidth + 50);
+    }
+    return baseWidth;
+  }, [inputContentWidth, outputContentWidth, ioSideBySide]);
+
+  const outputSectionWidth = useMemo(() => {
+    const baseWidth = outputContentWidth + 50;
+    if (ioSideBySide) {
+      return Math.max(baseWidth, inputContentWidth + 50);
+    }
+    return baseWidth;
+  }, [inputContentWidth, outputContentWidth, ioSideBySide]);
+
+  // Get actual collapsed columns (or defaults)
+  const inputCollapsedColumns = node.inputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_INPUT;
+  const outputCollapsedColumns = node.outputSection?.collapsedColumnOrder || DEFAULT_COLLAPSED_COLUMNS_OUTPUT;
 
   // Collapsed section widths - calculated from actual selected columns
   // Structure: outer padding (8) + anchor (24) + dividers (5 each) + column widths + edge divider (3) + spacing handle (20, side-by-side only)
