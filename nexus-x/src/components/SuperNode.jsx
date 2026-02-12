@@ -1445,8 +1445,8 @@ const CollapsedColumnHeaders = memo(({
 
   return (
     <div
-      className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
-        text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
+      className="flex items-center py-0.5 bg-zinc-800/30 border-b border-zinc-700/30
+        text-[10px] font-mono text-zinc-500 uppercase tracking-wide w-full px-1"
     >
       {/* Spacer to match spacing handle column when reversed - uses dynamic width */}
       {isReversed && <div className="shrink-0" style={{ width: `${getColumnWidth('spacing')}px` }} />}
@@ -1590,37 +1590,37 @@ const CollapsedPortRow = memo(({
         );
       case 'port':
         return (
-          <span className="font-mono text-zinc-400">
+          <span className="font-mono text-white">
             {isOutput ? 'OUT' : 'IN'} {port.number}
           </span>
         );
       case 'source':
         return (
-          <span className="font-mono text-zinc-300 truncate">
+          <span className="font-mono text-white truncate">
             {port.source || ''}
           </span>
         );
       case 'destination':
         return (
-          <span className="font-mono text-zinc-300 truncate">
+          <span className="font-mono text-white truncate">
             {port.destination || ''}
           </span>
         );
       case 'connector':
         return (
-          <span className="font-mono text-zinc-300 truncate">
+          <span className="font-mono text-white truncate">
             {port.connector || ''}
           </span>
         );
       case 'resolution':
         return (
-          <span className="font-mono text-zinc-300 truncate">
+          <span className="font-mono text-white truncate">
             {port.resolution || ''}
           </span>
         );
       case 'rate':
         return (
-          <span className="font-mono text-zinc-300 truncate">
+          <span className="font-mono text-white truncate">
             {port.refreshRate || ''}
           </span>
         );
