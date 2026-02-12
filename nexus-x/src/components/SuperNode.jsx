@@ -3289,7 +3289,7 @@ TitleBar.displayName = 'TitleBar';
 // RESIZE HANDLE COMPONENT
 // ============================================
 
-// Resize handle style (static)
+// Resize handle style (static) - invisible but functional
 const RESIZE_HANDLE_STYLE = {
   position: 'absolute',
   bottom: -6,
@@ -3297,8 +3297,7 @@ const RESIZE_HANDLE_STYLE = {
   width: 12,
   height: 12,
   borderRadius: '50%',
-  backgroundColor: HEX_COLORS.blue[500],
-  opacity: 0.7,
+  backgroundColor: 'transparent',
   cursor: 'nwse-resize',
   zIndex: 20,
 };
@@ -3311,7 +3310,6 @@ const ResizeHandle = memo(({ onResizeStart }) => (
       e.preventDefault();
       onResizeStart(e);
     }}
-    className="hover:opacity-100 hover:scale-110 transition-all"
   />
 ));
 ResizeHandle.displayName = 'ResizeHandle';

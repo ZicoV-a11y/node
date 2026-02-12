@@ -109,7 +109,7 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
           x={(fromPos.x + toPos.x) / 2}
           y={(fromPos.y + toPos.y) / 2 - 8}
           fill={wireColor}
-          fontSize="10"
+          fontSize={conn.fontSize || 10}
           textAnchor="middle"
           className="select-none pointer-events-none"
           style={{ textShadow: '0 0 3px rgba(0,0,0,0.8)' }}
@@ -139,6 +139,7 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
     prev.conn.enhanced === next.conn.enhanced &&
     prev.conn.dashPattern === next.conn.dashPattern &&
     prev.conn.length === next.conn.length &&
+    prev.conn.fontSize === next.conn.fontSize &&
     prev.fromPos?.x === next.fromPos?.x &&
     prev.fromPos?.y === next.fromPos?.y &&
     prev.toPos?.x === next.toPos?.x &&
@@ -146,6 +147,49 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
   );
 });
 Cable.displayName = 'Cable';
+
+// Memoized Anchor Point - only re-renders when its specific data changes
+const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, onAnchorClick }) => {
+  const themeLightColor = themeColor + 'cc';
+  const anchorColor = isConnected ? themeColor : '#52525b';
+  const anchorStroke = isConnected ? themeLightColor : '#71717a';
+  const anchorOpacity = isConnected ? 1 : 0.4;
+
+  return (
+    <g data-export-ignore="true">
+      {(isConnected || isActive) && (
+        <circle
+          cx={pos.x}
+          cy={pos.y}
+          r={5}
+          fill={isActive ? '#22d3ee' : anchorColor}
+          opacity={0.3}
+        />
+      )}
+      <circle
+        cx={pos.x}
+        cy={pos.y}
+        r={isActive ? 3 : 2.5}
+        fill={isActive ? '#22d3ee' : anchorColor}
+        stroke={isActive ? '#67e8f9' : anchorStroke}
+        strokeWidth={1}
+        opacity={anchorOpacity}
+        style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAnchorClick(anchorId, pos.type);
+        }}
+      />
+    </g>
+  );
+}, (prev, next) => (
+  prev.pos.x === next.pos.x &&
+  prev.pos.y === next.pos.y &&
+  prev.isActive === next.isActive &&
+  prev.isConnected === next.isConnected &&
+  prev.themeColor === next.themeColor
+));
+AnchorPoint.displayName = 'AnchorPoint';
 
 // Create empty node with default config
 const createNode = (id) => ({
@@ -802,35 +846,46 @@ export default function App() {
     return map;
   }, [connections, getConnectionColor]);
 
-  // Connection management
-  const handleAnchorClick = (anchorId, direction) => {
-    if (!activeWire) {
-      setActiveWire({ from: anchorId, direction });
-    } else {
-      if (activeWire.from !== anchorId && activeWire.direction !== direction) {
-        const fromAnchor = activeWire.direction === 'out' ? activeWire.from : anchorId;
-        const toAnchor = activeWire.direction === 'out' ? anchorId : activeWire.from;
+  // Pre-compute anchor theme colors to avoid lookups during render
+  const anchorThemeColors = useMemo(() => {
+    const map = new Map();
+    Object.keys(anchorLocalOffsets).forEach(anchorId => {
+      const nodeId = getNodeIdFromAnchor(anchorId);
+      const node = nodes[nodeId];
+      const themeColor = SIGNAL_COLORS_BY_ID.get(node?.signalColor) || DEFAULT_THEME_COLOR;
+      map.set(anchorId, themeColor);
+    });
+    return map;
+  }, [anchorLocalOffsets, nodes]);
 
-        // Check if connection already exists
-        const exists = connections.some(
-          c => c.from === fromAnchor && c.to === toAnchor
-        );
-
-        if (!exists) {
-          // Show cable prompt instead of creating connection immediately
-          setCablePromptData({
-            mode: 'create',
-            from: fromAnchor,
-            to: toAnchor
-          });
-        } else {
-          setActiveWire(null);
-        }
+  // Connection management - MEMOIZED to prevent node re-renders
+  const handleAnchorClick = useCallback((anchorId, direction) => {
+    setActiveWire(prev => {
+      if (!prev) {
+        return { from: anchorId, direction };
       } else {
-        setActiveWire(null);
+        if (prev.from !== anchorId && prev.direction !== direction) {
+          const fromAnchor = prev.direction === 'out' ? prev.from : anchorId;
+          const toAnchor = prev.direction === 'out' ? anchorId : prev.from;
+
+          // Check if connection already exists
+          const exists = connections.some(
+            c => c.from === fromAnchor && c.to === toAnchor
+          );
+
+          if (!exists) {
+            // Show cable prompt instead of creating connection immediately
+            setCablePromptData({
+              mode: 'create',
+              from: fromAnchor,
+              to: toAnchor
+            });
+          }
+        }
+        return null;
       }
-    }
-  };
+    });
+  }, [connections]);
 
   const deleteConnection = (connId) => {
     setConnections(prev => prev.filter(c => c.id !== connId));
@@ -854,8 +909,10 @@ export default function App() {
             ...conn,
             cableType: cableData.cableType || '',
             cableLength: cableData.cableLength || '',
+            length: cableData.cableLength || '',  // Also store as 'length' for label display
             rpCode: cableData.rpCode || '',
-            description: cableData.description || ''
+            description: cableData.description || '',
+            fontSize: cableData.fontSize || 10
           };
         }
         return conn;
@@ -871,8 +928,10 @@ export default function App() {
         dashPattern: null,   // Dash pattern when enhanced
         cableType: cableData.cableType || '',
         cableLength: cableData.cableLength || '',
+        length: cableData.cableLength || '',  // Also store as 'length' for label display
         rpCode: cableData.rpCode || '',
-        description: cableData.description || ''
+        description: cableData.description || '',
+        fontSize: cableData.fontSize || 10
       };
 
       setConnections(prev => [...prev, newConnection]);
@@ -929,7 +988,8 @@ export default function App() {
         cableType: connection.cableType,
         cableLength: connection.cableLength,
         rpCode: connection.rpCode,
-        description: connection.description
+        description: connection.description,
+        fontSize: connection.fontSize || 10
       }
     });
   };
@@ -1425,6 +1485,15 @@ export default function App() {
     return `M ${from.x} ${from.y} C ${fromControlX} ${from.y}, ${toControlX} ${to.y}, ${to.x} ${to.y}`;
   }, [getAnchorPosition]);
 
+  // Pre-compute wire paths to avoid recalculation on every render
+  const wirePathMap = useMemo(() => {
+    const map = new Map();
+    connections.forEach(conn => {
+      map.set(conn.id, getWirePath(conn.from, conn.to));
+    });
+    return map;
+  }, [connections, getWirePath]);
+
   // Build current project data object
   const buildProjectData = useCallback(() => ({
     id: projectId,
@@ -1611,9 +1680,17 @@ export default function App() {
   }, [userPresets]);
 
   // Background pre-render PNG export blob when browser is idle (single page only)
+  // DISABLED for performance - pre-rendering with many nodes causes freezes
+  // Export will render on-demand when user clicks export button
   useEffect(() => {
     if (!canvasRef.current) return;
     cachedExportBlob.current = null;
+
+    // Skip pre-render entirely - too expensive with many nodes/ports
+    // The export will render on-demand instead
+    const nodeCount = Object.keys(nodes).length;
+    const anchorCount = Object.keys(anchorLocalOffsets).length;
+    if (nodeCount > 5 || anchorCount > 50) return; // Skip for complex canvases
 
     // Skip pre-render for multi-page and paper-off — rendered on demand
     if (!paperEnabled || pages.length > 1) return;
@@ -1629,13 +1706,13 @@ export default function App() {
             });
           if (blob) cachedExportBlob.current = blob;
         } catch {}
-      });
-    }, 1000);
+      }, { timeout: 5000 }); // Give up after 5s if browser too busy
+    }, 2000); // Longer delay
     return () => {
       clearTimeout(timer);
       if (idleHandle) cancelIdleCallback(idleHandle);
     };
-  }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length]);
+  }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length, anchorLocalOffsets]);
 
   // Export canvas to PNG (single page) or ZIP (multi-page)
   const handleExportPNG = useCallback(async () => {
@@ -2127,61 +2204,24 @@ export default function App() {
             className="absolute inset-0 w-full h-full pointer-events-none z-[50]"
             style={{ overflow: 'visible' }}
           >
-            {/* SVG Anchor Points - rendered for all registered anchors */}
-            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => {
-              const isInput = pos.type === 'in';
-              const isActive = activeWire?.from === anchorId || activeWire?.to === anchorId;
-              const isConnected = connectedAnchorIds.has(anchorId);
-
-              const nodeId = getNodeIdFromAnchor(anchorId);
-              const node = nodes[nodeId];
-              const nodeColor = node?.signalColor;
-
-              // Get node's theme color (use Map lookup)
-              const themeColor = SIGNAL_COLORS_BY_ID.get(nodeColor) || DEFAULT_THEME_COLOR;
-              const themeLightColor = themeColor + 'cc'; // Add alpha for lighter version
-
-              // Show dim/off when not connected, lit with theme color when connected
-              const anchorColor = isConnected ? themeColor : '#52525b'; // zinc-600 when off
-              const anchorStroke = isConnected ? themeLightColor : '#71717a'; // zinc-500 when off
-              const anchorOpacity = isConnected ? 1 : 0.4;
-
-              return (
-                <g key={`anchor-${anchorId}`} data-export-ignore="true">
-                  {/* Glow effect for connected/active anchors */}
-                  {(isConnected || isActive) && (
-                    <circle
-                      cx={pos.x}
-                      cy={pos.y}
-                      r={5}
-                      fill={isActive ? '#22d3ee' : anchorColor}
-                      opacity={isActive ? 0.3 : 0.3}
-                    />
-                  )}
-                  {/* Main anchor dot */}
-                  <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={isActive ? 3 : 2.5}
-                    fill={isActive ? '#22d3ee' : anchorColor}
-                    stroke={isActive ? '#67e8f9' : anchorStroke}
-                    strokeWidth={1}
-                    opacity={anchorOpacity}
-                    style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAnchorClick(anchorId, pos.type);
-                    }}
-                  />
-                </g>
-              );
-            })}
+            {/* SVG Anchor Points - memoized for performance */}
+            {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => (
+              <AnchorPoint
+                key={`anchor-${anchorId}`}
+                anchorId={anchorId}
+                pos={pos}
+                isActive={activeWire?.from === anchorId || activeWire?.to === anchorId}
+                isConnected={connectedAnchorIds.has(anchorId)}
+                themeColor={anchorThemeColors.get(anchorId) || DEFAULT_THEME_COLOR}
+                onAnchorClick={handleAnchorClick}
+              />
+            ))}
 
             {connections.map(conn => {
               const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
-              const wirePath = getWirePath(conn.from, conn.to);
-              const fromPos = getAnchorPosition(conn.from);
-              const toPos = getAnchorPosition(conn.to);
+              const wirePath = wirePathMap.get(conn.id) || '';
+              const fromPos = computedAnchorPositions[conn.from];
+              const toPos = computedAnchorPositions[conn.to];
               const isSelected = selectedWires.has(conn.id);
               const isEnhanced = conn.enhanced || false;
 
@@ -2255,7 +2295,7 @@ export default function App() {
                         y={(fromPos.y + toPos.y) / 2 - 12}
                         textAnchor="middle"
                         className="fill-zinc-400 font-mono pointer-events-none"
-                        style={{ fontSize: 9 }}
+                        style={{ fontSize: conn.fontSize || 10 }}
                       >
                         {displayText}
                       </text>
@@ -2403,6 +2443,7 @@ export default function App() {
       {/* Cable Prompt Dialog */}
       {cablePromptData && (
         <CablePrompt
+          key={cablePromptData.connectionId || 'new'}
           onSubmit={handleCablePromptSubmit}
           onCancel={handleCablePromptCancel}
           initialData={cablePromptData.mode === 'edit' ? cablePromptData.initialData : null}
