@@ -1215,36 +1215,25 @@ export default function App() {
         return;
       }
 
-      // Ignore other shortcuts when typing in inputs/textareas/selects
       const tag = e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
-
+      const isInInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
       const mod = e.metaKey || e.ctrlKey;
-
-      // Delete / Backspace — delete selected nodes and wires
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodes.size > 0) {
-          selectedNodes.forEach(nodeId => deleteNode(nodeId));
-          setSelectedNodes(new Set());
-        }
-        if (selectedWires.size > 0) {
-          setConnections(prev => prev.filter(c => !selectedWires.has(c.id)));
-          setSelectedWires(new Set());
-        }
-        return;
-      }
+      const key = e.key.toLowerCase();
 
       // Cmd/Ctrl+C — copy selected nodes
-      if (mod && e.key === 'c') {
+      if (mod && key === 'c') {
+        console.log('Ctrl+C pressed, selectedNodes:', selectedNodes.size);
         if (selectedNodes.size > 0) {
           clipboardRef.current = Array.from(selectedNodes).map(id => nodes[id]).filter(Boolean);
+          console.log('Copied nodes:', clipboardRef.current.length);
         }
         return;
       }
 
-      // Cmd/Ctrl+V — paste copied nodes with auto-numbering
-      if (mod && e.key === 'v') {
-        if (clipboardRef.current.length > 0) {
+      // Cmd/Ctrl+V — paste copied nodes
+      if (mod && key === 'v') {
+        console.log('Ctrl+V pressed, clipboard:', clipboardRef.current.length, 'isInInput:', isInInput);
+        if (clipboardRef.current.length > 0 && !isInInput) {
           e.preventDefault();
           const newSelection = new Set();
           const now = Date.now();
@@ -1305,11 +1294,27 @@ export default function App() {
         }
         return;
       }
+
+      // Ignore other shortcuts when typing in inputs/textareas/selects
+      if (isInInput) return;
+
+      // Delete / Backspace — delete selected nodes and wires
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedNodes.size > 0) {
+          selectedNodes.forEach(nodeId => deleteNode(nodeId));
+          setSelectedNodes(new Set());
+        }
+        if (selectedWires.size > 0) {
+          setConnections(prev => prev.filter(c => !selectedWires.has(c.id)));
+          setSelectedWires(new Set());
+        }
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, selectedWires, nodes, deleteNode]);
+  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {

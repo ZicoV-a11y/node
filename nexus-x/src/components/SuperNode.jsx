@@ -1060,9 +1060,11 @@ const PortRow = memo(({
     }
   };
 
-  // Get width for a column - check undefined explicitly to allow 0 values
+  // Get width for a column - spacing defaults to 24px (can shrink to 8px)
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
+    if (columnWidths[colId] !== undefined) return columnWidths[colId];
+    if (colId === 'spacing') return 24; // Default spacing width
+    return COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
 
   // Row style with hover background color
@@ -1135,9 +1137,11 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
   const [draggedColumn, setDraggedColumn] = useState(null);
   const resizeRef = useRef({ colId: null, startX: 0, startWidth: 0 });
 
-  // Get width for a column - check undefined explicitly to allow 0 values
+  // Get width for a column - spacing defaults to 24px (can shrink to 8px)
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
+    if (columnWidths[colId] !== undefined) return columnWidths[colId];
+    if (colId === 'spacing') return 24; // Default spacing width
+    return COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
 
   // Resize column by dragging divider - no minimum, allow full collapse
@@ -1340,14 +1344,46 @@ const CollapsedColumnHeaders = memo(({
   selectedColumns,
   onReorderColumns,
   columnWidths = {},
+  onColumnResize,
 }) => {
   const isReversed = anchorSide === 'right';
   const [draggedColumn, setDraggedColumn] = useState(null);
+  const resizeRef = useRef({ colId: null, startX: 0, startWidth: 0 });
 
-  // Get width for a column - check undefined explicitly to allow 0 values
+  // Get width for a column - spacing defaults to 24px (can shrink to 8px)
   const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
+    if (columnWidths[colId] !== undefined) return columnWidths[colId];
+    if (colId === 'spacing') return 24; // Default spacing width
+    return COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
+
+  // Resize column by dragging divider
+  const handleResizeStart = useCallback((e, colId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Collapsed resize start:', colId, 'width:', getColumnWidth(colId));
+    const startX = e.clientX;
+    const startWidth = getColumnWidth(colId);
+    // Spacing column can go smaller (down to 8px), other columns min 20px
+    const minWidth = colId === 'spacing' ? 8 : 20;
+
+    const handleMouseMove = (moveE) => {
+      if (!onColumnResize) return;
+      const delta = moveE.clientX - startX;
+      const newWidth = Math.max(minWidth, startWidth + delta);
+      console.log('Collapsed resize move:', colId, 'delta:', delta, 'newWidth:', newWidth);
+      onColumnResize(colId, newWidth);
+    };
+
+    const handleMouseUp = () => {
+      console.log('Collapsed resize end');
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [getColumnWidth, onColumnResize]);
 
   // Build full column order with anchor
   const fullColumnOrder = useMemo(
@@ -1355,12 +1391,12 @@ const CollapsedColumnHeaders = memo(({
     [selectedColumns, isReversed]
   );
 
-  // Pre-compute column width styles
+  // Pre-compute column width styles - use width not minWidth so columns can shrink
   const columnStyles = useMemo(() => {
     const styles = {};
     fullColumnOrder.forEach(colId => {
       const width = getColumnWidth(colId);
-      styles[colId] = { minWidth: `${width}px` };
+      styles[colId] = { width: `${width}px` };
     });
     return styles;
   }, [fullColumnOrder, getColumnWidth]);
@@ -1412,8 +1448,8 @@ const CollapsedColumnHeaders = memo(({
       className="flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-white uppercase tracking-wide w-full px-1"
     >
-      {/* Spacer to match spacing handle column when reversed */}
-      {isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when reversed - uses dynamic width */}
+      {isReversed && <div className="shrink-0" style={{ width: `${getColumnWidth('spacing')}px` }} />}
 
       {fullColumnOrder.map((colId, index) => {
         const colDef = COLUMN_DEFS[colId];
@@ -1431,13 +1467,23 @@ const CollapsedColumnHeaders = memo(({
             onDragOver={isDraggable ? handleDragOver : undefined}
             onDrop={isDraggable ? (e) => handleDrop(e, colId) : undefined}
           >
-            {/* Leading divider before first column when reversed (data side) */}
+            {/* Leading divider before first column when reversed - resizes SPACING column */}
             {isReversed && index === 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+              <div
+                className={`w-2 h-5 flex items-center justify-center shrink-0 ${onColumnResize ? 'cursor-col-resize group' : ''}`}
+                onMouseDown={onColumnResize ? (e) => handleResizeStart(e, 'spacing') : undefined}
+              >
+                <span className={`w-px h-4 bg-zinc-600/40 ${onColumnResize ? 'group-hover:bg-cyan-400 group-hover:w-0.5 transition-all' : ''}`} />
+              </div>
             )}
-            {/* Divider between columns (except before first) */}
+            {/* Divider between columns (except before first) - RESIZABLE */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
+              <div
+                className={`w-2 h-5 flex items-center justify-center shrink-0 ${onColumnResize ? 'cursor-col-resize group' : ''}`}
+                onMouseDown={onColumnResize ? (e) => handleResizeStart(e, fullColumnOrder[index - 1] === 'anchor' ? colId : fullColumnOrder[index - 1]) : undefined}
+              >
+                <span className={`w-px h-4 bg-zinc-600/40 ${onColumnResize ? 'group-hover:bg-cyan-400 group-hover:w-0.5 transition-all' : ''}`} />
+              </div>
             )}
             <span
               draggable={isDraggable ? "true" : undefined}
@@ -1452,16 +1498,21 @@ const CollapsedColumnHeaders = memo(({
             >
               {colDef.label}
             </span>
-            {/* Trailing divider after last column when NOT reversed (data side) */}
+            {/* Trailing divider after last column when NOT reversed - resizes SPACING column */}
             {!isReversed && index === fullColumnOrder.length - 1 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+              <div
+                className={`w-2 h-5 flex items-center justify-center shrink-0 ${onColumnResize ? 'cursor-col-resize group' : ''}`}
+                onMouseDown={onColumnResize ? (e) => handleResizeStart(e, 'spacing') : undefined}
+              >
+                <span className={`w-px h-4 bg-zinc-600/40 ${onColumnResize ? 'group-hover:bg-cyan-400 group-hover:w-0.5 transition-all' : ''}`} />
+              </div>
             )}
           </div>
         );
       })}
 
-      {/* Spacer to match spacing handle column when NOT reversed */}
-      {!isReversed && <div className="shrink-0" style={{ width: '24px' }} />}
+      {/* Spacer to match spacing handle column when NOT reversed - uses dynamic width */}
+      {!isReversed && <div className="shrink-0" style={{ width: `${getColumnWidth('spacing')}px` }} />}
     </div>
   );
 });
@@ -1486,11 +1537,20 @@ const CollapsedPortRow = memo(({
   const isOutput = type === 'out';
   const isReversed = anchorSide === 'right';
 
+  // Get width for a column - spacing defaults to 24px (can shrink to 8px)
+  const getColumnWidth = useCallback((colId) => {
+    if (columnWidths[colId] !== undefined) return columnWidths[colId];
+    if (colId === 'spacing') return 24; // Default spacing width
+    return COLUMN_DEFS[colId]?.minWidth || 60;
+  }, [columnWidths]);
+
   // Spacing handle - shows on opposite side of anchor (both stacked and side-by-side)
+  // Uses dynamic width from columnWidths
   const spacingHandle = useMemo(() => {
     if (!onSpacingMouseDown) return null;
+    const spacingWidth = getColumnWidth('spacing');
     return (
-      <div className="flex items-center justify-center shrink-0" style={{ width: '24px' }}>
+      <div className="flex items-center justify-center shrink-0" style={{ width: `${spacingWidth}px` }}>
         <div
           className="spacing-drag-handle nodrag"
           onMouseDown={(e) => onSpacingMouseDown(e, port.id, port.spacing || 0)}
@@ -1501,7 +1561,7 @@ const CollapsedPortRow = memo(({
         </div>
       </div>
     );
-  }, [onSpacingMouseDown, port.id, port.spacing]);
+  }, [onSpacingMouseDown, port.id, port.spacing, getColumnWidth]);
 
   // Check if connected
   const isConnected = useMemo(
@@ -1514,11 +1574,6 @@ const CollapsedPortRow = memo(({
     () => getCollapsedColumnOrder(selectedColumns, isReversed),
     [selectedColumns, isReversed]
   );
-
-  // Get width for a column - check undefined explicitly to allow 0 values
-  const getColumnWidth = useCallback((colId) => {
-    return columnWidths[colId] !== undefined ? columnWidths[colId] : (COLUMN_DEFS[colId]?.minWidth || 60);
-  }, [columnWidths]);
 
   // Render column content based on column ID
   const renderColumnContent = (colId) => {
@@ -1590,21 +1645,27 @@ const CollapsedPortRow = memo(({
           <div key={colId} className={`flex items-center ${isFlexColumn ? 'flex-1 min-w-0' : ''}`}>
             {/* Leading divider before first column when reversed (data side) */}
             {isReversed && index === 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mr-0.5" />
+              <div className="w-2 h-5 flex items-center justify-center shrink-0">
+                <span className="w-px h-4 bg-zinc-600/40" />
+              </div>
             )}
             {/* Divider between columns (except before first) */}
             {index > 0 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 mx-0.5" />
+              <div className="w-2 h-5 flex items-center justify-center shrink-0">
+                <span className="w-px h-4 bg-zinc-600/40" />
+              </div>
             )}
             <span
               className={`flex items-center justify-center ${isFlexColumn ? 'flex-1' : 'shrink-0'}`}
-              style={{ minWidth: `${getColumnWidth(colId)}px` }}
+              style={{ width: `${getColumnWidth(colId)}px` }}
             >
               {renderColumnContent(colId)}
             </span>
             {/* Trailing divider after last column when NOT reversed (data side) */}
             {!isReversed && index === fullColumnOrder.length - 1 && (
-              <span className="w-px h-4 bg-zinc-600/40 shrink-0 ml-0.5" />
+              <div className="w-2 h-5 flex items-center justify-center shrink-0">
+                <span className="w-px h-4 bg-zinc-600/40" />
+              </div>
             )}
           </div>
         );
@@ -2407,6 +2468,7 @@ const IOSection = memo(({
               selectedColumns={collapsedColumns}
               onReorderColumns={updateCollapsedColumns}
               columnWidths={collapsedColumnWidths}
+              onColumnResize={onColumnResize}
             />
           )}
 
@@ -3358,7 +3420,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return merged;
   }, [allPorts, customColumnWidths]);
   // COLLAPSED view uses tighter widths (no dropdown padding, smaller minimums)
-  const sharedCollapsedColumnWidths = useMemo(() => calculateCollapsedColumnWidths(allPorts), [allPorts]);
+  // Also merge custom widths so resizing works in collapsed view
+  const sharedCollapsedColumnWidths = useMemo(() => {
+    const calculated = calculateCollapsedColumnWidths(allPorts);
+    // Merge custom widths - custom widths override calculated for collapsed view
+    return { ...calculated, ...customColumnWidths };
+  }, [allPorts, customColumnWidths]);
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
