@@ -3011,7 +3011,13 @@ SystemSection.displayName = 'SystemSection';
 const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePreset, userSubcategories, onSettingsToggle }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLibraryMenu, setShowLibraryMenu] = useState(false);
+  const [isEditingModel, setIsEditingModel] = useState(false);
+  const [isEditingManufacturer, setIsEditingManufacturer] = useState(false);
+  const [editModelValue, setEditModelValue] = useState('');
+  const [editManufacturerValue, setEditManufacturerValue] = useState('');
   const settingsRef = useRef(null);
+  const modelInputRef = useRef(null);
+  const manufacturerInputRef = useRef(null);
 
   // Notify parent when settings dropdown opens/closes (for z-index)
   useEffect(() => {
@@ -3077,6 +3083,65 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
     node.system?.approvedFields?.['Model'] || '',
     [node.system?.approvedFields]
   );
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingModel && modelInputRef.current) {
+      modelInputRef.current.focus();
+      modelInputRef.current.select();
+    }
+  }, [isEditingModel]);
+
+  useEffect(() => {
+    if (isEditingManufacturer && manufacturerInputRef.current) {
+      manufacturerInputRef.current.focus();
+      manufacturerInputRef.current.select();
+    }
+  }, [isEditingManufacturer]);
+
+  // Handle double-click to edit model
+  const handleModelDoubleClick = useCallback((e) => {
+    e.stopPropagation();
+    setEditModelValue(model);
+    setIsEditingModel(true);
+  }, [model]);
+
+  // Handle double-click to edit manufacturer
+  const handleManufacturerDoubleClick = useCallback((e) => {
+    e.stopPropagation();
+    setEditManufacturerValue(manufacturer);
+    setIsEditingManufacturer(true);
+  }, [manufacturer]);
+
+  // Save model edit
+  const handleModelSave = useCallback(() => {
+    const newValue = editModelValue.trim();
+    onUpdate({
+      system: {
+        ...node.system,
+        approvedFields: {
+          ...node.system?.approvedFields,
+          Model: newValue
+        }
+      }
+    });
+    setIsEditingModel(false);
+  }, [editModelValue, node.system, onUpdate]);
+
+  // Save manufacturer edit
+  const handleManufacturerSave = useCallback(() => {
+    const newValue = editManufacturerValue.trim();
+    onUpdate({
+      system: {
+        ...node.system,
+        approvedFields: {
+          ...node.system?.approvedFields,
+          Manufacturer: newValue
+        }
+      }
+    });
+    setIsEditingManufacturer(false);
+  }, [editManufacturerValue, node.system, onUpdate]);
 
   // Build list of library folders for "Save to Library" submenu
   const libraryFolders = useMemo(() => {
@@ -3212,14 +3277,67 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
           />
         </div>
 
-        {/* Model + Manufacturer stacked display (Model big, Manufacturer small) */}
-        {(manufacturer || model) && (
-          <div className="flex flex-col leading-tight pointer-events-none">
-            {model && (
-              <span className="font-mono font-bold text-[13px]" style={{ color: headerTextHex }}>{model}</span>
+        {/* Model + Manufacturer stacked display (Model big, Manufacturer small) - double-click to edit */}
+        {(manufacturer || model || isEditingModel || isEditingManufacturer) && (
+          <div className="flex flex-col leading-tight">
+            {/* Model - editable on double-click */}
+            {isEditingModel ? (
+              <input
+                ref={modelInputRef}
+                type="text"
+                value={editModelValue}
+                onChange={(e) => setEditModelValue(e.target.value)}
+                onBlur={handleModelSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleModelSave();
+                  if (e.key === 'Escape') setIsEditingModel(false);
+                  e.stopPropagation();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="font-mono font-bold text-[13px] bg-zinc-800 border border-zinc-600 rounded px-1 text-white outline-none focus:border-cyan-500"
+                style={{ width: Math.max(60, editModelValue.length * 8 + 16) }}
+                placeholder="Model"
+              />
+            ) : (
+              (model || !manufacturer) && (
+                <span
+                  className="font-mono font-bold text-[13px] cursor-pointer hover:text-cyan-400 transition-colors"
+                  style={{ color: headerTextHex }}
+                  onDoubleClick={handleModelDoubleClick}
+                  title="Double-click to edit model"
+                >
+                  {model || 'Model'}
+                </span>
+              )
             )}
-            {manufacturer && (
-              <span className="font-mono text-[10px] text-zinc-400">{manufacturer}</span>
+            {/* Manufacturer - editable on double-click */}
+            {isEditingManufacturer ? (
+              <input
+                ref={manufacturerInputRef}
+                type="text"
+                value={editManufacturerValue}
+                onChange={(e) => setEditManufacturerValue(e.target.value)}
+                onBlur={handleManufacturerSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleManufacturerSave();
+                  if (e.key === 'Escape') setIsEditingManufacturer(false);
+                  e.stopPropagation();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="font-mono text-[10px] bg-zinc-800 border border-zinc-600 rounded px-1 text-zinc-300 outline-none focus:border-cyan-500"
+                style={{ width: Math.max(60, editManufacturerValue.length * 6 + 16) }}
+                placeholder="Manufacturer"
+              />
+            ) : (
+              (manufacturer || !model) && (
+                <span
+                  className="font-mono text-[10px] text-zinc-400 cursor-pointer hover:text-cyan-400 transition-colors"
+                  onDoubleClick={handleManufacturerDoubleClick}
+                  title="Double-click to edit manufacturer"
+                >
+                  {manufacturer || 'Manufacturer'}
+                </span>
+              )
             )}
           </div>
         )}
