@@ -969,6 +969,46 @@ export default function App() {
     return map;
   }, [connections, getConnectionColor, nodes]);
 
+  // Global source names with colors - collected from ALL nodes
+  // Maps sourceName -> hex color (from wire connections)
+  const globalSourceNamesWithColors = useMemo(() => {
+    const map = new Map(); // sourceName → color
+
+    // First pass: collect colors from connections (anchorId -> color)
+    const anchorColors = new Map();
+    connections.forEach(conn => {
+      const color = connectionColorMap.get(conn.id);
+      if (color && conn.to) {
+        anchorColors.set(conn.to, color);
+      }
+    });
+
+    // Second pass: collect source names from all nodes
+    Object.values(nodes).forEach(node => {
+      // From input ports
+      (node.inputSection?.ports || []).forEach(port => {
+        if (port.source) {
+          const anchorId = `${node.id}-${port.id}`;
+          const color = anchorColors.get(anchorId);
+          // Only update if we have a color or if name not yet in map
+          if (color && !map.has(port.source)) {
+            map.set(port.source, color);
+          } else if (!map.has(port.source)) {
+            map.set(port.source, null);
+          }
+        }
+      });
+      // From output ports
+      (node.outputSection?.ports || []).forEach(port => {
+        if (port.source && !map.has(port.source)) {
+          map.set(port.source, null);
+        }
+      });
+    });
+
+    return map;
+  }, [nodes, connections, connectionColorMap]);
+
   // Pre-compute anchor theme colors to avoid lookups during render
   const anchorThemeColors = useMemo(() => {
     const map = new Map();
@@ -2568,6 +2608,7 @@ export default function App() {
                 usedSignalColors={usedSignalColors}
                 connections={connections}
                 connectionColorMap={connectionColorMap}
+                globalSourceNamesWithColors={globalSourceNamesWithColors}
                 onSavePreset={(categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}

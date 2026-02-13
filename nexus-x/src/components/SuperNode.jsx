@@ -3399,7 +3399,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, globalSourceNamesWithColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -3522,30 +3522,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return map;
   }, [connections, connectionColorMap, node.id]);
 
-  // Collect all unique source names with their colors for dropdown options
-  // Maps source name → hex color (from wire connections)
-  const sourceNamesWithColors = useMemo(() => {
-    const map = new Map(); // sourceName → color
-    // Collect from input ports (which have incoming wire colors)
-    (node.inputSection?.ports || []).forEach(port => {
-      if (port.source) {
-        const anchorId = `${node.id}-${port.id}`;
-        const color = anchorSourceColors.get(anchorId);
-        if (color && !map.has(port.source)) {
-          map.set(port.source, color);
-        } else if (!map.has(port.source)) {
-          map.set(port.source, null); // Source name without color
-        }
-      }
-    });
-    // Also collect from output ports (may have manually entered source names)
-    (node.outputSection?.ports || []).forEach(port => {
-      if (port.source && !map.has(port.source)) {
-        map.set(port.source, null);
-      }
-    });
-    return map;
-  }, [node.inputSection?.ports, node.outputSection?.ports, node.id, anchorSourceColors]);
+  // Use global source names with colors (collected from ALL nodes in App.jsx)
+  // This ensures all source dropdowns across all nodes see the same options
+  const sourceNamesWithColors = globalSourceNamesWithColors;
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
