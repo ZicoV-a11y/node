@@ -3318,7 +3318,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, onSavePreset, userSubcategories }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -3745,11 +3745,18 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     });
   }, [isResizing]);
 
+  // Track last position for calculating delta when multi-select dragging
+  const lastPositionRef = useRef(null);
+
   useEffect(() => {
     if (!isDragging) return;
 
+    // Store initial position for delta calculation
+    lastPositionRef.current = { x: node.position.x, y: node.position.y };
+
     let rafId = null;
     let pendingPosition = null;
+    let pendingDelta = null;
 
     const handleMouseMove = (e) => {
       const canvas = nodeRef.current?.closest('[data-canvas]');
@@ -3765,12 +3772,23 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         newY = Math.round(newY / gridSize) * gridSize;
       }
 
+      // Calculate delta from last position for multi-select drag
+      const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
+      const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
+
       // Throttle updates using requestAnimationFrame
       pendingPosition = { x: newX, y: newY };
+      pendingDelta = { x: deltaX, y: deltaY };
       if (!rafId) {
         rafId = requestAnimationFrame(() => {
           if (pendingPosition) {
             onUpdate({ position: pendingPosition });
+            // Move other selected nodes if multi-select is active
+            if (selectedNodes && selectedNodes.size > 1 && onMoveSelectedNodes && pendingDelta) {
+              onMoveSelectedNodes(pendingDelta.x, pendingDelta.y, node.id);
+            }
+            // Update last position for next delta calculation
+            lastPositionRef.current = pendingPosition;
           }
           rafId = null;
         });
@@ -3780,6 +3798,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     const handleMouseUp = () => {
       if (rafId) cancelAnimationFrame(rafId);
       setIsDragging(false);
+      lastPositionRef.current = null;
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -3789,7 +3808,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y]);
 
   // Helper to clean layout rows (remove nulls and empty rows)
   const cleanLayoutRows = useCallback((rows) => {
@@ -4445,6 +4464,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   return (
     <div
       ref={nodeRef}
+      data-node-id={node.id}
       className={wrapperClassName}
         style={{
           left: node.position.x,

@@ -782,6 +782,28 @@ export default function App() {
     });
   }, []);
 
+  // Move all selected nodes by a delta (for multi-select drag)
+  const moveSelectedNodes = useCallback((deltaX, deltaY, excludeNodeId) => {
+    setNodes(prev => {
+      const updated = { ...prev };
+      selectedNodes.forEach(nodeId => {
+        // Skip the node being directly dragged (it moves via its own onUpdate)
+        if (nodeId === excludeNodeId) return;
+        if (!updated[nodeId]) return;
+
+        const node = updated[nodeId];
+        updated[nodeId] = {
+          ...node,
+          position: {
+            x: node.position.x + deltaX,
+            y: node.position.y + deltaY
+          }
+        };
+      });
+      return updated;
+    });
+  }, [selectedNodes]);
+
   // Get source node for an anchor (finds the originating source of a signal)
   const getSourceNode = useCallback((anchorId, visited = new Set()) => {
     if (visited.has(anchorId)) return null;
@@ -1368,6 +1390,36 @@ export default function App() {
           setConnections(prev => prev.filter(c => !selectedWires.has(c.id)));
           setSelectedWires(new Set());
         }
+        return;
+      }
+
+      // Arrow keys — move selected nodes
+      if (selectedNodes.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : (snapToGrid && gridSize > 0 ? gridSize : 1);
+        const delta = {
+          ArrowUp: { x: 0, y: -step },
+          ArrowDown: { x: 0, y: step },
+          ArrowLeft: { x: -step, y: 0 },
+          ArrowRight: { x: step, y: 0 },
+        }[e.key];
+
+        setNodes(prev => {
+          const updated = { ...prev };
+          selectedNodes.forEach(nodeId => {
+            if (updated[nodeId]) {
+              const node = updated[nodeId];
+              updated[nodeId] = {
+                ...node,
+                position: {
+                  x: node.position.x + delta.x,
+                  y: node.position.y + delta.y
+                }
+              };
+            }
+          });
+          return updated;
+        });
         return;
       }
     };
@@ -2371,6 +2423,8 @@ export default function App() {
                 usedSignalColors={usedSignalColors}
                 onSavePreset={(categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}
+                selectedNodes={selectedNodes}
+                onMoveSelectedNodes={moveSelectedNodes}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {
