@@ -283,14 +283,31 @@ const CARD_PRESETS = {
 const SelectWithCustom = memo(({
   value,
   options,
+  optionsWithColors, // Map of name -> hex color (for source dropdown)
   onChange,
   placeholder = 'Select',
   className = '',
   isSelected = false,
   highlightColor, // Hex color to highlight the field (e.g., from incoming wire)
 }) => {
-  // Check if current value is custom (not in options list)
-  const isCustomValue = value && value !== 'Custom...' && !options.includes(value);
+  // Get color for current value from optionsWithColors map
+  const valueColor = useMemo(() => {
+    if (highlightColor) return highlightColor;
+    if (optionsWithColors && value) {
+      return optionsWithColors.get(value) || null;
+    }
+    return null;
+  }, [highlightColor, optionsWithColors, value]);
+
+  // Build options array from optionsWithColors map
+  const coloredOptions = useMemo(() => {
+    if (!optionsWithColors || optionsWithColors.size === 0) return [];
+    return Array.from(optionsWithColors.entries()).map(([name, color]) => ({ name, color }));
+  }, [optionsWithColors]);
+
+  // Check if current value is custom (not in options list and not in coloredOptions)
+  const isInColoredOptions = optionsWithColors?.has(value);
+  const isCustomValue = value && value !== 'Custom...' && !options.includes(value) && !isInColoredOptions;
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customText, setCustomText] = useState(value || '');
   const inputRef = useRef(null);
@@ -310,21 +327,21 @@ const SelectWithCustom = memo(({
 
   // Compute highlight style when color is provided
   const highlightStyle = useMemo(() => {
-    if (!highlightColor) return {};
+    if (!valueColor) return {};
     return {
-      backgroundColor: `${highlightColor}25`, // 25 = ~15% opacity
-      borderColor: highlightColor,
+      backgroundColor: `${valueColor}25`, // 25 = ~15% opacity
+      borderColor: valueColor,
     };
-  }, [highlightColor]);
+  }, [valueColor]);
 
   const baseStyle = `bg-zinc-800 border rounded px-0.5 py-px font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
-    isSelected ? 'border-cyan-500/50' : highlightColor ? '' : 'border-zinc-700'
+    isSelected ? 'border-cyan-500/50' : valueColor ? '' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
   if (isCustomMode) {
     return (
       <div
-        className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : highlightColor ? '' : 'border-zinc-700'}`}
+        className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : valueColor ? '' : 'border-zinc-700'}`}
         style={highlightStyle}
       >
         <input
@@ -408,6 +425,13 @@ const SelectWithCustom = memo(({
       style={highlightStyle}
     >
       <option value="">{placeholder}</option>
+      {/* Show colored source options first */}
+      {coloredOptions.map(({ name, color }) => (
+        <option key={name} value={name} style={color ? { backgroundColor: `${color}40` } : undefined}>
+          {name}
+        </option>
+      ))}
+      {/* Then show regular options */}
       {options.map(opt => (
         <option key={opt} value={opt}>{opt}</option>
       ))}
@@ -915,6 +939,7 @@ const PortRow = memo(({
   connectedAnchorIds,
   onSpacingMouseDown, // Handler for spacing drag
   sourceColor, // Hex color from incoming wire (for INPUT source field highlighting)
+  sourceNamesWithColors, // Map of sourceName -> hex color for dropdown options
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -1051,6 +1076,7 @@ const PortRow = memo(({
           <SelectWithCustom
             value={port.source || ''}
             options={['Custom...']}
+            optionsWithColors={sourceNamesWithColors}
             placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('source', value)}
@@ -2141,6 +2167,7 @@ const IOSection = memo(({
   sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
   onColumnResize, // Handler for column resize
   anchorSourceColors, // Map of anchorId -> hex color for source field highlighting
+  sourceNamesWithColors, // Map of sourceName -> hex color for dropdown options
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2468,11 +2495,12 @@ const IOSection = memo(({
             connectedAnchorIds={connectedAnchorIds}
             onSpacingMouseDown={handleSpacingMouseDown}
             sourceColor={sourceColor}
+            sourceNamesWithColors={sourceNamesWithColors}
           />
         </div>
       );
     })
-  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown, anchorSourceColors]);
+  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown, anchorSourceColors, sourceNamesWithColors]);
 
   return (
     <div className="flex flex-col border-t border-zinc-700/50 shrink-0 w-full">
@@ -3485,6 +3513,31 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return map;
   }, [connections, connectionColorMap, node.id]);
 
+  // Collect all unique source names with their colors for dropdown options
+  // Maps source name → hex color (from wire connections)
+  const sourceNamesWithColors = useMemo(() => {
+    const map = new Map(); // sourceName → color
+    // Collect from input ports (which have incoming wire colors)
+    (node.inputSection?.ports || []).forEach(port => {
+      if (port.source) {
+        const anchorId = `${node.id}-${port.id}`;
+        const color = anchorSourceColors.get(anchorId);
+        if (color && !map.has(port.source)) {
+          map.set(port.source, color);
+        } else if (!map.has(port.source)) {
+          map.set(port.source, null); // Source name without color
+        }
+      }
+    });
+    // Also collect from output ports (may have manually entered source names)
+    (node.outputSection?.ports || []).forEach(port => {
+      if (port.source && !map.has(port.source)) {
+        map.set(port.source, null);
+      }
+    });
+    return map;
+  }, [node.inputSection?.ports, node.outputSection?.ports, node.id, anchorSourceColors]);
+
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
   // Gaps between columns: 8px each (via mx-2 on separator)
@@ -4308,6 +4361,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             onColumnResize={handleColumnResize}
             anchorSourceColors={anchorSourceColors}
+            sourceNamesWithColors={sourceNamesWithColors}
           />
         );
       case 'output':
@@ -4331,6 +4385,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             onColumnResize={handleColumnResize}
+            sourceNamesWithColors={sourceNamesWithColors}
           />
         );
       default:
@@ -4345,7 +4400,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds,
     sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
-    leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors
+    leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors, sourceNamesWithColors
   ]);
 
   // Handle click to select (shift+click to add to selection)
