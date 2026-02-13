@@ -2434,6 +2434,8 @@ export default function App() {
                 activeWire={activeWire}
                 connectedAnchorIds={connectedAnchorIds}
                 usedSignalColors={usedSignalColors}
+                connections={connections}
+                connectionColorMap={connectionColorMap}
                 onSavePreset={(categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}

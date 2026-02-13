@@ -287,6 +287,7 @@ const SelectWithCustom = memo(({
   placeholder = 'Select',
   className = '',
   isSelected = false,
+  highlightColor, // Hex color to highlight the field (e.g., from incoming wire)
 }) => {
   // Check if current value is custom (not in options list)
   const isCustomValue = value && value !== 'Custom...' && !options.includes(value);
@@ -307,13 +308,25 @@ const SelectWithCustom = memo(({
     setCustomText(value || '');
   }, [value]);
 
+  // Compute highlight style when color is provided
+  const highlightStyle = useMemo(() => {
+    if (!highlightColor) return {};
+    return {
+      backgroundColor: `${highlightColor}25`, // 25 = ~15% opacity
+      borderColor: highlightColor,
+    };
+  }, [highlightColor]);
+
   const baseStyle = `bg-zinc-800 border rounded px-0.5 py-px font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
-    isSelected ? 'border-cyan-500/50' : 'border-zinc-700'
+    isSelected ? 'border-cyan-500/50' : highlightColor ? '' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
   if (isCustomMode) {
     return (
-      <div className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : 'border-zinc-700'}`}>
+      <div
+        className={`flex items-center w-full max-w-full bg-zinc-800 border rounded ${isSelected ? 'border-cyan-500/50' : highlightColor ? '' : 'border-zinc-700'}`}
+        style={highlightStyle}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -339,7 +352,7 @@ const SelectWithCustom = memo(({
             }
           }}
           onClick={stopPropagation}
-          placeholder="Type custom..."
+          placeholder="Type..."
           className="flex-1 min-w-0 w-0 bg-transparent px-0.5 py-px font-mono text-[11px] text-zinc-300 outline-none"
         />
         <button
@@ -360,7 +373,24 @@ const SelectWithCustom = memo(({
     );
   }
 
-  // Dropdown mode - show custom value as an option if it exists
+  // If value exists (custom text entered), show as editable text field on click
+  if (isCustomValue) {
+    return (
+      <div
+        className={`${baseStyle} ${className} cursor-text`}
+        style={highlightStyle}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsCustomMode(true);
+        }}
+        title="Click to edit"
+      >
+        {value}
+      </div>
+    );
+  }
+
+  // Dropdown mode - show options
   return (
     <select
       value={value || ''}
@@ -375,12 +405,9 @@ const SelectWithCustom = memo(({
       }}
       onClick={stopPropagation}
       className={`${baseStyle} ${className}`}
+      style={highlightStyle}
     >
       <option value="">{placeholder}</option>
-      {/* Show custom value as first option if it exists */}
-      {isCustomValue && (
-        <option value={value}>{value}</option>
-      )}
       {options.map(opt => (
         <option key={opt} value={opt}>{opt}</option>
       ))}
@@ -887,6 +914,7 @@ const PortRow = memo(({
   colors: passedColors,
   connectedAnchorIds,
   onSpacingMouseDown, // Handler for spacing drag
+  sourceColor, // Hex color from incoming wire (for INPUT source field highlighting)
 }) => {
   const isInput = type === 'in';
   const isReversed = anchorSide === 'right';
@@ -1026,6 +1054,7 @@ const PortRow = memo(({
             placeholder="---"
             isSelected={isSelected}
             onChange={(value) => handleFieldChange('source', value)}
+            highlightColor={sourceColor}
           />
         );
       case 'destination':
@@ -1516,6 +1545,7 @@ const CollapsedPortRow = memo(({
   columnWidths = {},
   connectedAnchorIds,
   onSpacingMouseDown,
+  sourceColor, // Hex color from incoming wire (for INPUT source field highlighting)
 }) => {
   const isOutput = type === 'out';
   const isReversed = anchorSide === 'right';
@@ -1579,7 +1609,10 @@ const CollapsedPortRow = memo(({
         );
       case 'source':
         return (
-          <span className="font-mono text-white truncate">
+          <span
+            className="font-mono text-white truncate px-1 rounded"
+            style={sourceColor ? { backgroundColor: `${sourceColor}25`, border: `1px solid ${sourceColor}` } : undefined}
+          >
             {port.source || ''}
           </span>
         );
@@ -2094,6 +2127,7 @@ const IOSection = memo(({
   sharedColumnWidths,
   sharedCollapsedColumnWidths, // Tighter widths for collapsed view only
   onColumnResize, // Handler for column resize
+  anchorSourceColors, // Map of anchorId -> hex color for source field highlighting
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2395,6 +2429,9 @@ const IOSection = memo(({
       const spacing = port.spacing || 0;
       // Use cached style for common values, create new for custom spacing
       const style = spacingStyleCache[spacing] || { marginTop: `${spacing}px` };
+      const anchorId = `${nodeId}-${port.id}`;
+      // Get source color from incoming wire (for INPUT ports)
+      const sourceColor = anchorSourceColors?.get(anchorId);
 
       return (
         <div key={port.id} style={style}>
@@ -2404,8 +2441,8 @@ const IOSection = memo(({
             anchorSide={anchorSide}
             onUpdate={(updates) => updatePort(port.id, updates)}
             onDelete={() => deletePort(port.id)}
-            anchorId={`${nodeId}-${port.id}`}
-            isActive={activeWire?.from === `${nodeId}-${port.id}`}
+            anchorId={anchorId}
+            isActive={activeWire?.from === anchorId}
             onAnchorClick={onAnchorClick}
             canToggleAnchor={canToggleAnchor}
             onToggleAnchor={onToggleAnchorSide}
@@ -2417,11 +2454,12 @@ const IOSection = memo(({
             colors={colors}
             connectedAnchorIds={connectedAnchorIds}
             onSpacingMouseDown={handleSpacingMouseDown}
+            sourceColor={sourceColor}
           />
         </div>
       );
     })
-  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown]);
+  ), [spacingStyleCache, portType, anchorSide, nodeId, activeWire, onAnchorClick, type, canToggleAnchor, onToggleAnchorSide, columnOrder, columnWidths, selectedPorts, colors, connectedAnchorIds, updatePort, deletePort, togglePortSelection, bulkUpdatePorts, handleSpacingMouseDown, anchorSourceColors]);
 
   return (
     <div className="flex flex-col border-t border-zinc-700/50 shrink-0 w-full">
@@ -2468,21 +2506,25 @@ const IOSection = memo(({
           )}
 
           {/* Collapsed port rows - uses COMPACT widths */}
-          {data.ports.map(port => (
-            <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
-              <CollapsedPortRow
-                port={port}
-                type={portType}
-                anchorSide={anchorSide}
-                anchorId={`${nodeId}-${port.id}`}
-                onAnchorClick={onAnchorClick}
-                selectedColumns={collapsedColumns}
-                columnWidths={collapsedColumnWidths}
-                connectedAnchorIds={connectedAnchorIds}
-                onSpacingMouseDown={handleSpacingMouseDown}
-              />
-            </div>
-          ))}
+          {data.ports.map(port => {
+            const anchorId = `${nodeId}-${port.id}`;
+            return (
+              <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
+                <CollapsedPortRow
+                  port={port}
+                  type={portType}
+                  anchorSide={anchorSide}
+                  anchorId={anchorId}
+                  onAnchorClick={onAnchorClick}
+                  selectedColumns={collapsedColumns}
+                  columnWidths={collapsedColumnWidths}
+                  connectedAnchorIds={connectedAnchorIds}
+                  onSpacingMouseDown={handleSpacingMouseDown}
+                  sourceColor={anchorSourceColors?.get(anchorId)}
+                />
+              </div>
+            );
+          })}
         </div>
       ) : (
         <>
@@ -3307,7 +3349,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -3414,6 +3456,21 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     // Merge custom widths - custom widths override calculated for collapsed view
     return { ...calculated, ...customColumnWidths };
   }, [allPorts, customColumnWidths]);
+
+  // Pre-compute source colors for INPUT anchors (anchorId -> hex color)
+  // Used to highlight the "Source" field with the color of the incoming wire
+  const anchorSourceColors = useMemo(() => {
+    if (!connections || !connectionColorMap) return new Map();
+    const map = new Map();
+    connections.forEach(conn => {
+      // conn.to is the INPUT anchor receiving the signal
+      if (conn.to && conn.to.startsWith(node.id + '-')) {
+        const color = connectionColorMap.get(conn.id);
+        if (color) map.set(conn.to, color);
+      }
+    });
+    return map;
+  }, [connections, connectionColorMap, node.id]);
 
   // Calculate total widths for INPUT and OUTPUT sections (for center divider alignment)
   // When side-by-side, sections have: spacing(20) + anchor(24) + delete(32) + port(52) + source/dest(dynamic) + connector(dynamic) + resolution(dynamic) + rate(dynamic)
@@ -4237,6 +4294,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             onColumnResize={handleColumnResize}
+            anchorSourceColors={anchorSourceColors}
           />
         );
       case 'output':
@@ -4274,7 +4332,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds,
     sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
-    leftSectionWidth, rightSectionWidth, handleColumnResize
+    leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors
   ]);
 
   // Handle click to select (shift+click to add to selection)
