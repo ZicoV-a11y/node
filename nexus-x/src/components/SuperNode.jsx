@@ -70,33 +70,16 @@ const CONNECTOR_TYPES = [
   'HDMI', 'SDI', '12G SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
 ];
 
-// Signal colors in ranked priority order (1 = most preferred)
+// Signal colors - 8 color palette (must match App.jsx)
 const SIGNAL_COLORS = [
-  { id: 'crimson', hex: '#e63946', label: 'Crimson' },
-  { id: 'vermilion', hex: '#d62828', label: 'Vermilion' },
-  { id: 'raspberry', hex: '#c9184a', label: 'Raspberry' },
-  { id: 'rose', hex: '#db5075', label: 'Rose' },
-  { id: 'maroon', hex: '#9b2226', label: 'Maroon' },
-  { id: 'marigold', hex: '#ff9f1c', label: 'Marigold' },
-  { id: 'burnt-orange', hex: '#d4700a', label: 'Burnt Orange' },
-  { id: 'antique-gold', hex: '#c4a35a', label: 'Antique Gold' },
-  { id: 'bronze', hex: '#bb7733', label: 'Bronze' },
-  { id: 'saddle', hex: '#a4641e', label: 'Saddle' },
-  { id: 'lime', hex: '#8ac926', label: 'Lime' },
-  { id: 'kelly-green', hex: '#38b000', label: 'Kelly Green' },
-  { id: 'fern', hex: '#6a994e', label: 'Fern' },
-  { id: 'forest', hex: '#2d6a4f', label: 'Forest' },
-  { id: 'olive', hex: '#606c38', label: 'Olive' },
-  { id: 'cornflower', hex: '#4895ef', label: 'Cornflower' },
-  { id: 'cerulean', hex: '#219ebc', label: 'Cerulean' },
-  { id: 'aqua', hex: '#2ec4b6', label: 'Aqua' },
-  { id: 'ocean', hex: '#168aad', label: 'Ocean' },
-  { id: 'deep-teal', hex: '#087e8b', label: 'Deep Teal' },
-  { id: 'ultraviolet', hex: '#8338ec', label: 'Ultraviolet' },
-  { id: 'indigo', hex: '#5e60ce', label: 'Indigo' },
-  { id: 'plum', hex: '#7b2d8e', label: 'Plum' },
-  { id: 'amethyst', hex: '#6c63a0', label: 'Amethyst' },
-  { id: 'midnight', hex: '#1d3557', label: 'Midnight' },
+  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
+  { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
+  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
+  { id: 'violet', hex: '#8b5cf6', label: 'Violet' },
+  { id: 'pink', hex: '#ec4899', label: 'Pink' },
+  { id: 'red', hex: '#ef4444', label: 'Red' },
+  { id: 'orange', hex: '#f97316', label: 'Orange' },
+  { id: 'yellow', hex: '#eab308', label: 'Yellow' },
 ];
 
 // Signal colors lookup Map for O(1) access by id
@@ -2933,10 +2916,15 @@ SystemSection.displayName = 'SystemSection';
 // TITLE BAR COMPONENT
 // ============================================
 
-const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePreset, userSubcategories }) => {
+const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePreset, userSubcategories, onSettingsToggle }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLibraryMenu, setShowLibraryMenu] = useState(false);
   const settingsRef = useRef(null);
+
+  // Notify parent when settings dropdown opens/closes (for z-index)
+  useEffect(() => {
+    onSettingsToggle?.(showSettings);
+  }, [showSettings, onSettingsToggle]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -3256,6 +3244,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
               { id: 'switcher', label: 'Switcher' },
               { id: 'source', label: 'Source' },
               { id: 'destination', label: 'Destination' },
+              { id: 'converter', label: 'Converter' },
             ].map(role => {
               const roles = node.deviceRoles || [];
               const isChecked = roles.includes(role.id);
@@ -3347,6 +3336,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, scale: 1 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Section drag state
   const [draggedSection, setDraggedSection] = useState(null);
@@ -4453,9 +4443,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
   }, [isSelected, isDragging, isResizing]);
 
   // Memoized zIndex calculation (prevents ternary chain on every render)
+  // settingsOpen state used to raise z-index when dropdown is open
   const wrapperZIndex = useMemo(() =>
-    isDragging || isResizing ? 100 : isSelected ? 80 : 70,
-    [isDragging, isResizing, isSelected]
+    settingsOpen ? 1000 : isDragging || isResizing ? 100 : isSelected ? 80 : 70,
+    [settingsOpen, isDragging, isResizing, isSelected]
   );
 
   // Memoized transform string (prevents template literal creation on every render)
@@ -4492,6 +4483,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         usedSignalColors={usedSignalColors}
         onSavePreset={onSavePreset}
         userSubcategories={userSubcategories}
+        onSettingsToggle={setSettingsOpen}
       />
 
       {/* Row-based layout */}

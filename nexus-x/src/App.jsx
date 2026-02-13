@@ -19,6 +19,7 @@ const ZOOM_BOUNDS = { MIN: 0.05, MAX: 8 };
 const ZOOM_STEP = { IN: 1.2, OUT: 0.8 };
 const ESTIMATED_NODE_SIZE = { WIDTH: 200, HEIGHT: 150 }; // For fitView calculations
 
+// Signal colors - must match SuperNode.jsx
 const SIGNAL_COLORS = [
   { id: 'emerald', hex: '#10b981' },
   { id: 'cyan', hex: '#06b6d4' },
@@ -34,8 +35,9 @@ const SIGNAL_COLORS = [
 const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
 const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
 
-// Extract nodeId from anchorId (format: "node-123-portId" -> "node-123")
-const getNodeIdFromAnchor = (anchorId) => anchorId.split('-').slice(0, -1).join('-');
+// Extract nodeId from anchorId (format: "node-12345-in-67890" -> "node-12345")
+// Node IDs always have 2 segments: "node-TIMESTAMP"
+const getNodeIdFromAnchor = (anchorId) => anchorId.split('-').slice(0, 2).join('-');
 
 // Dash patterns for enhanced wires
 const DASH_PATTERNS = [
@@ -805,6 +807,7 @@ export default function App() {
   }, [selectedNodes]);
 
   // Get source node for an anchor (finds the originating source of a signal)
+  // Traces back through the signal chain to find the node that has a signal color
   const getSourceNode = useCallback((anchorId, visited = new Set()) => {
     if (visited.has(anchorId)) return null;
     visited.add(anchorId);
@@ -817,8 +820,13 @@ export default function App() {
     // If this node has a signal color, it's the source
     if (node.signalColor) return node;
 
-    // Otherwise, trace back through input connections
-    const inputConn = connections.find(c => c.to === anchorId);
+    // Find any INPUT connection to this node (any anchor belonging to this node)
+    // This handles the case where we're checking from an output anchor
+    const inputConn = connections.find(c => {
+      const toNodeId = getNodeIdFromAnchor(c.to);
+      return toNodeId === nodeId;
+    });
+
     if (inputConn) {
       return getSourceNode(inputConn.from, visited);
     }
@@ -827,19 +835,23 @@ export default function App() {
   }, [nodes, connections]);
 
   // Get signal color for a connection
+  // Only "source" device types generate wire colors
   const getConnectionColor = useCallback((conn) => {
     const sourceAnchorId = conn.from;
     const nodeId = getNodeIdFromAnchor(sourceAnchorId);
     const node = nodes[nodeId];
 
-    if (node?.signalColor) {
+    // Check if this node is a "source" device type and has a signal color
+    const isSource = node?.deviceRoles?.includes('source');
+    if (isSource && node?.signalColor) {
       return SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex || '#22d3ee';
     }
 
-    // Try to trace back to source
-    const sourceNode = getSourceNode(conn.from);
-    if (sourceNode?.signalColor) {
-      return SIGNAL_COLORS.find(c => c.id === sourceNode.signalColor)?.hex || '#22d3ee';
+    // Try to trace back to find a source device type upstream
+    const upstreamSource = getSourceNode(conn.from);
+    const isUpstreamSource = upstreamSource?.deviceRoles?.includes('source');
+    if (isUpstreamSource && upstreamSource?.signalColor) {
+      return SIGNAL_COLORS.find(c => c.id === upstreamSource.signalColor)?.hex || '#22d3ee';
     }
 
     return '#22d3ee'; // Default cyan
@@ -862,11 +874,12 @@ export default function App() {
   }, [nodes]);
 
   // Pre-compute wire colors to avoid recursive graph traversal per wire per render
+  // Depends on nodes because signal colors can change
   const connectionColorMap = useMemo(() => {
     const map = new Map();
     connections.forEach(conn => map.set(conn.id, getConnectionColor(conn)));
     return map;
-  }, [connections, getConnectionColor]);
+  }, [connections, getConnectionColor, nodes]);
 
   // Pre-compute anchor theme colors to avoid lookups during render
   const anchorThemeColors = useMemo(() => {
