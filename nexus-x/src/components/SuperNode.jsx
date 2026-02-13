@@ -1105,16 +1105,18 @@ const PortRow = memo(({
     return COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
 
-  // Row style with source color background (from incoming wire) or hover color
+  // Row style with source color background (from incoming wire or source name lookup)
   const rowStyle = useMemo(() => {
     if (isAnchorHovered) {
       return { backgroundColor: randomHoverColor };
     }
-    if (sourceColor) {
-      return { backgroundColor: `${sourceColor}15` }; // 15 = ~8% opacity for subtle row tint
+    // First check direct wire color, then look up by source name
+    const effectiveColor = sourceColor || (port.source && sourceNamesWithColors?.get(port.source));
+    if (effectiveColor) {
+      return { backgroundColor: `${effectiveColor}15` }; // 15 = ~8% opacity for subtle row tint
     }
     return {};
-  }, [isAnchorHovered, randomHoverColor, sourceColor]);
+  }, [isAnchorHovered, randomHoverColor, sourceColor, port.source, sourceNamesWithColors]);
 
   return (
     <div
@@ -1574,6 +1576,7 @@ const CollapsedPortRow = memo(({
   connectedAnchorIds,
   onSpacingMouseDown,
   sourceColor, // Hex color from incoming wire (for INPUT source field highlighting)
+  sourceNamesWithColors, // Map of sourceName -> hex color for color lookup
 }) => {
   const isOutput = type === 'out';
   const isReversed = anchorSide === 'right';
@@ -1674,12 +1677,14 @@ const CollapsedPortRow = memo(({
   };
 
   // Row style with source color background
+  // Row style with source color (from wire or source name lookup)
   const rowStyle = useMemo(() => {
-    if (sourceColor) {
-      return { backgroundColor: `${sourceColor}15` }; // 15 = ~8% opacity for subtle row tint
+    const effectiveColor = sourceColor || (port.source && sourceNamesWithColors?.get(port.source));
+    if (effectiveColor) {
+      return { backgroundColor: `${effectiveColor}15` }; // 15 = ~8% opacity for subtle row tint
     }
     return {};
-  }, [sourceColor]);
+  }, [sourceColor, port.source, sourceNamesWithColors]);
 
   return (
     <div
@@ -2562,6 +2567,7 @@ const IOSection = memo(({
                   connectedAnchorIds={connectedAnchorIds}
                   onSpacingMouseDown={handleSpacingMouseDown}
                   sourceColor={anchorSourceColors?.get(anchorId)}
+                  sourceNamesWithColors={sourceNamesWithColors}
                 />
               </div>
             );
