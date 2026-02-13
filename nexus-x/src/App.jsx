@@ -21,6 +21,7 @@ const ESTIMATED_NODE_SIZE = { WIDTH: 200, HEIGHT: 150 }; // For fitView calculat
 
 // Signal colors - must match SuperNode.jsx
 const SIGNAL_COLORS = [
+  // Primary colors
   { id: 'emerald', hex: '#10b981' },
   { id: 'cyan', hex: '#06b6d4' },
   { id: 'blue', hex: '#3b82f6' },
@@ -29,6 +30,15 @@ const SIGNAL_COLORS = [
   { id: 'red', hex: '#ef4444' },
   { id: 'orange', hex: '#f97316' },
   { id: 'yellow', hex: '#eab308' },
+  // Extended colors
+  { id: 'lime', hex: '#84cc16' },
+  { id: 'teal', hex: '#14b8a6' },
+  { id: 'sky', hex: '#0ea5e9' },
+  { id: 'indigo', hex: '#6366f1' },
+  { id: 'fuchsia', hex: '#d946ef' },
+  { id: 'rose', hex: '#f43f5e' },
+  { id: 'amber', hex: '#f59e0b' },
+  { id: 'slate', hex: '#64748b' },
 ];
 
 // Signal colors lookup Map for O(1) access by id

@@ -20,6 +20,7 @@ const CONNECTOR_TYPES = [
 ];
 
 const SIGNAL_COLORS = [
+  // Primary colors
   { id: 'emerald', hex: '#10b981', label: 'Emerald' },
   { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
   { id: 'blue', hex: '#3b82f6', label: 'Blue' },
@@ -28,6 +29,15 @@ const SIGNAL_COLORS = [
   { id: 'red', hex: '#ef4444', label: 'Red' },
   { id: 'orange', hex: '#f97316', label: 'Orange' },
   { id: 'yellow', hex: '#eab308', label: 'Yellow' },
+  // Extended colors
+  { id: 'lime', hex: '#84cc16', label: 'Lime' },
+  { id: 'teal', hex: '#14b8a6', label: 'Teal' },
+  { id: 'sky', hex: '#0ea5e9', label: 'Sky' },
+  { id: 'indigo', hex: '#6366f1', label: 'Indigo' },
+  { id: 'fuchsia', hex: '#d946ef', label: 'Fuchsia' },
+  { id: 'rose', hex: '#f43f5e', label: 'Rose' },
+  { id: 'amber', hex: '#f59e0b', label: 'Amber' },
+  { id: 'slate', hex: '#64748b', label: 'Slate' },
 ];
 
 // Column definitions for port rows
