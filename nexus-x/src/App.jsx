@@ -485,6 +485,7 @@ export default function App() {
 
   // Cable prompt state
   const [cablePromptData, setCablePromptData] = useState(null);
+  const lastCableDataRef = useRef(null); // Remember last wire settings for new connections
 
   // Project identity
   const [projectName, setProjectName] = useState('Untitled Project');
@@ -1081,10 +1082,12 @@ export default function App() {
 
           if (!exists) {
             // Show cable prompt instead of creating connection immediately
+            // Pre-fill with last used cable settings
             setCablePromptData({
               mode: 'create',
               from: fromAnchor,
-              to: toAnchor
+              to: toAnchor,
+              initialData: lastCableDataRef.current
             });
           }
         }
@@ -1137,6 +1140,13 @@ export default function App() {
         length: cableData.cableLength || '',  // Also store as 'length' for label display
         rpCode: cableData.rpCode || '',
         description: cableData.description || '',
+        fontSize: cableData.fontSize || 10
+      };
+
+      // Remember these settings for next wire
+      lastCableDataRef.current = {
+        cableType: cableData.cableType || '',
+        cableLength: cableData.cableLength || '',
         fontSize: cableData.fontSize || 10
       };
 
@@ -2731,7 +2741,7 @@ export default function App() {
           key={cablePromptData.connectionId || 'new'}
           onSubmit={handleCablePromptSubmit}
           onCancel={handleCablePromptCancel}
-          initialData={cablePromptData.mode === 'edit' ? cablePromptData.initialData : null}
+          initialData={cablePromptData.initialData || null}
         />
       )}
     </div>
