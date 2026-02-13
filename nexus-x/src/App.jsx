@@ -983,22 +983,25 @@ export default function App() {
       }
     });
 
-    // Second pass: collect source names from all nodes
+    // Second pass: collect source names WITH colors from input ports first
+    // This ensures colors are captured before we see the same name elsewhere
     Object.values(nodes).forEach(node => {
-      // From input ports
       (node.inputSection?.ports || []).forEach(port => {
         if (port.source) {
           const anchorId = `${node.id}-${port.id}`;
           const color = anchorColors.get(anchorId);
-          // Only update if we have a color or if name not yet in map
-          if (color && !map.has(port.source)) {
+          // If we have a color, always set it (override null if already exists)
+          if (color) {
             map.set(port.source, color);
           } else if (!map.has(port.source)) {
             map.set(port.source, null);
           }
         }
       });
-      // From output ports
+    });
+
+    // Third pass: add any remaining source names from output ports (without overriding colors)
+    Object.values(nodes).forEach(node => {
       (node.outputSection?.ports || []).forEach(port => {
         if (port.source && !map.has(port.source)) {
           map.set(port.source, null);
