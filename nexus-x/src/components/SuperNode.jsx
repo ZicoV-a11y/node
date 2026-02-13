@@ -1079,14 +1079,16 @@ const PortRow = memo(({
     return COLUMN_DEFS[colId]?.minWidth || 60;
   }, [columnWidths]);
 
-  // Row style with hover background color
+  // Row style with source color background (from incoming wire) or hover color
   const rowStyle = useMemo(() => {
     if (isAnchorHovered) {
-      console.log('✨ APPLYING ROW COLOR - Port', port.number, 'Color:', randomHoverColor);
       return { backgroundColor: randomHoverColor };
     }
+    if (sourceColor) {
+      return { backgroundColor: `${sourceColor}15` }; // 15 = ~8% opacity for subtle row tint
+    }
     return {};
-  }, [isAnchorHovered, randomHoverColor, port.number]);
+  }, [isAnchorHovered, randomHoverColor, sourceColor]);
 
   return (
     <div
@@ -1645,8 +1647,19 @@ const CollapsedPortRow = memo(({
     }
   };
 
+  // Row style with source color background
+  const rowStyle = useMemo(() => {
+    if (sourceColor) {
+      return { backgroundColor: `${sourceColor}15` }; // 15 = ~8% opacity for subtle row tint
+    }
+    return {};
+  }, [sourceColor]);
+
   return (
-    <div className="flex items-center w-full py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity">
+    <div
+      className="flex items-center w-full py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity"
+      style={rowStyle}
+    >
       {/* Spacing handle on LEFT (inside) when reversed (INPUT on right in side-by-side) */}
       {isReversed && spacingHandle}
 
@@ -2368,11 +2381,11 @@ const IOSection = memo(({
   }, [data.ports, cards, onUpdate]);
 
   // Get column order from data or use default
-  // Conditionally include 'source' for inputs or 'destination' for outputs
+  // Both INPUT and OUTPUT now have source column; OUTPUT also has destination
   const columnOrder = useMemo(() => {
     const baseColumns = sectionType === 'input'
       ? ['delete', 'port', 'source', 'connector', 'resolution', 'rate']
-      : ['delete', 'port', 'destination', 'connector', 'resolution', 'rate'];
+      : ['delete', 'port', 'source', 'destination', 'connector', 'resolution', 'rate'];
 
     // Ensure all required columns are present (in case saved order is missing new columns like 'delete')
     const savedOrder = data.columnOrder || [];
