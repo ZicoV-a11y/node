@@ -1638,15 +1638,18 @@ const CollapsedPortRow = memo(({
             {isOutput ? 'OUT' : 'IN'} {port.number}
           </span>
         );
-      case 'source':
+      case 'source': {
+        // Get color from wire or look up by source name
+        const fieldColor = sourceColor || (port.source && sourceNamesWithColors?.get(port.source));
         return (
           <span
             className="font-mono text-white truncate px-1 rounded"
-            style={sourceColor ? { backgroundColor: `${sourceColor}25`, border: `1px solid ${sourceColor}` } : undefined}
+            style={fieldColor ? { backgroundColor: `${fieldColor}25`, border: `1px solid ${fieldColor}` } : undefined}
           >
             {port.source || ''}
           </span>
         );
+      }
       case 'destination':
         return (
           <span className="font-mono text-white truncate">
