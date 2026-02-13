@@ -354,6 +354,94 @@ export default function App() {
   const [nodes, setNodes] = useState({});
   const [connections, setConnections] = useState([]);
 
+  // Undo/Redo history
+  const [history, setHistory] = useState([]);
+  const [future, setFuture] = useState([]);
+  const isUndoingRef = useRef(false);
+  const lastStateRef = useRef(null);
+  const HISTORY_LIMIT = 50;
+
+  // Debounced history capture - records state after changes settle
+  const historyTimeoutRef = useRef(null);
+  const pendingStateRef = useRef(null);
+
+  // Capture state changes with debounce (500ms)
+  useEffect(() => {
+    if (isUndoingRef.current) return;
+
+    const currentState = { nodes, connections };
+    const stateStr = JSON.stringify(currentState);
+
+    // Skip if identical to last recorded state
+    if (lastStateRef.current === stateStr) return;
+
+    // Store pending state
+    pendingStateRef.current = currentState;
+
+    // Clear existing timeout
+    if (historyTimeoutRef.current) {
+      clearTimeout(historyTimeoutRef.current);
+    }
+
+    // Set new timeout - commit to history after 500ms of no changes
+    historyTimeoutRef.current = setTimeout(() => {
+      if (pendingStateRef.current && !isUndoingRef.current) {
+        const stateToSave = pendingStateRef.current;
+        const saveStr = JSON.stringify(stateToSave);
+        if (lastStateRef.current !== saveStr) {
+          // Save previous state (before current changes) to history
+          if (lastStateRef.current) {
+            const previousState = JSON.parse(lastStateRef.current);
+            setHistory(prev => {
+              const newHistory = [...prev, previousState];
+              if (newHistory.length > HISTORY_LIMIT) {
+                return newHistory.slice(-HISTORY_LIMIT);
+              }
+              return newHistory;
+            });
+            setFuture([]); // Clear redo stack on new action
+          }
+          lastStateRef.current = saveStr;
+        }
+        pendingStateRef.current = null;
+      }
+    }, 500);
+
+    return () => {
+      if (historyTimeoutRef.current) {
+        clearTimeout(historyTimeoutRef.current);
+      }
+    };
+  }, [nodes, connections]);
+
+  // Undo - restore previous state
+  const undo = useCallback(() => {
+    if (history.length === 0) return;
+    isUndoingRef.current = true;
+    const currentState = { nodes, connections };
+    const previousState = history[history.length - 1];
+    setFuture(prev => [...prev, currentState]);
+    setHistory(prev => prev.slice(0, -1));
+    setNodes(previousState.nodes);
+    setConnections(previousState.connections);
+    lastStateRef.current = JSON.stringify(previousState);
+    setTimeout(() => { isUndoingRef.current = false; }, 50);
+  }, [history, nodes, connections]);
+
+  // Redo - restore next state
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    isUndoingRef.current = true;
+    const currentState = { nodes, connections };
+    const nextState = future[future.length - 1];
+    setHistory(prev => [...prev, currentState]);
+    setFuture(prev => prev.slice(0, -1));
+    setNodes(nextState.nodes);
+    setConnections(nextState.connections);
+    lastStateRef.current = JSON.stringify(nextState);
+    setTimeout(() => { isUndoingRef.current = false; }, 50);
+  }, [future, nodes, connections]);
+
   // User-created presets (saved by dragging nodes to library)
   const [userPresets, setUserPresets] = useState({});
 
@@ -1315,6 +1403,24 @@ export default function App() {
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
+      // Cmd/Ctrl+Z — undo (Shift for redo)
+      if (mod && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+Y — redo (alternative)
+      if (mod && key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       // Cmd/Ctrl+C — copy selected nodes
       if (mod && key === 'c') {
         console.log('Ctrl+C pressed, selectedNodes:', selectedNodes.size);
@@ -1439,7 +1545,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize]);
+  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
@@ -1876,6 +1982,32 @@ export default function App() {
               title="Reset — clear everything and start fresh"
             >
               ↻
+            </button>
+            <div className="h-4 border-l border-zinc-700" />
+            {/* Undo/Redo */}
+            <button
+              onClick={() => { undo(); }}
+              disabled={history.length === 0}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                history.length === 0
+                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="Undo (Ctrl+Z)"
+            >
+              ↶
+            </button>
+            <button
+              onClick={() => { redo(); }}
+              disabled={future.length === 0}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                future.length === 0
+                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="Redo (Ctrl+Shift+Z)"
+            >
+              ↷
             </button>
             <div className="h-4 border-l border-zinc-700" />
             <button
