@@ -922,8 +922,39 @@ export default function App() {
     return null;
   }, [nodes, connections]);
 
+  // Build a map of source names to colors from INPUT ports with wire connections
+  // This is built first so it can be used by getConnectionColor
+  const sourceNameToColor = useMemo(() => {
+    const map = new Map();
+    // First, collect all wire colors by anchor ID
+    const anchorColors = new Map();
+    connections.forEach(conn => {
+      const fromNodeId = getNodeIdFromAnchor(conn.from);
+      const fromNode = nodes[fromNodeId];
+      // Get color from source device
+      const isSource = fromNode?.deviceRoles?.includes('source');
+      if (isSource && fromNode?.signalColor) {
+        const color = SIGNAL_COLORS.find(c => c.id === fromNode.signalColor)?.hex;
+        if (color) anchorColors.set(conn.to, color);
+      }
+    });
+    // Then, map source names to colors from input ports
+    Object.values(nodes).forEach(node => {
+      (node.inputSection?.ports || []).forEach(port => {
+        if (port.source) {
+          const anchorId = `${node.id}-${port.id}`;
+          const color = anchorColors.get(anchorId);
+          if (color) {
+            map.set(port.source, color);
+          }
+        }
+      });
+    });
+    return map;
+  }, [nodes, connections]);
+
   // Get signal color for a connection
-  // Only "source" device types generate wire colors
+  // Checks: 1) source device, 2) upstream source, 3) output port's source field
   const getConnectionColor = useCallback((conn) => {
     const sourceAnchorId = conn.from;
     const nodeId = getNodeIdFromAnchor(sourceAnchorId);
@@ -942,8 +973,17 @@ export default function App() {
       return SIGNAL_COLORS.find(c => c.id === upstreamSource.signalColor)?.hex || '#22d3ee';
     }
 
+    // Check if the output port has a source field with a known color
+    // This handles pass-through devices like switchers/routers
+    const portId = sourceAnchorId.replace(`${nodeId}-`, '');
+    const outputPort = node?.outputSection?.ports?.find(p => p.id === portId);
+    if (outputPort?.source) {
+      const sourceColor = sourceNameToColor.get(outputPort.source);
+      if (sourceColor) return sourceColor;
+    }
+
     return '#22d3ee'; // Default cyan
-  }, [nodes, getSourceNode]);
+  }, [nodes, getSourceNode, sourceNameToColor]);
 
   // Pre-compute connected anchor IDs for O(1) lookup instead of O(connections) per anchor
   const connectedAnchorIds = useMemo(() => {
