@@ -1,5 +1,18 @@
 import { useState } from 'react';
 
+// Wire colors - matches SIGNAL_COLORS in App.jsx
+const WIRE_COLORS = [
+  { id: 'auto', hex: null, label: 'Auto (from source)' },
+  { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
+  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
+  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
+  { id: 'violet', hex: '#8b5cf6', label: 'Violet' },
+  { id: 'pink', hex: '#ec4899', label: 'Pink' },
+  { id: 'red', hex: '#ef4444', label: 'Red' },
+  { id: 'orange', hex: '#f97316', label: 'Orange' },
+  { id: 'yellow', hex: '#eab308', label: 'Yellow' },
+];
+
 const CABLE_TYPES = [
   'HDMI 2.0',
   'HDMI 2.1',
@@ -84,6 +97,7 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
   const [rpCode, setRpCode] = useState(initialData?.rpCode || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [fontSize, setFontSize] = useState(initialData?.fontSize || 6);
+  const [wireColor, setWireColor] = useState(initialData?.wireColor || 'auto');
 
   const isCustomType = cableType === 'Custom...';
   const finalCableType = isCustomType ? customType : cableType;
@@ -98,7 +112,8 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
       cableLength: finalLength,
       rpCode,
       description,
-      fontSize
+      fontSize,
+      wireColor: wireColor === 'auto' ? null : wireColor
     });
   };
 
@@ -245,6 +260,35 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Wire Color Override */}
+          <div>
+            <label className="block text-xs font-mono text-zinc-300 mb-1.5">
+              Wire Color
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {WIRE_COLORS.map((color) => (
+                <button
+                  key={color.id}
+                  type="button"
+                  onClick={() => setWireColor(color.id)}
+                  className={`w-8 h-8 rounded border-2 transition-all ${
+                    wireColor === color.id
+                      ? 'border-white scale-110'
+                      : 'border-zinc-600 hover:border-zinc-400'
+                  }`}
+                  style={{
+                    backgroundColor: color.hex || '#3f3f46',
+                    background: color.id === 'auto' ? 'linear-gradient(135deg, #06b6d4 25%, #ec4899 50%, #10b981 75%)' : color.hex
+                  }}
+                  title={color.label}
+                />
+              ))}
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-1">
+              {wireColor === 'auto' ? 'Color will follow source signal' : `Override: ${WIRE_COLORS.find(c => c.id === wireColor)?.label}`}
+            </p>
           </div>
 
           {/* Buttons */}

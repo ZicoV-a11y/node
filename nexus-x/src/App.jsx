@@ -1004,9 +1004,27 @@ export default function App() {
 
   // Pre-compute wire colors to avoid recursive graph traversal per wire per render
   // Depends on nodes because signal colors can change
+  // Wire color override takes precedence over automatic color
   const connectionColorMap = useMemo(() => {
     const map = new Map();
-    connections.forEach(conn => map.set(conn.id, getConnectionColor(conn)));
+    const colorIdToHex = {
+      cyan: '#06b6d4',
+      emerald: '#10b981',
+      blue: '#3b82f6',
+      violet: '#8b5cf6',
+      pink: '#ec4899',
+      red: '#ef4444',
+      orange: '#f97316',
+      yellow: '#eab308',
+    };
+    connections.forEach(conn => {
+      // Use manual override if set, otherwise auto-detect
+      if (conn.wireColor && colorIdToHex[conn.wireColor]) {
+        map.set(conn.id, colorIdToHex[conn.wireColor]);
+      } else {
+        map.set(conn.id, getConnectionColor(conn));
+      }
+    });
     return map;
   }, [connections, getConnectionColor, nodes]);
 
@@ -1121,7 +1139,8 @@ export default function App() {
             length: cableData.cableLength || '',  // Also store as 'length' for label display
             rpCode: cableData.rpCode || '',
             description: cableData.description || '',
-            fontSize: cableData.fontSize || 10
+            fontSize: cableData.fontSize || 10,
+            wireColor: cableData.wireColor || null
           };
         }
         return conn;
@@ -1140,14 +1159,16 @@ export default function App() {
         length: cableData.cableLength || '',  // Also store as 'length' for label display
         rpCode: cableData.rpCode || '',
         description: cableData.description || '',
-        fontSize: cableData.fontSize || 10
+        fontSize: cableData.fontSize || 10,
+        wireColor: cableData.wireColor || null  // Color override (null = auto from source)
       };
 
       // Remember these settings for next wire
       lastCableDataRef.current = {
         cableType: cableData.cableType || '',
         cableLength: cableData.cableLength || '',
-        fontSize: cableData.fontSize || 10
+        fontSize: cableData.fontSize || 10,
+        wireColor: cableData.wireColor || null
       };
 
       setConnections(prev => [...prev, newConnection]);
@@ -1205,7 +1226,8 @@ export default function App() {
         cableLength: connection.cableLength,
         rpCode: connection.rpCode,
         description: connection.description,
-        fontSize: connection.fontSize || 10
+        fontSize: connection.fontSize || 10,
+        wireColor: connection.wireColor || null
       }
     });
   };
