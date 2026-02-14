@@ -51,7 +51,7 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
   const scaledFontSize = fontSize / zoom;
   const padding = 2 / zoom;
 
-  // Stop all clicks from propagating to canvas
+  // Stop clicks only when editing to prevent canvas interaction
   const stopClick = useCallback((e) => {
     e.stopPropagation();
   }, []);
@@ -60,9 +60,6 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
     <foreignObject x={x} y={y} width={width} height={height} style={{ overflow: 'visible' }}>
       <div
         xmlns="http://www.w3.org/1999/xhtml"
-        onClick={stopClick}
-        onMouseDown={stopClick}
-        onMouseUp={stopClick}
         style={{
           width: '100%',
           height: '100%',
@@ -98,9 +95,8 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
           />
         ) : (
           <span
-            onClick={stopClick}
-            onMouseDown={stopClick}
             onDoubleClick={handleDoubleClick}
+            /* Single clicks pass through for selection, only double-click edits */
             style={{
               width: '100%',
               height: '100%',
