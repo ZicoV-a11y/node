@@ -286,6 +286,91 @@ const CARD_PRESETS = {
 };
 
 // ============================================
+// PORT LABEL EDITOR COMPONENT
+// Click to edit port label, right-click to toggle selection
+// ============================================
+
+const PortLabelEditor = memo(({ value, defaultLabel, isSelected, onChange, onToggleSelection }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || '');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditValue(value || '');
+  }, [value]);
+
+  const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    setEditValue(value || '');
+    setIsEditing(true);
+  }, [value]);
+
+  const handleRightClick = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleSelection && onToggleSelection();
+  }, [onToggleSelection]);
+
+  const handleSave = useCallback(() => {
+    onChange(editValue.trim());
+    setIsEditing(false);
+  }, [editValue, onChange]);
+
+  const handleKeyDown = useCallback((e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditValue(value || '');
+      setIsEditing(false);
+    }
+  }, [handleSave, value]);
+
+  const displayLabel = value || defaultLabel;
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        onClick={(e) => e.stopPropagation()}
+        placeholder={defaultLabel}
+        className="font-mono text-center w-full bg-zinc-700 border border-cyan-500 rounded px-1 text-[11px] text-zinc-200 outline-none"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      onContextMenu={handleRightClick}
+      className={`font-mono text-center w-full cursor-text transition-colors rounded px-1 text-[11px] ${
+        isSelected
+          ? 'text-cyan-300 bg-cyan-500/20'
+          : value
+            ? 'text-zinc-200 hover:bg-zinc-700/50'
+            : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-700/50'
+      }`}
+      title={`Click to edit${value ? '' : ' • Right-click to select'}`}
+    >
+      {displayLabel}
+    </button>
+  );
+});
+PortLabelEditor.displayName = 'PortLabelEditor';
+
+// ============================================
 // SELECT WITH CUSTOM INPUT COMPONENT
 // Dropdown that switches to text input for custom values
 // ============================================
@@ -1035,21 +1120,15 @@ const PortRow = memo(({
           </button>
         );
       case 'port':
+        // Editable port label - shows custom label or default "IN/OUT X"
         return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelection && onToggleSelection();
-            }}
-            className={`font-mono text-center w-full cursor-pointer transition-colors rounded px-1 ${
-              isSelected
-                ? 'text-cyan-300 bg-cyan-500/20'
-                : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-700/50'
-            }`}
-            title={isSelected ? 'Click to deselect' : 'Click to select for bulk edit'}
-          >
-            {isInput ? 'IN' : 'OUT'} {port.number}
-          </button>
+          <PortLabelEditor
+            value={port.label || ''}
+            defaultLabel={`${isInput ? 'IN' : 'OUT'} ${port.number}`}
+            isSelected={isSelected}
+            onChange={(value) => handleFieldChange('label', value)}
+            onToggleSelection={onToggleSelection}
+          />
         );
       case 'connector':
         return (
