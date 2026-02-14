@@ -1748,7 +1748,7 @@ const CollapsedPortRow = memo(({
       case 'port':
         return (
           <span className="font-mono text-white">
-            {isOutput ? 'OUT' : 'IN'} {port.number}
+            {port.label || `${isOutput ? 'OUT' : 'IN'} ${port.number}`}
           </span>
         );
       case 'source': {
@@ -3791,16 +3791,22 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     return { ...calculated, ...customColumnWidths };
   }, [allPorts, customColumnWidths]);
 
-  // Pre-compute source colors for INPUT anchors (anchorId -> hex color)
-  // Used to highlight the "Source" field with the color of the incoming wire
+  // Pre-compute source colors for both INPUT and OUTPUT anchors (anchorId -> hex color)
+  // INPUT: highlight with color of incoming wire
+  // OUTPUT: highlight with color of outgoing wire (for source nodes like switchers)
   const anchorSourceColors = useMemo(() => {
     if (!connections || !connectionColorMap) return new Map();
     const map = new Map();
     connections.forEach(conn => {
+      const color = connectionColorMap.get(conn.id);
+      if (!color) return;
       // conn.to is the INPUT anchor receiving the signal
       if (conn.to && conn.to.startsWith(node.id + '-')) {
-        const color = connectionColorMap.get(conn.id);
-        if (color) map.set(conn.to, color);
+        map.set(conn.to, color);
+      }
+      // conn.from is the OUTPUT anchor sending the signal
+      if (conn.from && conn.from.startsWith(node.id + '-')) {
+        map.set(conn.from, color);
       }
     });
     return map;
