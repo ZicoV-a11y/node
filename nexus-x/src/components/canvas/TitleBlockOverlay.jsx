@@ -96,7 +96,8 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
         ) : (
           <span
             onDoubleClick={handleDoubleClick}
-            /* Single clicks pass through for selection, only double-click edits */
+            onMouseDown={stopClick}
+            onClick={stopClick}
             style={{
               width: '100%',
               height: '100%',
@@ -105,6 +106,7 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
               fontSize: scaledFontSize,
               fontWeight,
               fontFamily: 'Arial, sans-serif',
+              cursor: 'text',
               padding: `0 ${padding}px`,
               color: value ? '#000' : '#999',
               cursor: 'text',
