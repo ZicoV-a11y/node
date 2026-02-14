@@ -3233,17 +3233,11 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
   );
 
   // Sort colors: unused first (in priority order), used colors at bottom
-  // Show top 10 unused, or all remaining + used if fewer than 8 unused
+  // Show all colors - unused ones first, then used ones
   const sortedSignalColors = useMemo(() => {
     const unused = SIGNAL_COLORS.filter(c => !usedSignalColors?.has(c.id));
     const used = SIGNAL_COLORS.filter(c => usedSignalColors?.has(c.id));
-
-    // If 8 or fewer unused colors remain, show all of them plus used ones
-    if (unused.length <= 8) {
-      return [...unused, ...used];
-    }
-    // Otherwise show top 10 unused, then used colors
-    return [...unused.slice(0, 10), ...used];
+    return [...unused, ...used];
   }, [usedSignalColors]);
 
   // Manufacturer and Model from approved fields (displayed separately)
