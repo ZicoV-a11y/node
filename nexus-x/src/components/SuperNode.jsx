@@ -287,7 +287,7 @@ const CARD_PRESETS = {
 
 // ============================================
 // PORT LABEL EDITOR COMPONENT
-// Click to edit port label, right-click to toggle selection
+// Left-click to toggle selection, right-click to edit
 // ============================================
 
 const PortLabelEditor = memo(({ value, defaultLabel, isSelected, onChange, onToggleSelection }) => {
@@ -306,17 +306,19 @@ const PortLabelEditor = memo(({ value, defaultLabel, isSelected, onChange, onTog
     setEditValue(value || '');
   }, [value]);
 
+  // Left-click toggles selection
   const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    onToggleSelection && onToggleSelection();
+  }, [onToggleSelection]);
+
+  // Right-click opens edit mode
+  const handleRightClick = useCallback((e) => {
+    e.preventDefault();
     e.stopPropagation();
     setEditValue(value || '');
     setIsEditing(true);
   }, [value]);
-
-  const handleRightClick = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onToggleSelection && onToggleSelection();
-  }, [onToggleSelection]);
 
   const handleSave = useCallback(() => {
     onChange(editValue.trim());
@@ -355,14 +357,14 @@ const PortLabelEditor = memo(({ value, defaultLabel, isSelected, onChange, onTog
     <button
       onClick={handleClick}
       onContextMenu={handleRightClick}
-      className={`font-mono text-center w-full cursor-text transition-colors rounded px-1 text-[11px] ${
+      className={`font-mono text-center w-full cursor-pointer transition-colors rounded px-1 text-[11px] ${
         isSelected
           ? 'text-cyan-300 bg-cyan-500/20'
           : value
             ? 'text-zinc-200 hover:bg-zinc-700/50'
             : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-700/50'
       }`}
-      title={`Click to edit${value ? '' : ' • Right-click to select'}`}
+      title="Click to select • Right-click to edit"
     >
       {displayLabel}
     </button>
