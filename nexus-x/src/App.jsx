@@ -4,6 +4,7 @@ import SuperNode from './components/SuperNode';
 import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
+import TitleBlockOverlay from './components/canvas/TitleBlockOverlay';
 import CablePrompt from './components/CablePrompt';
 import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
@@ -363,6 +364,61 @@ export default function App() {
   // Canvas state (single page)
   const [nodes, setNodes] = useState({});
   const [connections, setConnections] = useState([]);
+
+  // Title block state
+  const [showTitleBlock, setShowTitleBlock] = useState(() => {
+    return localStorage.getItem('nx-showTitleBlock') === 'true';
+  });
+  const [showTitleBlockGrid, setShowTitleBlockGrid] = useState(() => {
+    const saved = localStorage.getItem('nx-showTitleBlockGrid');
+    return saved !== null ? saved === 'true' : true; // Default to true
+  });
+  const [canvasBackground, setCanvasBackground] = useState(() => {
+    return localStorage.getItem('nx-canvasBackground') || 'dark';
+  });
+  const [titleBlockData, setTitleBlockData] = useState(() => {
+    const saved = localStorage.getItem('nx-titleBlockData');
+    return saved ? JSON.parse(saved) : {
+      companyName: 'APEX',
+      drawingBy: '',
+      venue: '',
+      project: '',
+      scale: 'CUSTOM',
+      sheetNumber: '1',
+      pageSize: 'ASME B',
+      sheetTitle: '',
+    };
+  });
+
+  // Title block toggle handlers
+  const toggleTitleBlock = useCallback(() => {
+    setShowTitleBlock(prev => {
+      const next = !prev;
+      localStorage.setItem('nx-showTitleBlock', next.toString());
+      return next;
+    });
+  }, []);
+
+  const toggleTitleBlockGrid = useCallback(() => {
+    setShowTitleBlockGrid(prev => {
+      const next = !prev;
+      localStorage.setItem('nx-showTitleBlockGrid', next.toString());
+      return next;
+    });
+  }, []);
+
+  const toggleCanvasBackground = useCallback(() => {
+    setCanvasBackground(prev => {
+      const next = prev === 'dark' ? 'white' : 'dark';
+      localStorage.setItem('nx-canvasBackground', next);
+      return next;
+    });
+  }, []);
+
+  const handleTitleBlockDataChange = useCallback((data) => {
+    setTitleBlockData(data);
+    localStorage.setItem('nx-titleBlockData', JSON.stringify(data));
+  }, []);
 
   // Undo/Redo history
   const [history, setHistory] = useState([]);
@@ -2501,24 +2557,37 @@ export default function App() {
           <div
             ref={canvasRef}
             data-canvas="true"
-            className="relative bg-zinc-950"
+            className="relative"
             style={{
               width: canvasDimensions.width,
               height: canvasDimensions.height,
               overflow: 'visible',
-              backgroundImage: paperEnabled ? `
+              backgroundColor: showTitleBlock ? (canvasBackground === 'white' ? '#ffffff' : '#09090b') : '#09090b',
+              backgroundImage: (paperEnabled && !showTitleBlock) ? `
                 linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
               ` : 'none',
-              backgroundSize: paperEnabled ? '100px 100px, 100px 100px, 10px 10px, 10px 10px' : undefined
+              backgroundSize: (paperEnabled && !showTitleBlock) ? '100px 100px, 100px 100px, 10px 10px, 10px 10px' : undefined
             }}
             onClick={handleCanvasClick}
           >
           {/* Page grid overlay with per-page boundaries and margin guides */}
-          {paperEnabled && (
+          {paperEnabled && !showTitleBlock && (
             <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
+          )}
+
+          {/* Title block overlay (replaces page grid when active) */}
+          {paperEnabled && showTitleBlock && (
+            <TitleBlockOverlay
+              pages={pages}
+              zoom={zoom}
+              visible={showTitleBlock}
+              showGrid={showTitleBlockGrid}
+              titleBlockData={titleBlockData}
+              onTitleBlockDataChange={handleTitleBlockDataChange}
+            />
           )}
 
           {/* SVG Layer for Wires - z-index below nodes so dropdowns can appear above */}
@@ -2742,6 +2811,12 @@ export default function App() {
           onReset={resetView}
           snapToGrid={snapToGrid}
           onToggleSnap={toggleSnapToGrid}
+          showTitleBlock={showTitleBlock}
+          onToggleTitleBlock={toggleTitleBlock}
+          showTitleBlockGrid={showTitleBlockGrid}
+          onToggleTitleBlockGrid={toggleTitleBlockGrid}
+          canvasBackground={canvasBackground}
+          onToggleBackground={toggleCanvasBackground}
         />
         <input ref={fileInputRef} type="file" accept=".vsf,.json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
       </main>
