@@ -40,6 +40,15 @@ const SIGNAL_COLORS = [
   { id: 'rose', hex: '#f43f5e' },
   { id: 'amber', hex: '#f59e0b' },
   { id: 'slate', hex: '#64748b' },
+  // Additional colors
+  { id: 'green', hex: '#22c55e' },
+  { id: 'purple', hex: '#a855f7' },
+  { id: 'coral', hex: '#fb7185' },
+  { id: 'mint', hex: '#34d399' },
+  { id: 'gold', hex: '#fbbf24' },
+  { id: 'magenta', hex: '#e879f9' },
+  { id: 'navy', hex: '#1e40af' },
+  { id: 'bronze', hex: '#b45309' },
 ];
 
 // Signal colors lookup Map for O(1) access by id
