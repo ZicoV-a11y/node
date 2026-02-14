@@ -570,20 +570,20 @@ const CardWrapper = memo(({
   }, [onRemoveCard, card.id]);
 
   return (
-    <div className="relative">
-      {/* Colored stripe indicator on anchor side */}
+    <div className="relative mt-1 first:mt-0">
+      {/* Colored stripe indicator on anchor side - more prominent */}
       <div
-        className={`absolute top-0 bottom-0 w-1 ${isReversed ? 'right-0' : 'left-0'}`}
+        className={`absolute top-0 bottom-0 w-1.5 ${isReversed ? 'right-0' : 'left-0'} rounded-sm`}
         style={stripeStyle}
       />
 
-      {/* Card label bar - minimal, symmetric */}
+      {/* Card label bar - more visible with border */}
       <div
         className={`
           flex items-center justify-between
           py-0.5 text-[9px] font-mono
           cursor-pointer select-none
-          px-1
+          px-1 border-t border-b border-zinc-600/50
           ${isReversed ? 'flex-row-reverse' : ''}
         `}
         style={labelBarStyle}
@@ -598,7 +598,7 @@ const CardWrapper = memo(({
             ▶
           </span>
           <span className="font-bold tracking-wider" style={nameStyle}>
-            {card.name}
+            {card.displayName || card.name}
           </span>
           <span className="text-zinc-500 bg-zinc-700/50 px-1 rounded">
             {card.portCount}p
@@ -2535,10 +2535,31 @@ const IOSection = memo(({
 
   // Group ports: by cardId or standalone (null cardId)
   const standalonePorts = useMemo(() => data.ports.filter(p => !p.cardId), [data.ports]);
-  const portsByCard = useMemo(() => cards.map(card => ({
-    card,
-    ports: data.ports.filter(p => p.cardId === card.id)
-  })), [cards, data.ports]);
+
+  // Build card list with auto-numbered display names for duplicates
+  const portsByCard = useMemo(() => {
+    // Count occurrences of each card name
+    const nameCount = {};
+    const nameIndex = {};
+    cards.forEach(card => {
+      nameCount[card.name] = (nameCount[card.name] || 0) + 1;
+    });
+
+    return cards.map(card => {
+      // Track index for this card name
+      nameIndex[card.name] = (nameIndex[card.name] || 0) + 1;
+
+      // Only add number suffix if there are multiple cards with same name
+      const displayName = nameCount[card.name] > 1
+        ? `${card.name} ${nameIndex[card.name]}`
+        : card.name;
+
+      return {
+        card: { ...card, displayName },
+        ports: data.ports.filter(p => p.cardId === card.id)
+      };
+    });
+  }, [cards, data.ports]);
 
   // Calculate dynamic column widths based on port content (use shared widths if provided)
   // Expanded view: full widths with dropdown padding
@@ -2645,8 +2666,46 @@ const IOSection = memo(({
             </div>
           )}
 
-          {/* Collapsed port rows - uses COMPACT widths */}
-          {data.ports.map(port => {
+          {/* Collapsed port rows - grouped by card */}
+          {portsByCard.map(({ card, ports: cardPorts }) => (
+            <div key={card.id} className="relative mt-1 first:mt-0">
+              {/* Card indicator stripe */}
+              <div
+                className={`absolute top-0 bottom-0 w-1 ${anchorSide === 'right' ? 'right-0' : 'left-0'} rounded-sm`}
+                style={{ backgroundColor: `${colors?.hex || '#71717a'}66` }}
+              />
+              {/* Card label - compact */}
+              <div
+                className={`text-[8px] font-mono font-bold tracking-wider py-0.5 px-1 border-b border-zinc-700/50 ${anchorSide === 'right' ? 'text-right' : ''}`}
+                style={{ color: colors?.hexLight || '#a1a1aa', backgroundColor: `${colors?.hex || '#71717a'}1a` }}
+              >
+                {card.displayName || card.name}
+              </div>
+              {cardPorts.map(port => {
+                const anchorId = `${nodeId}-${port.id}`;
+                return (
+                  <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
+                    <CollapsedPortRow
+                      port={port}
+                      type={portType}
+                      anchorSide={anchorSide}
+                      anchorId={anchorId}
+                      onAnchorClick={onAnchorClick}
+                      selectedColumns={collapsedColumns}
+                      columnWidths={collapsedColumnWidths}
+                      connectedAnchorIds={connectedAnchorIds}
+                      onSpacingMouseDown={handleSpacingMouseDown}
+                      sourceColor={anchorSourceColors?.get(anchorId)}
+                      sourceNamesWithColors={sourceNamesWithColors}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Standalone ports (not in any card) */}
+          {standalonePorts.map(port => {
             const anchorId = `${nodeId}-${port.id}`;
             return (
               <div key={port.id} style={{ marginTop: `${port.spacing || 0}px` }}>
