@@ -566,6 +566,7 @@ export default function App() {
 
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
+  const [wireMousePos, setWireMousePos] = useState(null); // Mouse position for wire preview
   const [anchorLocalOffsets, setAnchorLocalOffsets] = useState({});
 
   // Wire selection state
@@ -1175,11 +1176,14 @@ export default function App() {
   const handleAnchorClick = useCallback((anchorId, direction) => {
     setActiveWire(prev => {
       if (!prev) {
-        return { from: anchorId, direction };
+        // Start new wire with empty waypoints array
+        return { from: anchorId, direction, waypoints: [] };
       } else {
         if (prev.from !== anchorId && prev.direction !== direction) {
           const fromAnchor = prev.direction === 'out' ? prev.from : anchorId;
           const toAnchor = prev.direction === 'out' ? anchorId : prev.from;
+          // Reverse waypoints if direction was swapped (user clicked output then input)
+          const waypoints = prev.direction === 'out' ? (prev.waypoints || []) : (prev.waypoints || []).slice().reverse();
 
           // Check if connection already exists
           const exists = connections.some(
@@ -1188,11 +1192,12 @@ export default function App() {
 
           if (!exists) {
             // Show cable prompt instead of creating connection immediately
-            // Pre-fill with last used cable settings
+            // Pre-fill with last used cable settings and include waypoints
             setCablePromptData({
               mode: 'create',
               from: fromAnchor,
               to: toAnchor,
+              waypoints: waypoints,
               initialData: lastCableDataRef.current
             });
           }
@@ -1239,6 +1244,7 @@ export default function App() {
         id: `wire-${Date.now()}`,
         from: cablePromptData.from,
         to: cablePromptData.to,
+        waypoints: cablePromptData.waypoints || [], // Waypoints for routing
         label: '',           // Optional wire label
         enhanced: false,     // Enhanced styling (outline, dash, animation)
         dashPattern: null,   // Dash pattern when enhanced
@@ -1261,6 +1267,7 @@ export default function App() {
 
       setConnections(prev => [...prev, newConnection]);
       setActiveWire(null);
+      setWireMousePos(null);
     }
 
     setCablePromptData(null);
@@ -1269,6 +1276,7 @@ export default function App() {
   const handleCablePromptCancel = () => {
     setCablePromptData(null);
     setActiveWire(null);
+    setWireMousePos(null);
   };
 
   // Wire click handling (for selection)
@@ -1321,11 +1329,27 @@ export default function App() {
   };
 
   // Deselect all wires (when clicking canvas) and close dropdowns
+  // When wire is active, clicking canvas places a waypoint instead of canceling
   const handleCanvasClick = (event) => {
-    // Only deselect if clicking directly on the canvas (not a node or wire)
+    // Only process if clicking directly on the canvas (not a node or wire)
     if (event.target.getAttribute('data-canvas') === 'true') {
+      // If wire is active, place a waypoint
+      if (activeWire) {
+        const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
+        const snappedPos = snapToGrid && gridSize > 0
+          ? { x: Math.round(pos.x / gridSize) * gridSize, y: Math.round(pos.y / gridSize) * gridSize }
+          : pos;
+
+        setActiveWire(prev => ({
+          ...prev,
+          waypoints: [...(prev.waypoints || []), { id: `wp-${Date.now()}`, x: snappedPos.x, y: snappedPos.y }]
+        }));
+        return; // Don't deselect
+      }
+
       setSelectedWires(new Set());
       setActiveWire(null);
+      setWireMousePos(null);
     }
     setShowRecents(false);
   };
@@ -1402,7 +1426,7 @@ export default function App() {
     }
   };
 
-  // Mouse move - pan or selection box
+  // Mouse move - pan, selection box, or wire preview
   const handleMouseMove = (event) => {
     if (isPanningRef.current) {
       panRef.current = {
@@ -1418,6 +1442,11 @@ export default function App() {
       // Require minimum 3px drag distance before showing selection box
       const isActive = selectionBox.active || dx > 3 || dy > 3;
       setSelectionBox(prev => prev ? { ...prev, endX: pos.x, endY: pos.y, active: isActive } : null);
+    }
+    // Track mouse position for wire preview during creation
+    if (activeWire) {
+      const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
+      setWireMousePos(pos);
     }
   };
 
@@ -1591,14 +1620,34 @@ export default function App() {
   // Keyboard shortcuts: copy, paste, delete, deselect
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Escape — always deselect all (works even when focus is in an input)
+      // Escape — cancel active wire or deselect all
       if (e.key === 'Escape') {
+        // If wire is being drawn, cancel it
+        if (activeWire) {
+          setActiveWire(null);
+          setWireMousePos(null);
+          return;
+        }
         if (document.activeElement && document.activeElement !== document.body) {
           document.activeElement.blur();
         }
         setSelectedNodes(new Set());
         setSelectedWires(new Set());
         return;
+      }
+
+      // Backspace/Delete — remove last waypoint during wire creation
+      if ((e.key === 'Backspace' || e.key === 'Delete') && activeWire?.waypoints?.length > 0) {
+        const tag = e.target.tagName;
+        const isInInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
+        if (!isInInput) {
+          e.preventDefault();
+          setActiveWire(prev => ({
+            ...prev,
+            waypoints: prev.waypoints.slice(0, -1)
+          }));
+          return;
+        }
       }
 
       const tag = e.target.tagName;
@@ -1748,7 +1797,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo]);
+  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo, activeWire]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
@@ -1840,30 +1889,90 @@ export default function App() {
 
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
   // Routes wires OUTWARD from anchors based on their side (left/right) to avoid going through nodes
-  const getWirePath = useCallback((fromId, toId) => {
+  // Supports waypoints for custom routing
+  const getWirePath = useCallback((fromId, toId, waypoints = []) => {
     const from = getAnchorPosition(fromId);
     const to = getAnchorPosition(toId);
     if (!from || !to) return '';
 
-    // Calculate horizontal distance between anchors
-    const dx = Math.abs(to.x - from.x);
-    // Control point offset - minimum 50px, or 40% of distance for longer wires
-    const offset = Math.max(50, dx * 0.4);
+    // No waypoints: use simple bezier curve
+    if (!waypoints || waypoints.length === 0) {
+      const dx = Math.abs(to.x - from.x);
+      const offset = Math.max(50, dx * 0.4);
+      const fromControlX = from.side === 'left' ? from.x - offset : from.x + offset;
+      const toControlX = to.side === 'left' ? to.x - offset : to.x + offset;
+      return `M ${from.x} ${from.y} C ${fromControlX} ${from.y}, ${toControlX} ${to.y}, ${to.x} ${to.y}`;
+    }
 
-    // Determine control point X positions based on anchor sides
-    // Left-side anchors: control point extends LEFT (negative X)
-    // Right-side anchors: control point extends RIGHT (positive X)
-    const fromControlX = from.side === 'left' ? from.x - offset : from.x + offset;
-    const toControlX = to.side === 'left' ? to.x - offset : to.x + offset;
+    // With waypoints: generate straight lines with rounded 90-degree corners
+    const cornerRadius = 8; // Small radius for corners
+    const anchorOffset = 30; // How far to extend from anchor before turning
 
-    return `M ${from.x} ${from.y} C ${fromControlX} ${from.y}, ${toControlX} ${to.y}, ${to.x} ${to.y}`;
+    // Build all points including anchor offsets
+    const allPoints = [];
+
+    // Start: extend horizontally from anchor
+    allPoints.push({ x: from.x, y: from.y });
+    const fromOffsetX = from.side === 'left' ? from.x - anchorOffset : from.x + anchorOffset;
+    allPoints.push({ x: fromOffsetX, y: from.y });
+
+    // Add waypoints
+    waypoints.forEach(wp => allPoints.push({ x: wp.x, y: wp.y }));
+
+    // End: extend horizontally to anchor
+    const toOffsetX = to.side === 'left' ? to.x - anchorOffset : to.x + anchorOffset;
+    allPoints.push({ x: toOffsetX, y: to.y });
+    allPoints.push({ x: to.x, y: to.y });
+
+    let path = `M ${allPoints[0].x} ${allPoints[0].y}`;
+
+    // Generate path with rounded corners at each waypoint
+    for (let i = 1; i < allPoints.length; i++) {
+      const prev = allPoints[i - 1];
+      const curr = allPoints[i];
+      const next = allPoints[i + 1];
+
+      if (!next || i === allPoints.length - 1) {
+        // Last segment: just line to end
+        path += ` L ${curr.x} ${curr.y}`;
+      } else {
+        // Calculate direction vectors
+        const dx1 = curr.x - prev.x;
+        const dy1 = curr.y - prev.y;
+        const dx2 = next.x - curr.x;
+        const dy2 = next.y - curr.y;
+
+        const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+        const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+
+        // Limit corner radius to half the shortest segment
+        const maxRadius = Math.min(len1 / 2, len2 / 2, cornerRadius);
+
+        if (maxRadius < 2 || len1 < 4 || len2 < 4) {
+          // Too short for curve, just use line
+          path += ` L ${curr.x} ${curr.y}`;
+        } else {
+          // Calculate points where the curve starts and ends
+          const startX = curr.x - (dx1 / len1) * maxRadius;
+          const startY = curr.y - (dy1 / len1) * maxRadius;
+          const endX = curr.x + (dx2 / len2) * maxRadius;
+          const endY = curr.y + (dy2 / len2) * maxRadius;
+
+          // Line to curve start, then quadratic curve through corner
+          path += ` L ${startX} ${startY}`;
+          path += ` Q ${curr.x} ${curr.y}, ${endX} ${endY}`;
+        }
+      }
+    }
+
+    return path;
   }, [getAnchorPosition]);
 
   // Pre-compute wire paths to avoid recalculation on every render
   const wirePathMap = useMemo(() => {
     const map = new Map();
     connections.forEach(conn => {
-      map.set(conn.id, getWirePath(conn.from, conn.to));
+      map.set(conn.id, getWirePath(conn.from, conn.to, conn.waypoints));
     });
     return map;
   }, [connections, getWirePath]);
@@ -2465,10 +2574,15 @@ export default function App() {
         {activeWire && (
           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-2 py-2 px-3 bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 rounded shadow-lg z-50">
             <span className="text-xs font-mono text-cyan-400 animate-pulse">
-              Wire active — Click another anchor to connect
+              Wire active — Click canvas to add waypoints, or click anchor to connect
+              {activeWire.waypoints?.length > 0 && (
+                <span className="text-zinc-500 ml-2">
+                  ({activeWire.waypoints.length} point{activeWire.waypoints.length !== 1 ? 's' : ''})
+                </span>
+              )}
             </span>
             <button
-              onClick={() => setActiveWire(null)}
+              onClick={() => { setActiveWire(null); setWireMousePos(null); }}
               className="text-xs font-mono text-zinc-500 hover:text-zinc-300 underline"
             >
               Cancel
@@ -2760,6 +2874,174 @@ export default function App() {
                 </g>
               );
             })}
+
+            {/* Wire preview during creation */}
+            {activeWire && wireMousePos && (() => {
+              const fromPos = computedAnchorPositions[activeWire.from];
+              if (!fromPos) return null;
+
+              const waypoints = activeWire.waypoints || [];
+              const cornerRadius = 8;
+              const anchorOffset = 30;
+
+              // Build all points with anchor offset
+              const allPoints = [];
+              allPoints.push({ x: fromPos.x, y: fromPos.y });
+              const fromOffsetX = fromPos.side === 'left' ? fromPos.x - anchorOffset : fromPos.x + anchorOffset;
+              allPoints.push({ x: fromOffsetX, y: fromPos.y });
+              waypoints.forEach(wp => allPoints.push({ x: wp.x, y: wp.y }));
+              allPoints.push({ x: wireMousePos.x, y: wireMousePos.y });
+
+              // Generate preview path with straight lines and rounded corners
+              let previewPath = `M ${allPoints[0].x} ${allPoints[0].y}`;
+              for (let i = 1; i < allPoints.length; i++) {
+                const prev = allPoints[i - 1];
+                const curr = allPoints[i];
+                const next = allPoints[i + 1];
+
+                if (!next || i === allPoints.length - 1) {
+                  previewPath += ` L ${curr.x} ${curr.y}`;
+                } else {
+                  const dx1 = curr.x - prev.x;
+                  const dy1 = curr.y - prev.y;
+                  const dx2 = next.x - curr.x;
+                  const dy2 = next.y - curr.y;
+                  const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+                  const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                  const maxRadius = Math.min(len1 / 2, len2 / 2, cornerRadius);
+
+                  if (maxRadius < 2 || len1 < 4 || len2 < 4) {
+                    previewPath += ` L ${curr.x} ${curr.y}`;
+                  } else {
+                    const startX = curr.x - (dx1 / len1) * maxRadius;
+                    const startY = curr.y - (dy1 / len1) * maxRadius;
+                    const endX = curr.x + (dx2 / len2) * maxRadius;
+                    const endY = curr.y + (dy2 / len2) * maxRadius;
+                    previewPath += ` L ${startX} ${startY}`;
+                    previewPath += ` Q ${curr.x} ${curr.y}, ${endX} ${endY}`;
+                  }
+                }
+              }
+
+              return (
+                <g data-export-ignore="true">
+                  {/* Preview wire path */}
+                  <path
+                    d={previewPath}
+                    fill="none"
+                    stroke="#22d3ee"
+                    strokeWidth={2}
+                    strokeOpacity={0.6}
+                    strokeDasharray="8 4"
+                    strokeLinecap="round"
+                  />
+                  {/* Waypoint markers */}
+                  {waypoints.map((wp, i) => (
+                    <g key={wp.id}>
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r={6}
+                        fill="#22d3ee"
+                        stroke="#fff"
+                        strokeWidth={2}
+                      />
+                      <text
+                        x={wp.x}
+                        y={wp.y + 1}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="#18181b"
+                        style={{ fontSize: 8, fontWeight: 'bold' }}
+                      >
+                        {i + 1}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+              );
+            })()}
+
+            {/* Waypoint handles for selected wires */}
+            {connections.filter(c => selectedWires.has(c.id) && c.waypoints?.length > 0).map(conn => (
+              <g key={`waypoints-${conn.id}`} data-export-ignore="true">
+                {conn.waypoints.map((wp, i) => (
+                  <g key={wp.id}>
+                    <circle
+                      cx={wp.x}
+                      cy={wp.y}
+                      r={8}
+                      fill="#3b82f6"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      className="pointer-events-auto cursor-move"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        // Start dragging waypoint
+                        const startX = e.clientX;
+                        const startY = e.clientY;
+                        const startWpX = wp.x;
+                        const startWpY = wp.y;
+
+                        const handleDrag = (moveEvent) => {
+                          const dx = (moveEvent.clientX - startX) / zoomRef.current;
+                          const dy = (moveEvent.clientY - startY) / zoomRef.current;
+                          let newX = startWpX + dx;
+                          let newY = startWpY + dy;
+
+                          // Apply snap to grid
+                          if (snapToGrid && gridSize > 0) {
+                            newX = Math.round(newX / gridSize) * gridSize;
+                            newY = Math.round(newY / gridSize) * gridSize;
+                          }
+
+                          setConnections(prev => prev.map(c => {
+                            if (c.id !== conn.id) return c;
+                            return {
+                              ...c,
+                              waypoints: c.waypoints.map(w =>
+                                w.id === wp.id ? { ...w, x: newX, y: newY } : w
+                              )
+                            };
+                          }));
+                        };
+
+                        const handleDragEnd = () => {
+                          window.removeEventListener('mousemove', handleDrag);
+                          window.removeEventListener('mouseup', handleDragEnd);
+                        };
+
+                        window.addEventListener('mousemove', handleDrag);
+                        window.addEventListener('mouseup', handleDragEnd);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Delete waypoint on right-click
+                        setConnections(prev => prev.map(c => {
+                          if (c.id !== conn.id) return c;
+                          return {
+                            ...c,
+                            waypoints: c.waypoints.filter(w => w.id !== wp.id)
+                          };
+                        }));
+                      }}
+                    />
+                    <text
+                      x={wp.x}
+                      y={wp.y + 1}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#fff"
+                      className="pointer-events-none"
+                      style={{ fontSize: 9, fontWeight: 'bold' }}
+                    >
+                      {i + 1}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            ))}
           </svg>
 
           {/* Nodes */}

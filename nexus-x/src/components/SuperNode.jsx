@@ -627,11 +627,11 @@ const CardWrapper = memo(({
           </span>
         </div>
 
-        {/* Right side: remove button */}
+        {/* Right side: remove button - more visible */}
         <button
           onClick={handleRemove}
-          className="text-zinc-500 hover:text-red-400 px-1"
-          title="Remove card"
+          className="text-zinc-500 hover:text-red-400 hover:bg-red-500/20 px-1.5 py-0.5 rounded transition-colors"
+          title="Delete card and all its ports"
         >
           ×
         </button>
@@ -2696,12 +2696,19 @@ const IOSection = memo(({
                 className={`absolute top-0 bottom-0 w-1 ${anchorSide === 'right' ? 'right-0' : 'left-0'} rounded-sm`}
                 style={{ backgroundColor: `${colors?.hex || '#71717a'}66` }}
               />
-              {/* Card label - compact */}
+              {/* Card label - compact with delete button */}
               <div
-                className={`text-[8px] font-mono font-bold tracking-wider py-0.5 px-1 border-b border-zinc-700/50 ${anchorSide === 'right' ? 'text-right' : ''}`}
+                className={`flex items-center justify-between text-[8px] font-mono font-bold tracking-wider py-0.5 px-1 border-b border-zinc-700/50 ${anchorSide === 'right' ? 'flex-row-reverse' : ''}`}
                 style={{ color: colors?.hexLight || '#a1a1aa', backgroundColor: `${colors?.hex || '#71717a'}1a` }}
               >
-                {card.displayName || card.name}
+                <span>{card.displayName || card.name}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeCard(card.id); }}
+                  className="text-zinc-500 hover:text-red-400 hover:bg-red-500/20 px-1 rounded transition-colors"
+                  title="Delete card and all its ports"
+                >
+                  ×
+                </button>
               </div>
               {cardPorts.map(port => {
                 const anchorId = `${nodeId}-${port.id}`;
