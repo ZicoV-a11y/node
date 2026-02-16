@@ -172,6 +172,9 @@ const LogoUpload = memo(({ x, y, width, height, logoUrl, onLogoChange }) => {
     e.stopPropagation();
   }, []);
 
+  // Transparent when logo is present, show placeholder styling when empty
+  const hasLogo = !!logoUrl;
+
   return (
     <foreignObject x={x} y={y} width={width} height={height} style={{ overflow: 'visible' }}>
       <div
@@ -186,9 +189,9 @@ const LogoUpload = memo(({ x, y, width, height, logoUrl, onLogoChange }) => {
           justifyContent: 'center',
           cursor: 'pointer',
           pointerEvents: 'auto',
-          backgroundColor: '#27272a',
-          borderRadius: 4,
-          border: '1px dashed #3f3f46',
+          backgroundColor: hasLogo ? 'transparent' : '#27272a',
+          borderRadius: hasLogo ? 0 : 4,
+          border: hasLogo ? 'none' : '1px dashed #3f3f46',
           overflow: 'hidden',
         }}
         title="Click to upload logo"
@@ -374,8 +377,8 @@ function TitleBlockOverlayInner({
         strokeWidth={2}
       />
 
-      {/* LOGO SECTION */}
-      <rect x={logoX} y={panelY} width={logoW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
+      {/* LOGO SECTION - transparent when logo is present */}
+      <rect x={logoX} y={panelY} width={logoW} height={panelHeight} fill={data.logoUrl ? 'transparent' : sectionBg} stroke={data.logoUrl ? 'transparent' : borderColor} strokeWidth={1} />
       <LogoUpload
         x={logoX + 16}
         y={panelY + 4}
