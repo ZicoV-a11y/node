@@ -3194,9 +3194,46 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
   const [isEditingManufacturer, setIsEditingManufacturer] = useState(false);
   const [editModelValue, setEditModelValue] = useState('');
   const [editManufacturerValue, setEditManufacturerValue] = useState('');
+  const [isResizingHeader, setIsResizingHeader] = useState(false);
   const settingsRef = useRef(null);
   const modelInputRef = useRef(null);
   const manufacturerInputRef = useRef(null);
+  const headerRef = useRef(null);
+
+  // Header height with default of 36px
+  const headerHeight = node.headerHeight || 36;
+  const minHeaderHeight = 28;
+  const maxHeaderHeight = 120;
+
+  // Scale font sizes based on header height (base: 36px = 13px model, 9px manufacturer)
+  const scale = headerHeight / 36;
+  const modelFontSize = Math.round(13 * scale);
+  const manufacturerFontSize = Math.round(9 * scale);
+  const colorPickerSize = Math.round(19 * scale);
+
+  // Header resize handlers
+  const handleHeaderResizeStart = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingHeader(true);
+    const startY = e.clientY;
+    const startHeight = headerHeight;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const newHeight = Math.max(minHeaderHeight, Math.min(maxHeaderHeight, startHeight + deltaY));
+      onUpdate({ headerHeight: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingHeader(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [headerHeight, onUpdate]);
 
   // Notify parent when settings dropdown opens/closes (for z-index)
   useEffect(() => {
@@ -3404,7 +3441,9 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
   const titleBarStyle = useMemo(() => ({
     borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined,
     backgroundColor: `${headerHex}33`, // 20% opacity
-  }), [signalColorHex, headerHex]);
+    height: headerHeight,
+    minHeight: headerHeight,
+  }), [signalColorHex, headerHex, headerHeight]);
 
   // Memoized signal label for title attribute
   const signalLabel = useMemo(
@@ -3421,7 +3460,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
 
   return (
     <div
-      className="flex items-center px-3 py-2 border-b border-zinc-700 rounded-t-lg relative"
+      ref={headerRef}
+      className="flex items-center px-3 border-b border-zinc-700 rounded-t-lg relative"
       style={titleBarStyle}
     >
       {/* Left corner - Color picker + Manufacturer/Model */}
@@ -3444,8 +3484,8 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
             ))}
           </select>
           <div
-            className="w-[19px] h-[19px] rounded cursor-pointer hover:opacity-80 transition-opacity border-2 pointer-events-none"
-            style={colorPickerStyle}
+            className="rounded cursor-pointer hover:opacity-80 transition-opacity border-2 pointer-events-none"
+            style={{ ...colorPickerStyle, width: colorPickerSize, height: colorPickerSize }}
             title={signalLabel}
           />
         </div>
@@ -3467,15 +3507,15 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
                   e.stopPropagation();
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="font-mono font-bold text-[13px] bg-zinc-800 border border-zinc-600 rounded px-1 text-white outline-none focus:border-cyan-500"
-                style={{ width: Math.max(60, editModelValue.length * 8 + 16) }}
+                className="font-mono font-bold bg-zinc-800 border border-zinc-600 rounded px-1 text-white outline-none focus:border-cyan-500"
+                style={{ fontSize: modelFontSize, width: Math.max(60, editModelValue.length * 8 + 16) }}
                 placeholder="Model"
               />
             ) : (
               (model || !manufacturer) && (
                 <span
-                  className="font-mono font-bold text-[13px] cursor-pointer hover:text-cyan-400 transition-colors"
-                  style={{ color: headerTextHex }}
+                  className="font-mono font-bold cursor-pointer hover:text-cyan-400 transition-colors"
+                  style={{ color: headerTextHex, fontSize: modelFontSize }}
                   onDoubleClick={handleModelDoubleClick}
                   title="Double-click to edit model"
                 >
@@ -3497,14 +3537,15 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
                   e.stopPropagation();
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="font-mono text-[10px] bg-zinc-800 border border-zinc-600 rounded px-1 text-zinc-300 outline-none focus:border-cyan-500"
-                style={{ width: Math.max(60, editManufacturerValue.length * 6 + 16) }}
+                className="font-mono bg-zinc-800 border border-zinc-600 rounded px-1 text-zinc-300 outline-none focus:border-cyan-500"
+                style={{ fontSize: manufacturerFontSize, width: Math.max(60, editManufacturerValue.length * 6 + 16) }}
                 placeholder="Manufacturer"
               />
             ) : (
               (manufacturer || !model) && (
                 <span
-                  className="font-mono text-[10px] text-zinc-400 cursor-pointer hover:text-cyan-400 transition-colors"
+                  className="font-mono text-zinc-400 cursor-pointer hover:text-cyan-400 transition-colors"
+                  style={{ fontSize: manufacturerFontSize }}
                   onDoubleClick={handleManufacturerDoubleClick}
                   title="Double-click to edit manufacturer"
                 >
@@ -3652,6 +3693,21 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
           </div>
         )}
       </div>
+
+      {/* Header resize handle - drag to resize header height */}
+      <div
+        onMouseDown={handleHeaderResizeStart}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 6,
+          cursor: 'ns-resize',
+          zIndex: 20,
+        }}
+        title="Drag to resize header"
+      />
     </div>
   );
 });
