@@ -73,19 +73,24 @@ export function importProject(jsonString, fileName) {
 }
 
 export async function renderExportBlob(canvasElement, options = {}) {
-  const { scale = 1, backgroundColor = '#18181b', width, height, style, filter } = options;
-  return domToBlob(canvasElement, {
+  const { scale = 1, backgroundColor = null, width, height, style, filter } = options;
+  // backgroundColor = null for transparent PNG (alpha channel)
+  const blobOptions = {
     scale,
-    backgroundColor,
     width,
     height,
     style: style || ((width && height) ? { overflow: 'hidden' } : undefined),
     filter: filter || ((node) => !node.getAttribute?.('data-export-ignore')),
-  });
+  };
+  // Only set backgroundColor if explicitly provided (null = transparent)
+  if (backgroundColor !== null) {
+    blobOptions.backgroundColor = backgroundColor;
+  }
+  return domToBlob(canvasElement, blobOptions);
 }
 
 export async function renderPageBlob(canvasElement, page, options = {}) {
-  const { scale = 1, backgroundColor = '#18181b' } = options;
+  const { scale = 1, backgroundColor = null } = options;
   return renderExportBlob(canvasElement, {
     scale,
     backgroundColor,
@@ -101,7 +106,7 @@ export async function renderPageBlob(canvasElement, page, options = {}) {
 }
 
 export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) {
-  const { scale = 1, backgroundColor = '#18181b' } = options;
+  const { scale = 1, backgroundColor = null } = options;
 
   // Temporarily expand canvas so child computed styles (w-full, h-full, inset-0)
   // resolve to the full layout size before domToBlob clones the DOM

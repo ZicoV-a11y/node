@@ -2345,11 +2345,12 @@ export default function App() {
       return;
     }
 
-    // Paper-off export — reuse same approach as Layout PNG
-    if (!paperEnabled && canvasRef.current && pageBounds) {
+    // Single page or paper-off export — render directly with transparent background
+    if (canvasRef.current && pageBounds) {
       setExportProgress({ current: 1, total: 1 });
       try {
         await new Promise(r => setTimeout(r, 0));
+        // backgroundColor = null for transparent PNG (alpha channel)
         const blob = await renderLayoutBlob(canvasRef.current, pageBounds);
         if (blob) downloadBlob(blob, name);
       } catch (err) {
@@ -2358,11 +2359,6 @@ export default function App() {
         setExportProgress(null);
       }
       return;
-    }
-
-    // Single page paper-on export (use cached blob)
-    if (cachedExportBlob.current) {
-      downloadBlob(cachedExportBlob.current, name);
     }
   }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions]);
 
