@@ -131,19 +131,22 @@ export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) 
   }
 }
 
-export async function cropPageBlobs(layoutBlob, pages, pageBounds) {
+export async function cropPageBlobs(layoutBlob, pages, pageBounds, scale = 1) {
   const img = await createImageBitmap(layoutBlob);
   const results = [];
   for (const page of pages) {
     const canvas = document.createElement('canvas');
-    canvas.width = page.width;
-    canvas.height = page.height;
+    // Output at scaled resolution for high quality
+    canvas.width = page.width * scale;
+    canvas.height = page.height * scale;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(
       img,
-      page.x - pageBounds.x, page.y - pageBounds.y,
-      page.width, page.height,
-      0, 0, page.width, page.height
+      // Source coordinates (from scaled layout image)
+      (page.x - pageBounds.x) * scale, (page.y - pageBounds.y) * scale,
+      page.width * scale, page.height * scale,
+      // Destination (full canvas)
+      0, 0, page.width * scale, page.height * scale
     );
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     results.push({ page, blob });

@@ -2309,6 +2309,9 @@ export default function App() {
   }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length, anchorLocalOffsets]);
 
   // Export canvas to PNG (single page) or ZIP (multi-page)
+  // Scale 2x for high quality output
+  const EXPORT_SCALE = 2;
+
   const handleExportPNG = useCallback(async () => {
     const name = projectName || 'untitled';
     const stamp = new Date().toISOString().slice(0, 10);
@@ -2320,15 +2323,15 @@ export default function App() {
       try {
         const canvas = canvasRef.current;
 
-        // Render full layout ONCE (single expensive domToBlob)
+        // Render full layout ONCE at 2x scale for high quality
         setExportProgress({ current: 1, total });
         await new Promise(r => setTimeout(r, 0));
-        const layoutBlob = await renderLayoutBlob(canvas, pageBounds);
+        const layoutBlob = await renderLayoutBlob(canvas, pageBounds, { scale: EXPORT_SCALE });
 
         // Crop each page from the layout image (cheap canvas ops)
         setExportProgress({ current: 2, total });
         await new Promise(r => setTimeout(r, 0));
-        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds);
+        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds, EXPORT_SCALE);
         const namedBlobs = cropped.map(({ page, blob }) => ({
           name: `${name}-${page.label.replace(/\s+/g, '-')}.png`, blob,
         }));
@@ -2345,13 +2348,13 @@ export default function App() {
       return;
     }
 
-    // Single page or paper-off export — render directly with transparent background
+    // Single page or paper-off export — render at 2x scale with transparent background
     if (canvasRef.current && pageBounds) {
       setExportProgress({ current: 1, total: 1 });
       try {
         await new Promise(r => setTimeout(r, 0));
-        // backgroundColor = null for transparent PNG (alpha channel)
-        const blob = await renderLayoutBlob(canvasRef.current, pageBounds);
+        // scale: 2 for high quality, backgroundColor = null for transparent PNG
+        const blob = await renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE });
         if (blob) downloadBlob(blob, name);
       } catch (err) {
         console.error('Export failed:', err);
