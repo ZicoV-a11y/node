@@ -2316,17 +2316,39 @@ export default function App() {
     const name = projectName || 'untitled';
     const stamp = new Date().toISOString().slice(0, 10);
 
+    // Helper to temporarily make canvas transparent for export
+    const withTransparentCanvas = async (exportFn) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+
+      // Save current background styles
+      const origBg = canvas.style.backgroundColor;
+      const origBgImage = canvas.style.backgroundImage;
+
+      // Set transparent background for export
+      canvas.style.backgroundColor = 'transparent';
+      canvas.style.backgroundImage = 'none';
+
+      try {
+        return await exportFn();
+      } finally {
+        // Restore original background
+        canvas.style.backgroundColor = origBg;
+        canvas.style.backgroundImage = origBgImage;
+      }
+    };
+
     // Multi-page ZIP export (render once, crop per page)
     if (paperEnabled && pages.length > 1 && canvasRef.current) {
       const total = pages.length + 1; // +1 for layout render step
       setExportProgress({ current: 0, total });
       try {
-        const canvas = canvasRef.current;
-
-        // Render full layout ONCE at 2x scale for high quality
+        // Render with transparent background
         setExportProgress({ current: 1, total });
         await new Promise(r => setTimeout(r, 0));
-        const layoutBlob = await renderLayoutBlob(canvas, pageBounds, { scale: EXPORT_SCALE });
+        const layoutBlob = await withTransparentCanvas(() =>
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+        );
 
         // Crop each page from the layout image (cheap canvas ops)
         setExportProgress({ current: 2, total });
@@ -2348,13 +2370,15 @@ export default function App() {
       return;
     }
 
-    // Single page or paper-off export — render at 2x scale with transparent background
+    // Single page or paper-off export — render with transparent background
     if (canvasRef.current && pageBounds) {
       setExportProgress({ current: 1, total: 1 });
       try {
         await new Promise(r => setTimeout(r, 0));
-        // scale: 2 for high quality, backgroundColor = null for transparent PNG
-        const blob = await renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE });
+        // Transparent background, 8x scale for high quality
+        const blob = await withTransparentCanvas(() =>
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+        );
         if (blob) downloadBlob(blob, name);
       } catch (err) {
         console.error('Export failed:', err);
