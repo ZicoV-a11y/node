@@ -2845,20 +2845,24 @@ export default function App() {
           >
           {/* Page grid overlay with per-page boundaries and margin guides */}
           {paperEnabled && !showTitleBlock && (
-            <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
+            <div data-export-ignore="true">
+              <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
+            </div>
           )}
 
           {/* Title block overlay (replaces page grid when active) */}
           {paperEnabled && showTitleBlock && (
-            <TitleBlockOverlay
-              pages={pages}
-              zoom={zoom}
-              visible={showTitleBlock}
-              showGrid={showTitleBlockGrid}
-              titleBlockData={titleBlockData}
-              onTitleBlockDataChange={handleTitleBlockDataChange}
-              darkMode={canvasBackground !== 'white'}
-            />
+            <div data-export-ignore="true">
+              <TitleBlockOverlay
+                pages={pages}
+                zoom={zoom}
+                visible={showTitleBlock}
+                showGrid={showTitleBlockGrid}
+                titleBlockData={titleBlockData}
+                onTitleBlockDataChange={handleTitleBlockDataChange}
+                darkMode={canvasBackground !== 'white'}
+              />
+            </div>
           )}
 
           {/* SVG Layer for Wires - z-index below nodes so dropdowns can appear above */}

@@ -1468,6 +1468,7 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
         <div
           className="absolute -bottom-5 left-0 text-[9px] font-mono text-zinc-500"
           style={{ transform: `scale(${1 / nodeScale})`, transformOrigin: 'top left' }}
+          data-export-ignore="true"
         >
           {Math.round(nodeScale * 100)}%
         </div>

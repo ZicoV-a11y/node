@@ -5058,6 +5058,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
         <div
           className="absolute -bottom-5 left-0 text-[10px] font-mono text-zinc-500"
           style={scaleBadgeStyle}
+          data-export-ignore="true"
         >
           {Math.round(nodeScale * 100)}%
         </div>
