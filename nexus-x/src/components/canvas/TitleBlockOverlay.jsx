@@ -377,9 +377,9 @@ function TitleBlockOverlayInner({
       {/* LOGO SECTION */}
       <rect x={logoX} y={panelY} width={logoW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
       <LogoUpload
-        x={logoX + 4}
+        x={logoX + 16}
         y={panelY + 4}
-        width={logoW - 8}
+        width={logoW - 32}
         height={panelHeight - 8}
         logoUrl={data.logoUrl}
         onLogoChange={handleLogoChange}
