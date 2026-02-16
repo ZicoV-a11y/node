@@ -971,10 +971,17 @@ TopDropZone.displayName = 'TopDropZone';
 // ============================================
 
 // Visible anchor point built into the node column
-const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected }) => {
-  // Always use neutral gray for anchors
-  const baseColor = HEX_COLORS.zinc[500];
-  const lightColor = HEX_COLORS.zinc[400];
+// When connected, glows with the wire color like an LED
+const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected, wireColor }) => {
+  // Use wire color when connected, otherwise neutral gray
+  const baseColor = useMemo(
+    () => (isConnected && wireColor) ? wireColor : HEX_COLORS.zinc[500],
+    [isConnected, wireColor]
+  );
+  const lightColor = useMemo(
+    () => (isConnected && wireColor) ? wireColor : HEX_COLORS.zinc[400],
+    [isConnected, wireColor]
+  );
 
   const handleMouseDown = useCallback((e) => {
     e.stopPropagation();
@@ -991,6 +998,17 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected }) => {
   const borderColor = isLit ? lightColor : HEX_COLORS.zinc[500];
   const opacityValue = isLit ? 1 : 0.4;
 
+  // LED-like glow effect when connected with wire color
+  const glowEffect = useMemo(() => {
+    if (!isLit) return 'none';
+    if (isConnected && wireColor) {
+      // Bright LED glow with wire color
+      return `0 0 4px ${wireColor}, 0 0 8px ${wireColor}80, 0 0 2px ${wireColor}`;
+    }
+    // Neutral glow when active but not connected
+    return isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`;
+  }, [isLit, isConnected, wireColor, isActive, baseColor]);
+
   const anchorStyle = useMemo(() => ({
     width: `${anchorSize}px`,
     height: `${anchorSize}px`,
@@ -1000,8 +1018,8 @@ const Anchor = memo(({ anchorId, type, isActive, onClick, isConnected }) => {
     border: `1px solid ${borderColor}`,
     transition: 'all 0.15s ease',
     cursor: 'crosshair',
-    boxShadow: isLit ? (isActive ? `0 0 6px ${baseColor}` : `0 0 3px ${baseColor}66`) : 'none',
-  }), [anchorSize, fillColor, borderColor, opacityValue, isLit, isActive, baseColor]);
+    boxShadow: glowEffect,
+  }), [anchorSize, fillColor, borderColor, opacityValue, glowEffect]);
 
   return (
     <div
@@ -1124,6 +1142,7 @@ const PortRow = memo(({
             isActive={isActive}
             onClick={onAnchorClick}
             isConnected={isConnected}
+            wireColor={sourceColor}
           />
         );
       case 'delete':
@@ -1743,6 +1762,7 @@ const CollapsedPortRow = memo(({
             isActive={false}
             onClick={onAnchorClick}
             isConnected={isConnected}
+            wireColor={sourceColor}
           />
         );
       case 'port':
