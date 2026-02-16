@@ -1575,7 +1575,7 @@ export default function App() {
     centerPage();
   };
 
-  // Fit all nodes to the title block drawing area (scales and repositions nodes)
+  // Fit all nodes AND waypoints to the title block drawing area (scales and repositions everything)
   const fitNodesToDrawingArea = useCallback((padding = 20) => {
     const nodeArray = Object.values(nodes);
     if (nodeArray.length === 0 || pages.length === 0) return;
@@ -1608,6 +1608,18 @@ export default function App() {
       maxY = Math.max(maxY, node.position.y + h);
     });
 
+    // Include waypoints in bounding box (they might extend beyond nodes)
+    connections.forEach(conn => {
+      if (conn.waypoints && conn.waypoints.length > 0) {
+        conn.waypoints.forEach(wp => {
+          minX = Math.min(minX, wp.x);
+          minY = Math.min(minY, wp.y);
+          maxX = Math.max(maxX, wp.x);
+          maxY = Math.max(maxY, wp.y);
+        });
+      }
+    });
+
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
 
@@ -1636,9 +1648,23 @@ export default function App() {
 
     setNodes(updatedNodes);
 
+    // Scale all waypoints in connections proportionally
+    setConnections(prev => prev.map(conn => {
+      if (!conn.waypoints || conn.waypoints.length === 0) return conn;
+
+      return {
+        ...conn,
+        waypoints: conn.waypoints.map(wp => ({
+          ...wp,
+          x: drawingArea.x + (wp.x - minX) * scaleFactor,
+          y: drawingArea.y + (wp.y - minY) * scaleFactor,
+        })),
+      };
+    }));
+
     // Also fit the view to show the result
     setTimeout(() => fitView(0.05), 50);
-  }, [nodes, pages, titleBlockData, fitView]);
+  }, [nodes, connections, pages, titleBlockData, fitView]);
 
   // Zoom at viewport center (shared logic for zoom in/out)
   const zoomAtCenter = useCallback((newZoom) => {
