@@ -2404,13 +2404,13 @@ export default function App() {
       titleBlockWrapper.removeAttribute('data-export-ignore');
     }
 
-    // Helper to temporarily make canvas transparent for export
-    const withTransparentCanvas = async (exportFn) => {
+    // Helper to set black background for title block export
+    const withBlackBackground = async (exportFn) => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const origBg = canvas.style.backgroundColor;
       const origBgImage = canvas.style.backgroundImage;
-      canvas.style.backgroundColor = 'transparent';
+      canvas.style.backgroundColor = '#000000';
       canvas.style.backgroundImage = 'none';
       try {
         return await exportFn();
@@ -2423,8 +2423,8 @@ export default function App() {
     setExportProgress({ current: 1, total: 1 });
     try {
       await new Promise(r => setTimeout(r, 0));
-      const blob = await withTransparentCanvas(() =>
-        renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+      const blob = await withBlackBackground(() =>
+        renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE, backgroundColor: '#000000' })
       );
       if (blob) downloadBlob(blob, `${name}-with-titleblock-${stamp}`);
     } catch (err) {
