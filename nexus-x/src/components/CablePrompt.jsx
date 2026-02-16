@@ -86,20 +86,6 @@ const CABLE_LENGTHS = [
   'Custom...'
 ];
 
-const FONT_SIZES = [
-  { value: 4, label: '4px' },
-  { value: 5, label: '5px' },
-  { value: 6, label: '6px' },
-  { value: 7, label: '7px' },
-  { value: 8, label: '8px' },
-  { value: 9, label: '9px' },
-  { value: 10, label: '10px' },
-  { value: 12, label: '12px' },
-  { value: 14, label: '14px' },
-  { value: 16, label: '16px' },
-  { value: 20, label: '20px' },
-];
-
 export default function CablePrompt({ onSubmit, onCancel, initialData = null }) {
   // Check if we're editing (initial data provided)
   const isEditing = !!initialData;
@@ -128,7 +114,6 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
 
   const [rpCode, setRpCode] = useState(initialData?.rpCode || '');
   const [description, setDescription] = useState(initialData?.description || '');
-  const [fontSize, setFontSize] = useState(initialData?.fontSize || 6);
   const [wireColor, setWireColor] = useState(initialData?.wireColor || 'auto');
 
   const isCustomType = cableType === 'Custom...';
@@ -144,7 +129,6 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
       cableLength: finalLength,
       rpCode,
       description,
-      fontSize,
       wireColor: wireColor === 'auto' ? null : wireColor
     });
   };
@@ -274,24 +258,6 @@ export default function CablePrompt({ onSubmit, onCancel, initialData = null }) 
               rows={3}
               className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
             />
-          </div>
-
-          {/* Label Font Size */}
-          <div>
-            <label className="block text-xs font-mono text-zinc-300 mb-1.5">
-              Label Font Size
-            </label>
-            <select
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm font-mono text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              {FONT_SIZES.map((size) => (
-                <option key={size.value} value={size.value}>
-                  {size.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Wire Color Override */}

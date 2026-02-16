@@ -144,7 +144,7 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
           x={(fromPos.x + toPos.x) / 2}
           y={(fromPos.y + toPos.y) / 2 - 8}
           fill={wireColor}
-          fontSize={conn.fontSize || 10}
+          fontSize={4}
           textAnchor="middle"
           className="select-none pointer-events-none"
           style={{ textShadow: '0 0 3px rgba(0,0,0,0.8)' }}
@@ -174,7 +174,6 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
     prev.conn.enhanced === next.conn.enhanced &&
     prev.conn.dashPattern === next.conn.dashPattern &&
     prev.conn.length === next.conn.length &&
-    prev.conn.fontSize === next.conn.fontSize &&
     prev.fromPos?.x === next.fromPos?.x &&
     prev.fromPos?.y === next.fromPos?.y &&
     prev.toPos?.x === next.toPos?.x &&
@@ -1097,6 +1096,7 @@ export default function App() {
   const connectionColorMap = useMemo(() => {
     const map = new Map();
     const colorIdToHex = {
+      // Primary colors
       cyan: '#06b6d4',
       emerald: '#10b981',
       blue: '#3b82f6',
@@ -1105,6 +1105,37 @@ export default function App() {
       red: '#ef4444',
       orange: '#f97316',
       yellow: '#eab308',
+      // Extended colors
+      lime: '#84cc16',
+      teal: '#14b8a6',
+      sky: '#0ea5e9',
+      indigo: '#6366f1',
+      fuchsia: '#d946ef',
+      rose: '#f43f5e',
+      amber: '#f59e0b',
+      slate: '#64748b',
+      // Additional colors
+      green: '#22c55e',
+      purple: '#a855f7',
+      coral: '#fb7185',
+      mint: '#34d399',
+      gold: '#fbbf24',
+      magenta: '#e879f9',
+      navy: '#1e40af',
+      bronze: '#b45309',
+      // More colors
+      crimson: '#dc2626',
+      sapphire: '#2563eb',
+      jade: '#059669',
+      tangerine: '#ea580c',
+      lavender: '#c084fc',
+      salmon: '#f87171',
+      turquoise: '#2dd4bf',
+      plum: '#9333ea',
+      chartreuse: '#a3e635',
+      peach: '#fdba74',
+      steel: '#475569',
+      wine: '#881337',
     };
     connections.forEach(conn => {
       // Use manual override if set, otherwise auto-detect
@@ -1232,7 +1263,6 @@ export default function App() {
             length: cableData.cableLength || '',  // Also store as 'length' for label display
             rpCode: cableData.rpCode || '',
             description: cableData.description || '',
-            fontSize: cableData.fontSize || 10,
             wireColor: cableData.wireColor || null
           };
         }
@@ -1253,7 +1283,6 @@ export default function App() {
         length: cableData.cableLength || '',  // Also store as 'length' for label display
         rpCode: cableData.rpCode || '',
         description: cableData.description || '',
-        fontSize: cableData.fontSize || 10,
         wireColor: cableData.wireColor || null  // Color override (null = auto from source)
       };
 
@@ -1261,7 +1290,6 @@ export default function App() {
       lastCableDataRef.current = {
         cableType: cableData.cableType || '',
         cableLength: cableData.cableLength || '',
-        fontSize: cableData.fontSize || 10,
         wireColor: cableData.wireColor || null
       };
 
@@ -2805,9 +2833,8 @@ export default function App() {
                     />
                   )}
 
-                  {/* Wire label or cable info */}
+                  {/* Wire label - text follows the wire path, centered */}
                   {(() => {
-                    // Use custom label if set, otherwise show cable info if available
                     let displayText = conn.label;
                     if (!displayText && (conn.cableType || conn.cableLength)) {
                       const parts = [];
@@ -2816,17 +2843,45 @@ export default function App() {
                       displayText = parts.join(' • ');
                     }
 
-                    return displayText && fromPos && toPos ? (
-                      <text
-                        x={(fromPos.x + toPos.x) / 2}
-                        y={(fromPos.y + toPos.y) / 2 - 12}
-                        textAnchor="middle"
-                        className="fill-zinc-400 font-mono pointer-events-none"
-                        style={{ fontSize: conn.fontSize || 10 }}
-                      >
-                        {displayText}
-                      </text>
-                    ) : null;
+                    if (!displayText || !wirePath) return null;
+
+                    const fontSize = 4; // Fixed size for all wire labels
+                    const pathId = `wire-path-${conn.id}`;
+
+                    return (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <defs>
+                          <path id={pathId} d={wirePath} />
+                        </defs>
+                        {/* Text outline for readability */}
+                        <text className="font-mono" style={{ fontSize }}>
+                          <textPath
+                            href={`#${pathId}`}
+                            startOffset="50%"
+                            textAnchor="middle"
+                            style={{
+                              fill: 'none',
+                              stroke: '#18181b',
+                              strokeWidth: 1.5,
+                              strokeLinejoin: 'round'
+                            }}
+                          >
+                            {displayText}
+                          </textPath>
+                        </text>
+                        {/* Text fill */}
+                        <text className="font-mono" style={{ fontSize }}>
+                          <textPath
+                            href={`#${pathId}`}
+                            startOffset="50%"
+                            textAnchor="middle"
+                            style={{ fill: wireColor }}
+                          >
+                            {displayText}
+                          </textPath>
+                        </text>
+                      </g>
+                    );
                   })()}
 
                   {/* Invisible click hit area (wider than visible wire) */}
