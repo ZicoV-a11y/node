@@ -2861,6 +2861,7 @@ export default function App() {
                 titleBlockData={titleBlockData}
                 onTitleBlockDataChange={handleTitleBlockDataChange}
                 darkMode={canvasBackground !== 'white'}
+                connections={connections}
               />
             </div>
           )}
