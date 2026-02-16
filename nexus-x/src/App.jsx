@@ -2309,8 +2309,8 @@ export default function App() {
   }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length, anchorLocalOffsets]);
 
   // Export canvas to PNG (single page) or ZIP (multi-page)
-  // Scale 2x for high quality output
-  const EXPORT_SCALE = 2;
+  // Scale 4x for print-quality output (~300 DPI on 11x17)
+  const EXPORT_SCALE = 4;
 
   const handleExportPNG = useCallback(async () => {
     const name = projectName || 'untitled';
