@@ -1581,8 +1581,9 @@ export default function App() {
     if (nodeArray.length === 0 || pages.length === 0) return;
 
     // Get drawing area bounds (page bounds minus right panel and label margins)
-    const rightPanelWidth = titleBlockData?.rightPanelWidth || 200;
-    const labelSize = 20;
+    // Only subtract right panel if title block is visible
+    const rightPanelWidth = showTitleBlock ? (titleBlockData?.rightPanelWidth || 200) : 0;
+    const labelSize = showTitleBlock ? 20 : 0;
 
     const pageMinX = Math.min(...pages.map(p => p.x));
     const pageMinY = Math.min(...pages.map(p => p.y));
@@ -1597,7 +1598,7 @@ export default function App() {
       height: (pageMaxY - pageMinY) - labelSize - padding * 2,
     };
 
-    // Calculate current bounding box of all nodes
+    // Calculate current bounding box of NODES ONLY (not waypoints - they can extend outside)
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     nodeArray.forEach(node => {
       const w = ESTIMATED_NODE_SIZE.WIDTH * (node.scale || 1);
@@ -1608,20 +1609,10 @@ export default function App() {
       maxY = Math.max(maxY, node.position.y + h);
     });
 
-    // Include waypoints in bounding box (they might extend beyond nodes)
-    connections.forEach(conn => {
-      if (conn.waypoints && conn.waypoints.length > 0) {
-        conn.waypoints.forEach(wp => {
-          minX = Math.min(minX, wp.x);
-          minY = Math.min(minY, wp.y);
-          maxX = Math.max(maxX, wp.x);
-          maxY = Math.max(maxY, wp.y);
-        });
-      }
-    });
-
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
+
+    if (contentWidth <= 0 || contentHeight <= 0) return;
 
     // Calculate scale factor to fit content into drawing area
     const scaleX = drawingArea.width / contentWidth;
@@ -1648,7 +1639,8 @@ export default function App() {
 
     setNodes(updatedNodes);
 
-    // Scale all waypoints in connections proportionally
+    // Scale all waypoints proportionally using the same transform
+    // This maintains their relative position to the nodes
     setConnections(prev => prev.map(conn => {
       if (!conn.waypoints || conn.waypoints.length === 0) return conn;
 
@@ -1664,7 +1656,7 @@ export default function App() {
 
     // Also fit the view to show the result
     setTimeout(() => fitView(0.05), 50);
-  }, [nodes, connections, pages, titleBlockData, fitView]);
+  }, [nodes, connections, pages, titleBlockData, showTitleBlock, fitView]);
 
   // Zoom at viewport center (shared logic for zoom in/out)
   const zoomAtCenter = useCallback((newZoom) => {
