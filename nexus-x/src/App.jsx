@@ -1575,6 +1575,71 @@ export default function App() {
     centerPage();
   };
 
+  // Fit all nodes to the title block drawing area (scales and repositions nodes)
+  const fitNodesToDrawingArea = useCallback((padding = 20) => {
+    const nodeArray = Object.values(nodes);
+    if (nodeArray.length === 0 || pages.length === 0) return;
+
+    // Get drawing area bounds (page bounds minus right panel and label margins)
+    const rightPanelWidth = titleBlockData?.rightPanelWidth || 200;
+    const labelSize = 20;
+
+    const pageMinX = Math.min(...pages.map(p => p.x));
+    const pageMinY = Math.min(...pages.map(p => p.y));
+    const pageMaxX = Math.max(...pages.map(p => p.x + p.width));
+    const pageMaxY = Math.max(...pages.map(p => p.y + p.height));
+
+    // Drawing area is: page minus right panel, with label margins
+    const drawingArea = {
+      x: pageMinX + labelSize + padding,
+      y: pageMinY + labelSize + padding,
+      width: (pageMaxX - pageMinX) - rightPanelWidth - labelSize - padding * 2,
+      height: (pageMaxY - pageMinY) - labelSize - padding * 2,
+    };
+
+    // Calculate current bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodeArray.forEach(node => {
+      const w = ESTIMATED_NODE_SIZE.WIDTH * (node.scale || 1);
+      const h = ESTIMATED_NODE_SIZE.HEIGHT * (node.scale || 1);
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + w);
+      maxY = Math.max(maxY, node.position.y + h);
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    // Calculate scale factor to fit content into drawing area
+    const scaleX = drawingArea.width / contentWidth;
+    const scaleY = drawingArea.height / contentHeight;
+    const scaleFactor = Math.min(scaleX, scaleY, 2); // Cap at 2x to avoid huge nodes
+
+    // Update all nodes: scale and reposition
+    const updatedNodes = {};
+    nodeArray.forEach(node => {
+      // Scale position relative to content bounding box origin
+      const relX = node.position.x - minX;
+      const relY = node.position.y - minY;
+
+      const newX = drawingArea.x + relX * scaleFactor;
+      const newY = drawingArea.y + relY * scaleFactor;
+      const newScale = (node.scale || 1) * scaleFactor;
+
+      updatedNodes[node.id] = {
+        ...node,
+        position: { x: newX, y: newY },
+        scale: Math.max(0.25, Math.min(3, newScale)), // Clamp scale
+      };
+    });
+
+    setNodes(updatedNodes);
+
+    // Also fit the view to show the result
+    setTimeout(() => fitView(0.05), 50);
+  }, [nodes, pages, titleBlockData, fitView]);
+
   // Zoom at viewport center (shared logic for zoom in/out)
   const zoomAtCenter = useCallback((newZoom) => {
     const container = containerRef.current;
@@ -2751,6 +2816,7 @@ export default function App() {
               showGrid={showTitleBlockGrid}
               titleBlockData={titleBlockData}
               onTitleBlockDataChange={handleTitleBlockDataChange}
+              darkMode={canvasBackground !== 'white'}
             />
           )}
 
@@ -3174,6 +3240,7 @@ export default function App() {
           onToggleTitleBlock={toggleTitleBlock}
           showTitleBlockGrid={showTitleBlockGrid}
           onToggleTitleBlockGrid={toggleTitleBlockGrid}
+          onFitToDrawingArea={fitNodesToDrawingArea}
           canvasBackground={canvasBackground}
           onToggleBackground={toggleCanvasBackground}
         />

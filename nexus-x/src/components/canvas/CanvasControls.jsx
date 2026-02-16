@@ -11,6 +11,7 @@ export default function CanvasControls({
   onToggleTitleBlock,
   showTitleBlockGrid,
   onToggleTitleBlockGrid,
+  onFitToDrawingArea,
   canvasBackground,
   onToggleBackground,
 }) {
@@ -74,17 +75,26 @@ export default function CanvasControls({
 
       {/* Title Block Grid toggle (only visible when title block is on) */}
       {showTitleBlock && (
-        <button
-          onClick={onToggleTitleBlockGrid}
-          className={`w-8 h-8 bg-zinc-800 border rounded text-[10px] font-mono flex items-center justify-center ${
-            showTitleBlockGrid
-              ? 'border-cyan-500 text-cyan-400'
-              : 'border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
-          }`}
-          title={showTitleBlockGrid ? 'Title Block Grid: ON' : 'Title Block Grid: OFF'}
-        >
-          ⊞
-        </button>
+        <>
+          <button
+            onClick={onToggleTitleBlockGrid}
+            className={`w-8 h-8 bg-zinc-800 border rounded text-[10px] font-mono flex items-center justify-center ${
+              showTitleBlockGrid
+                ? 'border-cyan-500 text-cyan-400'
+                : 'border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+            }`}
+            title={showTitleBlockGrid ? 'Title Block Grid: ON' : 'Title Block Grid: OFF'}
+          >
+            ⊞
+          </button>
+          <button
+            onClick={onFitToDrawingArea}
+            className="w-8 h-8 bg-zinc-800 border border-zinc-700 rounded text-[10px] font-mono flex items-center justify-center text-zinc-300 hover:bg-zinc-700 hover:text-white hover:border-cyan-500"
+            title="Scale & fit all nodes to drawing area"
+          >
+            ⤢
+          </button>
+        </>
       )}
 
       {/* Background toggle */}

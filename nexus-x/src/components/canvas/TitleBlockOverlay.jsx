@@ -1,18 +1,30 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from 'react';
 
-// Title block dimensions for 11x17 (ANSI B) at 96 DPI
-// Page: 1632 x 1056 pixels (landscape)
-const TITLE_BLOCK_CONFIG = {
-  rightPanelWidth: 220,
-  margin: 20,
-  columns: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
-  rows: [1, 2, 3, 4, 5, 6],
-  labelHeight: 24,
-  labelWidth: 24,
+// Default section heights (as percentages of total height)
+const DEFAULT_SECTION_HEIGHTS = {
+  logo: 6,
+  drawingBy: 5,
+  legend: 10,
+  notes: 15,
+  revision: 12,
+  issue: 12,
+  project: 6,
+  scaleRow: 6,
+  // sheetTitle takes remaining space
 };
 
-// Editable text field component using foreignObject
-const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSave, fontSize = 10, fontWeight = 'normal', placeholder = '' }) => {
+// Title block configuration
+const TITLE_BLOCK_CONFIG = {
+  columns: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+  rows: [1, 2, 3, 4, 5, 6],
+  labelSize: 20,
+  minRightPanelWidth: 150,
+  maxRightPanelWidth: 400,
+  defaultRightPanelWidth: 200,
+};
+
+// Editable text field component - NO zoom scaling, fixed to paper coordinates
+const EditableField = memo(({ x, y, width, height, value, fieldName, onSave, fontSize = 10, fontWeight = 'normal', placeholder = '', textAlign = 'left', color = '#000', multiline = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || '');
   const inputRef = useRef(null);
@@ -40,18 +52,16 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
 
   const handleKeyDown = useCallback((e) => {
     e.stopPropagation();
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !multiline) {
       handleSave();
     } else if (e.key === 'Escape') {
       setEditValue(value || '');
       setIsEditing(false);
     }
-  }, [handleSave, value]);
+  }, [handleSave, value, multiline]);
 
-  const scaledFontSize = fontSize / zoom;
-  const padding = 2 / zoom;
+  const isLight = color === '#000' || color === 'black';
 
-  // Stop clicks only when editing to prevent canvas interaction
   const stopClick = useCallback((e) => {
     e.stopPropagation();
   }, []);
@@ -64,35 +74,64 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
           width: '100%',
           height: '100%',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: multiline ? 'flex-start' : 'center',
+          justifyContent: textAlign === 'center' ? 'center' : 'flex-start',
           pointerEvents: 'auto',
         }}
       >
         {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleSave}
-            onKeyDown={handleKeyDown}
-            onClick={stopClick}
-            onMouseDown={stopClick}
-            style={{
-              width: '100%',
-              height: '100%',
-              fontSize: scaledFontSize,
-              fontWeight,
-              fontFamily: 'Arial, sans-serif',
-              padding: `0 ${padding}px`,
-              border: `${1/zoom}px solid #06b6d4`,
-              borderRadius: 2/zoom,
-              outline: 'none',
-              backgroundColor: '#fff',
-              color: '#000',
-              boxSizing: 'border-box',
-            }}
-          />
+          multiline ? (
+            <textarea
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              onClick={stopClick}
+              onMouseDown={stopClick}
+              style={{
+                width: '100%',
+                height: '100%',
+                fontSize,
+                fontWeight,
+                fontFamily: 'Arial, sans-serif',
+                padding: 2,
+                border: '1px solid #06b6d4',
+                borderRadius: 2,
+                outline: 'none',
+                backgroundColor: isLight ? '#fff' : '#27272a',
+                color: isLight ? '#000' : '#fff',
+                boxSizing: 'border-box',
+                resize: 'none',
+              }}
+            />
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              onClick={stopClick}
+              onMouseDown={stopClick}
+              style={{
+                width: '100%',
+                height: '100%',
+                fontSize,
+                fontWeight,
+                fontFamily: 'Arial, sans-serif',
+                padding: '0 2px',
+                border: '1px solid #06b6d4',
+                borderRadius: 2,
+                outline: 'none',
+                backgroundColor: isLight ? '#fff' : '#27272a',
+                color: isLight ? '#000' : '#fff',
+                boxSizing: 'border-box',
+                textAlign,
+              }}
+            />
+          )
         ) : (
           <span
             onDoubleClick={handleDoubleClick}
@@ -102,18 +141,19 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
               width: '100%',
               height: '100%',
               display: 'flex',
-              alignItems: 'center',
-              fontSize: scaledFontSize,
+              alignItems: multiline ? 'flex-start' : 'center',
+              justifyContent: textAlign === 'center' ? 'center' : 'flex-start',
+              fontSize,
               fontWeight,
               fontFamily: 'Arial, sans-serif',
               cursor: 'text',
-              padding: `0 ${padding}px`,
-              color: value ? '#000' : '#999',
-              cursor: 'text',
+              padding: multiline ? 2 : '0 2px',
+              color: value ? color : '#666',
               userSelect: 'none',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              textOverflow: multiline ? 'clip' : 'ellipsis',
+              whiteSpace: multiline ? 'pre-wrap' : 'nowrap',
+              wordBreak: multiline ? 'break-word' : 'normal',
             }}
             title="Double-click to edit"
           >
@@ -126,6 +166,46 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, zoom, onSav
 });
 EditableField.displayName = 'EditableField';
 
+// Resize handle component for sections
+const ResizeHandle = memo(({ x, y, width, direction, onResize, cursor }) => {
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startY = e.clientY;
+    const startX = e.clientX;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaX = moveEvent.clientX - startX;
+      onResize(direction === 'horizontal' ? deltaY : deltaX);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [onResize, direction]);
+
+  const handleSize = 8;
+
+  return (
+    <rect
+      x={x - (direction === 'vertical' ? handleSize / 2 : 0)}
+      y={y - (direction === 'horizontal' ? handleSize / 2 : 0)}
+      width={direction === 'horizontal' ? width : handleSize}
+      height={direction === 'horizontal' ? handleSize : width}
+      fill="transparent"
+      style={{ cursor, pointerEvents: 'auto' }}
+      onMouseDown={handleMouseDown}
+    />
+  );
+});
+ResizeHandle.displayName = 'ResizeHandle';
+
 function TitleBlockOverlayInner({
   pages,
   zoom,
@@ -133,6 +213,7 @@ function TitleBlockOverlayInner({
   showGrid,
   titleBlockData,
   onTitleBlockDataChange,
+  darkMode = true,
 }) {
   const bounds = useMemo(() => {
     if (pages.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -143,26 +224,36 @@ function TitleBlockOverlayInner({
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }, [pages]);
 
-  const strokeWidth = 1 / zoom;
-  const thinStroke = 0.5 / zoom;
-  const fontSize = 10 / zoom;
-  const smallFontSize = 8 / zoom;
-  const labelFontSize = 12 / zoom;
+  // Get section heights from data or use defaults
+  const sectionHeights = titleBlockData?.sectionHeights || DEFAULT_SECTION_HEIGHTS;
+  const rightPanelWidth = titleBlockData?.rightPanelWidth || TITLE_BLOCK_CONFIG.defaultRightPanelWidth;
 
+  // NO zoom scaling - fixed paper coordinates
+  const strokeWidth = 1.5;
+  const thinStroke = 0.75;
   const config = TITLE_BLOCK_CONFIG;
-  const rp = config.rightPanelWidth / zoom;
-  const lh = config.labelHeight / zoom;
-  const lw = config.labelWidth / zoom;
 
+  // Colors based on mode
+  const borderColor = darkMode ? '#3f3f46' : '#000';
+  const textColor = darkMode ? '#a1a1aa' : '#000';
+  const bgColor = darkMode ? '#18181b' : 'white';
+  const panelBg = darkMode ? '#1f1f23' : 'white';
+  const headerBg = darkMode ? '#27272a' : '#f0f0f0';
+
+  // Fixed paper dimensions
+  const rp = rightPanelWidth;
+  const ls = config.labelSize;
+
+  // Drawing area
   const drawingArea = useMemo(() => ({
-    x: bounds.x + lw,
-    y: bounds.y + lh,
-    width: bounds.width - lw * 2 - rp,
-    height: bounds.height - lh * 2,
-  }), [bounds, lw, lh, rp]);
+    x: ls,
+    y: ls,
+    width: bounds.width - rp - ls,
+    height: bounds.height - ls,
+  }), [bounds, ls, rp]);
 
-  const colWidth = useMemo(() => drawingArea.width / config.columns.length, [drawingArea.width, config.columns.length]);
-  const rowHeight = useMemo(() => drawingArea.height / config.rows.length, [drawingArea.height, config.rows.length]);
+  const colWidth = drawingArea.width / config.columns.length;
+  const rowHeight = drawingArea.height / config.rows.length;
 
   const handleFieldSave = useCallback((fieldName, value) => {
     onTitleBlockDataChange?.({
@@ -171,91 +262,118 @@ function TitleBlockOverlayInner({
     });
   }, [titleBlockData, onTitleBlockDataChange]);
 
+  // Handle section resize - convert screen delta to paper delta using zoom
+  const handleSectionResize = useCallback((sectionName, screenDelta) => {
+    const totalHeight = bounds.height;
+    const paperDelta = screenDelta / zoom; // Convert screen pixels to paper pixels
+    const deltaPercent = (paperDelta / totalHeight) * 100;
+
+    const newHeights = { ...sectionHeights };
+    const currentHeight = newHeights[sectionName] || DEFAULT_SECTION_HEIGHTS[sectionName];
+    const newHeight = Math.max(3, Math.min(30, currentHeight + deltaPercent));
+    newHeights[sectionName] = newHeight;
+
+    onTitleBlockDataChange?.({
+      ...titleBlockData,
+      sectionHeights: newHeights,
+    });
+  }, [bounds.height, zoom, sectionHeights, titleBlockData, onTitleBlockDataChange]);
+
+  // Handle right panel width resize
+  const handlePanelWidthResize = useCallback((screenDelta) => {
+    const paperDelta = screenDelta / zoom; // Convert screen pixels to paper pixels
+    const newWidth = Math.max(
+      config.minRightPanelWidth,
+      Math.min(config.maxRightPanelWidth, rightPanelWidth - paperDelta)
+    );
+    onTitleBlockDataChange?.({
+      ...titleBlockData,
+      rightPanelWidth: newWidth,
+    });
+  }, [zoom, rightPanelWidth, titleBlockData, onTitleBlockDataChange, config]);
+
   if (!visible || pages.length === 0) return null;
 
   const data = titleBlockData || {};
 
   // Right panel positioning
   const rpX = bounds.width - rp;
-  const rpW = rp + lw;
-  const boxPadding = 4 / zoom;
-  const smallBoxHeight = 40 / zoom;
-  const mediumBoxHeight = 80 / zoom;
-  const largeBoxHeight = 120 / zoom;
-  const tableBoxHeight = 100 / zoom;
-  const logoHeight = 50 / zoom;
+  const rpW = rp + ls;
 
-  // Calculate y positions for each section
-  let yPos = lh;
-  const logoY = yPos;
-  yPos += logoHeight;
-  const drawingByY = yPos;
-  yPos += smallBoxHeight;
-  const legendY = yPos;
-  yPos += mediumBoxHeight;
-  const notesY = yPos;
-  yPos += largeBoxHeight;
-  const revisionY = yPos;
-  yPos += tableBoxHeight;
-  const issueY = yPos;
-  yPos += tableBoxHeight;
-  const projectY = yPos;
-  yPos += smallBoxHeight;
-  const scaleY = yPos;
-  yPos += smallBoxHeight;
-  const sheetTitleY = yPos;
+  // Calculate section Y positions based on percentages
+  const totalHeight = bounds.height;
+  const getHeight = (name) => ((sectionHeights[name] || DEFAULT_SECTION_HEIGHTS[name]) / 100) * totalHeight;
+
+  let y = 0;
+  const logoY = y; const logoH = getHeight('logo'); y += logoH;
+  const drawingByY = y; const drawingByH = getHeight('drawingBy'); y += drawingByH;
+  const legendY = y; const legendH = getHeight('legend'); y += legendH;
+  const notesY = y; const notesH = getHeight('notes'); y += notesH;
+  const revisionY = y; const revisionH = getHeight('revision'); y += revisionH;
+  const issueY = y; const issueH = getHeight('issue'); y += issueH;
+  const projectY = y; const projectH = getHeight('project'); y += projectH;
+  const scaleRowY = y; const scaleRowH = getHeight('scaleRow'); y += scaleRowH;
+  const sheetTitleY = y; const sheetTitleH = totalHeight - y + ls;
+
+  // Fixed font sizes (paper coordinates)
+  const labelFont = 10;
+  const smallFont = 7;
+  const tinyFont = 6;
+  const headerFont = 8;
+  const logoFont = 14;
+  const tableHeaderH = 12;
+  const tableRowH = Math.max(10, (revisionH - tableHeaderH * 2) / 5);
 
   return (
     <svg
       style={{
         position: 'absolute',
-        left: bounds.x - lw,
-        top: bounds.y - lh,
-        width: bounds.width + lw * 2,
-        height: bounds.height + lh * 2,
+        left: bounds.x - ls,
+        top: bounds.y - ls,
+        width: bounds.width + ls,
+        height: bounds.height + ls,
         pointerEvents: 'none',
         zIndex: 5,
         overflow: 'visible',
       }}
     >
-      {/* White background */}
-      <rect x={0} y={0} width={bounds.width + lw * 2} height={bounds.height + lh * 2} fill="white" />
+      {/* Main drawing area border - NO FILL so nodes show through */}
+      <rect
+        x={ls} y={ls}
+        width={drawingArea.width}
+        height={drawingArea.height}
+        fill="none" stroke={borderColor} strokeWidth={strokeWidth * 2}
+      />
 
-      {/* Outer border */}
-      <rect x={lw} y={lh} width={bounds.width - rp} height={bounds.height} fill="none" stroke="#000" strokeWidth={strokeWidth * 2} />
-
-      {/* Right panel border */}
-      <rect x={rpX} y={lh} width={rpW} height={bounds.height} fill="white" stroke="#000" strokeWidth={strokeWidth * 2} />
-
-      {/* Column labels - Top */}
+      {/* Column labels - TOP */}
       {config.columns.map((col, i) => (
         <g key={`col-top-${col}`}>
-          <rect x={lw + i * colWidth} y={0} width={colWidth} height={lh} fill="white" stroke="#000" strokeWidth={thinStroke} />
-          <text x={lw + i * colWidth + colWidth / 2} y={lh / 2 + labelFontSize / 3} fill="#000" fontSize={labelFontSize} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{col}</text>
+          <rect x={ls + i * colWidth} y={0} width={colWidth} height={ls} fill={bgColor} stroke={borderColor} strokeWidth={thinStroke} />
+          <text x={ls + i * colWidth + colWidth / 2} y={ls / 2 + labelFont / 3} fill={textColor} fontSize={labelFont} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{col}</text>
         </g>
       ))}
 
-      {/* Column labels - Bottom */}
+      {/* Column labels - BOTTOM */}
       {config.columns.map((col, i) => (
         <g key={`col-bot-${col}`}>
-          <rect x={lw + i * colWidth} y={bounds.height + lh} width={colWidth} height={lh} fill="white" stroke="#000" strokeWidth={thinStroke} />
-          <text x={lw + i * colWidth + colWidth / 2} y={bounds.height + lh + lh / 2 + labelFontSize / 3} fill="#000" fontSize={labelFontSize} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{col}</text>
+          <rect x={ls + i * colWidth} y={bounds.height} width={colWidth} height={ls} fill={bgColor} stroke={borderColor} strokeWidth={thinStroke} />
+          <text x={ls + i * colWidth + colWidth / 2} y={bounds.height + ls / 2 + labelFont / 3} fill={textColor} fontSize={labelFont} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{col}</text>
         </g>
       ))}
 
-      {/* Row labels - Left */}
+      {/* Row labels - LEFT */}
       {config.rows.map((row, i) => (
         <g key={`row-left-${row}`}>
-          <rect x={0} y={lh + i * rowHeight} width={lw} height={rowHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-          <text x={lw / 2} y={lh + i * rowHeight + rowHeight / 2 + labelFontSize / 3} fill="#000" fontSize={labelFontSize} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{row}</text>
+          <rect x={0} y={ls + i * rowHeight} width={ls} height={rowHeight} fill={bgColor} stroke={borderColor} strokeWidth={thinStroke} />
+          <text x={ls / 2} y={ls + i * rowHeight + rowHeight / 2 + labelFont / 3} fill={textColor} fontSize={labelFont} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{row}</text>
         </g>
       ))}
 
-      {/* Row labels - Right */}
+      {/* Row labels - RIGHT */}
       {config.rows.map((row, i) => (
         <g key={`row-right-${row}`}>
-          <rect x={bounds.width + lw} y={lh + i * rowHeight} width={lw} height={rowHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-          <text x={bounds.width + lw + lw / 2} y={lh + i * rowHeight + rowHeight / 2 + labelFontSize / 3} fill="#000" fontSize={labelFontSize} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{row}</text>
+          <rect x={bounds.width} y={ls + i * rowHeight} width={ls} height={rowHeight} fill={bgColor} stroke={borderColor} strokeWidth={thinStroke} />
+          <text x={bounds.width + ls / 2} y={ls + i * rowHeight + rowHeight / 2 + labelFont / 3} fill={textColor} fontSize={labelFont} fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">{row}</text>
         </g>
       ))}
 
@@ -263,185 +381,118 @@ function TitleBlockOverlayInner({
       {showGrid && (
         <g>
           {config.columns.slice(1).map((_, i) => (
-            <line key={`grid-v-${i}`} x1={lw + (i + 1) * colWidth} y1={lh} x2={lw + (i + 1) * colWidth} y2={bounds.height + lh} stroke="#ccc" strokeWidth={thinStroke} strokeDasharray={`${4 / zoom} ${4 / zoom}`} />
+            <line key={`grid-v-${i}`} x1={ls + (i + 1) * colWidth} y1={ls} x2={ls + (i + 1) * colWidth} y2={ls + drawingArea.height} stroke={borderColor} strokeWidth={thinStroke} strokeDasharray="4 4" />
           ))}
           {config.rows.slice(1).map((_, i) => (
-            <line key={`grid-h-${i}`} x1={lw} y1={lh + (i + 1) * rowHeight} x2={bounds.width - rp} y2={lh + (i + 1) * rowHeight} stroke="#ccc" strokeWidth={thinStroke} strokeDasharray={`${4 / zoom} ${4 / zoom}`} />
+            <line key={`grid-h-${i}`} x1={ls} y1={ls + (i + 1) * rowHeight} x2={ls + drawingArea.width} y2={ls + (i + 1) * rowHeight} stroke={borderColor} strokeWidth={thinStroke} strokeDasharray="4 4" />
           ))}
         </g>
       )}
 
       {/* ===== RIGHT PANEL ===== */}
+      <rect x={rpX} y={0} width={rpW} height={bounds.height + ls} fill={panelBg} stroke={borderColor} strokeWidth={strokeWidth * 2} />
+
+      {/* Panel width resize handle */}
+      <ResizeHandle x={rpX} y={0} width={bounds.height + ls} direction="vertical" onResize={handlePanelWidthResize} cursor="ew-resize" />
 
       {/* APEX Logo */}
-      <rect x={rpX} y={logoY} width={rpW} height={logoHeight} fill="#1a1a1a" stroke="#000" strokeWidth={thinStroke} />
-      <g transform={`translate(${rpX + 8 / zoom}, ${logoY + 8 / zoom}) scale(${0.6 / zoom})`}>
-        <circle cx="25" cy="25" r="24" fill="none" stroke="#fff" strokeWidth="2" />
-        <path d="M25 8 L38 42 L32 42 L29 34 L21 34 L18 42 L12 42 Z M25 18 L22 30 L28 30 Z" fill="#fff" />
+      <rect x={rpX} y={logoY} width={rpW} height={logoH} fill="#1a1a1a" stroke={borderColor} strokeWidth={thinStroke} />
+      <g transform={`translate(${rpX + 8}, ${logoY + 6}) scale(0.5)`}>
+        <circle cx="30" cy="30" r="28" fill="none" stroke="#fff" strokeWidth="3" />
+        <path d="M30 10 L46 50 L38 50 L34 40 L26 40 L22 50 L14 50 Z M30 22 L26 36 L34 36 Z" fill="#fff" />
       </g>
-      <text x={rpX + 50 / zoom} y={logoY + 22 / zoom} fill="#fff" fontSize={16 / zoom} fontFamily="Arial Black, Arial, sans-serif" fontWeight="bold" letterSpacing={2 / zoom}>APEX</text>
-      <text x={rpX + 50 / zoom} y={logoY + 36 / zoom} fill="#aaa" fontSize={6 / zoom} fontFamily="Arial, sans-serif" letterSpacing={1 / zoom}>SOUND &amp; LIGHT</text>
+      <text x={rpX + 45} y={logoY + logoH * 0.45} fill="#fff" fontSize={logoFont} fontFamily="Arial Black, Arial, sans-serif" fontWeight="bold" letterSpacing={2}>APEX</text>
+      <text x={rpX + 45} y={logoY + logoH * 0.75} fill="#888" fontSize={tinyFont} fontFamily="Arial, sans-serif" letterSpacing={1}>SOUND &amp; LIGHT</text>
+      <ResizeHandle x={rpX} y={logoY + logoH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('logo', d)} cursor="ns-resize" />
 
-      {/* Drawing By / Venue */}
-      <rect x={rpX} y={drawingByY} width={rpW} height={smallBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + boxPadding} y={drawingByY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif">DRAWING BY:</text>
-      <EditableField
-        x={rpX + 60 / zoom}
-        y={drawingByY + 2 / zoom}
-        width={rpW - 65 / zoom}
-        height={smallBoxHeight / 2 - 2 / zoom}
-        value={data.drawingBy}
-        fieldName="drawingBy"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={8}
-        placeholder="Enter name..."
-      />
-      <text x={rpX + boxPadding} y={drawingByY + smallFontSize * 2 + 6 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif">VENUE:</text>
-      <EditableField
-        x={rpX + 40 / zoom}
-        y={drawingByY + smallBoxHeight / 2}
-        width={rpW - 45 / zoom}
-        height={smallBoxHeight / 2 - 2 / zoom}
-        value={data.venue}
-        fieldName="venue"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={8}
-        placeholder="Enter venue..."
-      />
+      {/* DRAWING BY / VENUE */}
+      <rect x={rpX} y={drawingByY} width={rpW} height={drawingByH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 4} y={drawingByY + smallFont + 2} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif">DRAWING BY . . . . . .</text>
+      <EditableField x={rpX + 70} y={drawingByY + 1} width={rpW - 75} height={drawingByH / 2 - 2} value={data.drawingBy} fieldName="drawingBy" onSave={handleFieldSave} fontSize={7} color={textColor} />
+      <text x={rpX + 4} y={drawingByY + drawingByH / 2 + smallFont + 2} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif">VENUE . . . . . . . . . . . .</text>
+      <EditableField x={rpX + 70} y={drawingByY + drawingByH / 2} width={rpW - 75} height={drawingByH / 2 - 2} value={data.venue} fieldName="venue" onSave={handleFieldSave} fontSize={7} color={textColor} />
+      <ResizeHandle x={rpX} y={drawingByY + drawingByH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('drawingBy', d)} cursor="ns-resize" />
 
-      {/* Legend Key */}
-      <rect x={rpX} y={legendY} width={rpW} height={mediumBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW / 2} y={legendY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">LEGEND KEY</text>
+      {/* LEGEND KEY */}
+      <rect x={rpX} y={legendY} width={rpW} height={legendH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW / 2} y={legendY + headerFont + 2} fill={textColor} fontSize={headerFont} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">LEGEND KEY</text>
+      <line x1={rpX} y1={legendY + 14} x2={rpX + rpW} y2={legendY + 14} stroke={borderColor} strokeWidth={thinStroke} />
+      <EditableField x={rpX + 4} y={legendY + 16} width={rpW - 8} height={legendH - 20} value={data.legendKey} fieldName="legendKey" onSave={handleFieldSave} fontSize={6} color={textColor} multiline />
+      <ResizeHandle x={rpX} y={legendY + legendH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('legend', d)} cursor="ns-resize" />
 
-      {/* General Notes */}
-      <rect x={rpX} y={notesY} width={rpW} height={largeBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + boxPadding} y={notesY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif">GENERAL NOTES:</text>
-      <EditableField
-        x={rpX + boxPadding}
-        y={notesY + 14 / zoom}
-        width={rpW - boxPadding * 2}
-        height={largeBoxHeight - 18 / zoom}
-        value={data.generalNotes}
-        fieldName="generalNotes"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={7}
-        placeholder="Enter notes..."
-      />
+      {/* GENERAL NOTES */}
+      <rect x={rpX} y={notesY} width={rpW} height={notesH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 4} y={notesY + smallFont + 2} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif">GENERAL NOTES:</text>
+      <EditableField x={rpX + 4} y={notesY + 12} width={rpW - 8} height={notesH - 16} value={data.generalNotes} fieldName="generalNotes" onSave={handleFieldSave} fontSize={6} color={textColor} multiline />
+      <ResizeHandle x={rpX} y={notesY + notesH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('notes', d)} cursor="ns-resize" />
 
-      {/* Revision History */}
-      <rect x={rpX} y={revisionY} width={rpW} height={tableBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW / 2} y={revisionY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">REVISION HISTORY</text>
-      <line x1={rpX} y1={revisionY + 14 / zoom} x2={rpX + rpW} y2={revisionY + 14 / zoom} stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + 10 / zoom} y={revisionY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">NO.</text>
-      <text x={rpX + 40 / zoom} y={revisionY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">REVISION</text>
-      <text x={rpX + 120 / zoom} y={revisionY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">DATE</text>
-      <text x={rpX + 170 / zoom} y={revisionY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">BY</text>
-      <line x1={rpX} y1={revisionY + 26 / zoom} x2={rpX + rpW} y2={revisionY + 26 / zoom} stroke="#000" strokeWidth={thinStroke} />
+      {/* REVISION HISTORY */}
+      <rect x={rpX} y={revisionY} width={rpW} height={revisionH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <rect x={rpX} y={revisionY} width={rpW} height={tableHeaderH} fill={headerBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW / 2} y={revisionY + headerFont} fill={textColor} fontSize={headerFont} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">REVISION HISTORY</text>
+      <line x1={rpX} y1={revisionY + tableHeaderH} x2={rpX + rpW} y2={revisionY + tableHeaderH} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 8} y={revisionY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">NO.</text>
+      <text x={rpX + 35} y={revisionY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">REVISION</text>
+      <text x={rpX + 110} y={revisionY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">DATE</text>
+      <text x={rpX + 165} y={revisionY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">BY</text>
+      <line x1={rpX} y1={revisionY + tableHeaderH + tableRowH} x2={rpX + rpW} y2={revisionY + tableHeaderH + tableRowH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 25} y1={revisionY + tableHeaderH} x2={rpX + 25} y2={revisionY + revisionH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 100} y1={revisionY + tableHeaderH} x2={rpX + 100} y2={revisionY + revisionH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 155} y1={revisionY + tableHeaderH} x2={rpX + 155} y2={revisionY + revisionH} stroke={borderColor} strokeWidth={thinStroke} />
+      {[2, 3, 4, 5].map(i => (
+        <line key={`rev-row-${i}`} x1={rpX} y1={revisionY + tableHeaderH + i * tableRowH} x2={rpX + rpW} y2={revisionY + tableHeaderH + i * tableRowH} stroke={borderColor} strokeWidth={thinStroke * 0.5} />
+      ))}
+      <ResizeHandle x={rpX} y={revisionY + revisionH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('revision', d)} cursor="ns-resize" />
 
-      {/* Issue History */}
-      <rect x={rpX} y={issueY} width={rpW} height={tableBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW / 2} y={issueY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">ISSUE HISTORY</text>
-      <line x1={rpX} y1={issueY + 14 / zoom} x2={rpX + rpW} y2={issueY + 14 / zoom} stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + 10 / zoom} y={issueY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">NO.</text>
-      <text x={rpX + 40 / zoom} y={issueY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">ISSUE</text>
-      <text x={rpX + 120 / zoom} y={issueY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">DATE</text>
-      <text x={rpX + 170 / zoom} y={issueY + 22 / zoom} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">BY</text>
-      <line x1={rpX} y1={issueY + 26 / zoom} x2={rpX + rpW} y2={issueY + 26 / zoom} stroke="#000" strokeWidth={thinStroke} />
+      {/* ISSUE HISTORY */}
+      <rect x={rpX} y={issueY} width={rpW} height={issueH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <rect x={rpX} y={issueY} width={rpW} height={tableHeaderH} fill={headerBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW / 2} y={issueY + headerFont} fill={textColor} fontSize={headerFont} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">ISSUE HISTORY</text>
+      <line x1={rpX} y1={issueY + tableHeaderH} x2={rpX + rpW} y2={issueY + tableHeaderH} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 8} y={issueY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">NO.</text>
+      <text x={rpX + 35} y={issueY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">ISSUE</text>
+      <text x={rpX + 110} y={issueY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">DATE</text>
+      <text x={rpX + 165} y={issueY + tableHeaderH + tinyFont + 2} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">BY</text>
+      <line x1={rpX} y1={issueY + tableHeaderH + tableRowH} x2={rpX + rpW} y2={issueY + tableHeaderH + tableRowH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 25} y1={issueY + tableHeaderH} x2={rpX + 25} y2={issueY + issueH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 100} y1={issueY + tableHeaderH} x2={rpX + 100} y2={issueY + issueH} stroke={borderColor} strokeWidth={thinStroke} />
+      <line x1={rpX + 155} y1={issueY + tableHeaderH} x2={rpX + 155} y2={issueY + issueH} stroke={borderColor} strokeWidth={thinStroke} />
+      {[2, 3, 4, 5].map(i => (
+        <line key={`issue-row-${i}`} x1={rpX} y1={issueY + tableHeaderH + i * tableRowH} x2={rpX + rpW} y2={issueY + tableHeaderH + i * tableRowH} stroke={borderColor} strokeWidth={thinStroke * 0.5} />
+      ))}
+      <ResizeHandle x={rpX} y={issueY + issueH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('issue', d)} cursor="ns-resize" />
 
-      {/* Project */}
-      <rect x={rpX} y={projectY} width={rpW} height={smallBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + boxPadding} y={projectY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif">PROJECT:</text>
-      <EditableField
-        x={rpX + boxPadding}
-        y={projectY + 12 / zoom}
-        width={rpW - boxPadding * 2}
-        height={smallBoxHeight - 14 / zoom}
-        value={data.project}
-        fieldName="project"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={10}
-        fontWeight="bold"
-        placeholder="Enter project name..."
-      />
+      {/* PROJECT */}
+      <rect x={rpX} y={projectY} width={rpW} height={projectH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 4} y={projectY + smallFont + 2} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif">PROJECT:</text>
+      <EditableField x={rpX + 4} y={projectY + 10} width={rpW - 8} height={projectH - 14} value={data.project} fieldName="project" onSave={handleFieldSave} fontSize={9} fontWeight="bold" color={textColor} />
+      <ResizeHandle x={rpX} y={projectY + projectH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('project', d)} cursor="ns-resize" />
 
-      {/* Scale / Sheet # / Page Size row */}
-      <rect x={rpX} y={scaleY} width={rpW / 2} height={smallBoxHeight} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + boxPadding} y={scaleY + smallFontSize} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">SCALE:</text>
-      <EditableField
-        x={rpX + boxPadding}
-        y={scaleY + 10 / zoom}
-        width={rpW / 2 - boxPadding * 2}
-        height={16 / zoom}
-        value={data.scale}
-        fieldName="scale"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={10}
-        fontWeight="bold"
-        placeholder="CUSTOM"
-      />
-      <text x={rpX + boxPadding} y={scaleY + smallBoxHeight - 4 / zoom} fill="#666" fontSize={smallFontSize * 0.7} fontFamily="Arial, sans-serif" fontStyle="italic">UNLESS NOTED</text>
+      {/* SCALE / SHT # / PG SIZE */}
+      <rect x={rpX} y={scaleRowY} width={rpW / 2} height={scaleRowH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 4} y={scaleRowY + tinyFont + 1} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">SCALE:</text>
+      <EditableField x={rpX + 4} y={scaleRowY + 8} width={rpW / 2 - 8} height={14} value={data.scale} fieldName="scale" onSave={handleFieldSave} fontSize={10} fontWeight="bold" placeholder="CUSTOM" color={textColor} />
+      <text x={rpX + 4} y={scaleRowY + scaleRowH - 4} fill="#666" fontSize={tinyFont * 0.85} fontFamily="Arial, sans-serif" fontStyle="italic">UNLESS NOTED</text>
 
-      {/* Sheet # */}
-      <rect x={rpX + rpW / 2} y={scaleY} width={rpW / 4} height={smallBoxHeight / 2} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW / 2 + boxPadding} y={scaleY + smallFontSize} fill="#000" fontSize={smallFontSize * 0.8} fontFamily="Arial, sans-serif">SHT #:</text>
-      <EditableField
-        x={rpX + rpW / 2 + 30 / zoom}
-        y={scaleY + 2 / zoom}
-        width={rpW / 4 - 35 / zoom}
-        height={smallBoxHeight / 2 - 4 / zoom}
-        value={data.sheetNumber}
-        fieldName="sheetNumber"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={9}
-        fontWeight="bold"
-        placeholder="1"
-      />
+      <rect x={rpX + rpW / 2} y={scaleRowY} width={rpW / 4} height={scaleRowH / 2} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW / 2 + 3} y={scaleRowY + tinyFont + 1} fill={textColor} fontSize={tinyFont} fontFamily="Arial, sans-serif">SHT #:</text>
+      <EditableField x={rpX + rpW / 2 + 30} y={scaleRowY + 2} width={rpW / 4 - 35} height={scaleRowH / 2 - 4} value={data.sheetNumber} fieldName="sheetNumber" onSave={handleFieldSave} fontSize={10} fontWeight="bold" placeholder="1" textAlign="center" color={textColor} />
 
-      {/* Page Size */}
-      <rect x={rpX + rpW * 3 / 4} y={scaleY} width={rpW / 4} height={smallBoxHeight / 2} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW * 3 / 4 + boxPadding} y={scaleY + smallFontSize * 0.8} fill="#000" fontSize={smallFontSize * 0.7} fontFamily="Arial, sans-serif">PG SIZE:</text>
-      <EditableField
-        x={rpX + rpW * 3 / 4 + boxPadding}
-        y={scaleY + 8 / zoom}
-        width={rpW / 4 - boxPadding * 2}
-        height={smallBoxHeight / 2 - 10 / zoom}
-        value={data.pageSize}
-        fieldName="pageSize"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={7}
-        fontWeight="bold"
-        placeholder="ASME B"
-      />
+      <rect x={rpX + rpW * 3 / 4} y={scaleRowY} width={rpW / 4} height={scaleRowH / 2} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW * 3 / 4 + 3} y={scaleRowY + tinyFont} fill={textColor} fontSize={tinyFont * 0.85} fontFamily="Arial, sans-serif">PG SIZE:</text>
+      <EditableField x={rpX + rpW * 3 / 4 + 3} y={scaleRowY + 7} width={rpW / 4 - 6} height={scaleRowH / 2 - 10} value={data.pageSize} fieldName="pageSize" onSave={handleFieldSave} fontSize={7} fontWeight="bold" placeholder="ASME B" color={textColor} />
 
-      {/* Issue / Revision boxes */}
-      <rect x={rpX + rpW / 2} y={scaleY + smallBoxHeight / 2} width={rpW / 4} height={smallBoxHeight / 2} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW / 2 + rpW / 8} y={scaleY + smallBoxHeight / 2 + smallFontSize + 4 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">ISSUE</text>
+      <rect x={rpX + rpW / 2} y={scaleRowY + scaleRowH / 2} width={rpW / 4} height={scaleRowH / 2} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW / 2 + rpW / 8} y={scaleRowY + scaleRowH / 2 + scaleRowH / 4 + smallFont / 3} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">ISSUE</text>
 
-      <rect x={rpX + rpW * 3 / 4} y={scaleY + smallBoxHeight / 2} width={rpW / 4} height={smallBoxHeight / 2} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + rpW * 7 / 8} y={scaleY + smallBoxHeight / 2 + smallFontSize + 4 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">REVISION</text>
+      <rect x={rpX + rpW * 3 / 4} y={scaleRowY + scaleRowH / 2} width={rpW / 4} height={scaleRowH / 2} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + rpW * 7 / 8} y={scaleRowY + scaleRowH / 2 + scaleRowH / 4 + smallFont / 3} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif" textAnchor="middle" fontWeight="bold">REVISION</text>
+      <ResizeHandle x={rpX} y={scaleRowY + scaleRowH} width={rpW} direction="horizontal" onResize={(d) => handleSectionResize('scaleRow', d)} cursor="ns-resize" />
 
-      {/* Sheet Title */}
-      <rect x={rpX} y={sheetTitleY} width={rpW} height={bounds.height + lh - sheetTitleY} fill="white" stroke="#000" strokeWidth={thinStroke} />
-      <text x={rpX + boxPadding} y={sheetTitleY + smallFontSize + 2 / zoom} fill="#000" fontSize={smallFontSize} fontFamily="Arial, sans-serif">SHT:</text>
-      <EditableField
-        x={rpX + boxPadding}
-        y={sheetTitleY + 12 / zoom}
-        width={rpW - boxPadding * 2}
-        height={bounds.height + lh - sheetTitleY - 14 / zoom}
-        value={data.sheetTitle}
-        fieldName="sheetTitle"
-        zoom={zoom}
-        onSave={handleFieldSave}
-        fontSize={9}
-        placeholder="Enter sheet title..."
-      />
+      {/* SHEET TITLE */}
+      <rect x={rpX} y={sheetTitleY} width={rpW} height={sheetTitleH} fill={panelBg} stroke={borderColor} strokeWidth={thinStroke} />
+      <text x={rpX + 4} y={sheetTitleY + smallFont + 2} fill={textColor} fontSize={smallFont} fontFamily="Arial, sans-serif">SHT:</text>
+      <EditableField x={rpX + 4} y={sheetTitleY + 10} width={rpW - 8} height={sheetTitleH - 14} value={data.sheetTitle} fieldName="sheetTitle" onSave={handleFieldSave} fontSize={8} color={textColor} multiline />
     </svg>
   );
 }
