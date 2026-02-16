@@ -283,7 +283,7 @@ function TitleBlockOverlayInner({
   const panelW = bounds.width;
 
   // Section widths (percentages of panel width)
-  const logoW = 80;
+  const logoW = 240;
   const projectW = panelW * 0.25;
   const versionW = panelW * 0.15;
   const dateW = 80;
