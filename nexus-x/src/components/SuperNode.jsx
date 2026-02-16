@@ -4746,6 +4746,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             sharedColumnWidths={sharedColumnWidths}
             sharedCollapsedColumnWidths={sharedCollapsedColumnWidths}
             onColumnResize={handleColumnResize}
+            anchorSourceColors={anchorSourceColors}
             sourceNamesWithColors={sourceNamesWithColors}
           />
         );
