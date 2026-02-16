@@ -2389,6 +2389,55 @@ export default function App() {
     }
   }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions]);
 
+  // Export with title block included (removes data-export-ignore temporarily)
+  const handleExportWithTitleBlock = useCallback(async () => {
+    if (!canvasRef.current || !showTitleBlock) return;
+
+    const name = projectName || 'untitled';
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    // Find title block wrapper and temporarily remove data-export-ignore
+    const titleBlockWrapper = canvasRef.current.querySelector('[data-export-ignore="true"]:has(svg)');
+    const hadIgnore = titleBlockWrapper?.getAttribute('data-export-ignore');
+
+    if (titleBlockWrapper) {
+      titleBlockWrapper.removeAttribute('data-export-ignore');
+    }
+
+    // Helper to temporarily make canvas transparent for export
+    const withTransparentCanvas = async (exportFn) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const origBg = canvas.style.backgroundColor;
+      const origBgImage = canvas.style.backgroundImage;
+      canvas.style.backgroundColor = 'transparent';
+      canvas.style.backgroundImage = 'none';
+      try {
+        return await exportFn();
+      } finally {
+        canvas.style.backgroundColor = origBg;
+        canvas.style.backgroundImage = origBgImage;
+      }
+    };
+
+    setExportProgress({ current: 1, total: 1 });
+    try {
+      await new Promise(r => setTimeout(r, 0));
+      const blob = await withTransparentCanvas(() =>
+        renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+      );
+      if (blob) downloadBlob(blob, `${name}-with-titleblock-${stamp}`);
+    } catch (err) {
+      console.error('Export with title block failed:', err);
+    } finally {
+      // Restore data-export-ignore
+      if (titleBlockWrapper && hadIgnore) {
+        titleBlockWrapper.setAttribute('data-export-ignore', hadIgnore);
+      }
+      setExportProgress(null);
+    }
+  }, [projectName, showTitleBlock, pageBounds]);
+
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
       {/* Header Toolbar */}
@@ -2496,6 +2545,20 @@ export default function App() {
                 : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
               }
             </button>
+            {showTitleBlock && (
+              <button
+                onClick={handleExportWithTitleBlock}
+                disabled={exportProgress !== null}
+                className={`px-2 py-1 border rounded text-xs font-mono ${
+                  exportProgress !== null
+                    ? 'border-cyan-500 text-cyan-400 cursor-wait'
+                    : 'border-emerald-700 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500'
+                }`}
+                title="Export PNG with title block included"
+              >
+                Export + TB
+              </button>
+            )}
             <div className="relative">
               <button
                 onClick={() => setShowRecents(prev => !prev)}
