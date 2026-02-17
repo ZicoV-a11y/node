@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "idb": "^8.0.3",
+    "jspdf": "^4.1.0",
     "jszip": "^3.10.1",
     "modern-screenshot": "^4.6.8",
     "react": "^19.2.0",

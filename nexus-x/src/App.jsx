@@ -6,7 +6,7 @@ import CanvasControls from './components/canvas/CanvasControls';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
 import TitleBlockOverlay from './components/canvas/TitleBlockOverlay';
 import CablePrompt from './components/CablePrompt';
-import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip } from './services/storage';
+import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip, invertBlob, pngBlobsToPdf } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
 import { usePageGrid } from './hooks/usePageGrid';
@@ -67,6 +67,19 @@ const SIGNAL_COLORS = [
 // Signal colors lookup Map for O(1) access by id
 const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
 const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
+
+// Print-friendly bold callback — applied to cloned DOM via onCloneNode.
+// Bolds all text inside nodes except the title bar and cable labels.
+const printBoldCloneNode = (cloned) => {
+  if (!(cloned instanceof HTMLElement)) return;
+  cloned.querySelectorAll('.bg-zinc-900.rounded-lg').forEach(node => {
+    const titleBar = node.querySelector('.rounded-t-lg');
+    node.querySelectorAll('span, div, td, th, button, input').forEach(el => {
+      if (titleBar?.contains(el)) return;
+      if (el instanceof HTMLElement) el.style.fontWeight = '700';
+    });
+  });
+};
 
 // Extract nodeId from anchorId (format: "node-12345-in-67890" -> "node-12345")
 // Node IDs always have 2 segments: "node-TIMESTAMP"
@@ -142,7 +155,7 @@ const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, sel
       {conn.length && fromPos && toPos && (
         <text
           x={(fromPos.x + toPos.x) / 2}
-          y={(fromPos.y + toPos.y) / 2 - 8}
+          y={(fromPos.y + toPos.y) / 2 - 10}
           fill={wireColor}
           fontSize={4}
           textAnchor="middle"
@@ -585,6 +598,7 @@ export default function App() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
   const [exportScale, setExportScale] = useState(8);
+  const [printFriendly, setPrintFriendly] = useState(false);
 
   // Export resolution presets
   const EXPORT_PRESETS = [
@@ -2352,23 +2366,35 @@ export default function App() {
       const total = pages.length + 1; // +1 for layout render step
       setExportProgress({ current: 0, total });
       try {
-        // Render with transparent background
+        // Render with appropriate background
         setExportProgress({ current: 1, total });
         await new Promise(r => setTimeout(r, 0));
-        const layoutBlob = await withTransparentCanvas(() =>
-          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale })
+        const printClone = printFriendly ? printBoldCloneNode : undefined;
+        let layoutBlob = await withTransparentCanvas(() =>
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, onCloneNode: printClone })
         );
 
         // Crop each page from the layout image (cheap canvas ops)
         setExportProgress({ current: 2, total });
         await new Promise(r => setTimeout(r, 0));
         const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds, exportScale);
-        const namedBlobs = cropped.map(({ page, blob }) => ({
+        let namedBlobs = cropped.map(({ page, blob }) => ({
           name: `${name}-${page.label.replace(/\s+/g, '-')}.png`, blob,
         }));
 
         // Add layout image
         namedBlobs.push({ name: `${name}-Layout.png`, blob: layoutBlob });
+
+        // Post-process for print-friendly output
+        if (printFriendly) {
+          namedBlobs = await Promise.all(namedBlobs.map(async ({ name: n, blob }) => ({
+            name: n, blob: await invertBlob(blob),
+          })));
+        }
+
+        // Add PDF with all pages
+        const pdfBlob = await pngBlobsToPdf(namedBlobs.map(b => b.blob));
+        if (pdfBlob) namedBlobs.push({ name: `${name}-All-Pages.pdf`, blob: pdfBlob });
 
         await downloadZip(namedBlobs, `${name}-${stamp}.zip`);
       } catch (err) {
@@ -2379,16 +2405,21 @@ export default function App() {
       return;
     }
 
-    // Single page or paper-off export — render with transparent background
+    // Single page or paper-off export
     if (canvasRef.current && pageBounds) {
       setExportProgress({ current: 1, total: 1 });
       try {
         await new Promise(r => setTimeout(r, 0));
-        // Transparent background, user-selected scale
-        const blob = await withTransparentCanvas(() =>
-          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale })
+        const printClone = printFriendly ? printBoldCloneNode : undefined;
+        let blob = await withTransparentCanvas(() =>
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, onCloneNode: printClone })
         );
-        if (blob) downloadBlob(blob, name);
+        if (blob && printFriendly) blob = await invertBlob(blob);
+        if (blob) {
+          downloadBlob(blob, name);
+          const pdfBlob = await pngBlobsToPdf([blob]);
+          if (pdfBlob) downloadBlob(pdfBlob, name, 'pdf');
+        }
       } catch (err) {
         console.error('Export failed:', err);
       } finally {
@@ -2396,7 +2427,7 @@ export default function App() {
       }
       return;
     }
-  }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions, exportScale]);
+  }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions, exportScale, printFriendly]);
 
   // Export with title block included (removes data-export-ignore temporarily)
   const handleExportWithTitleBlock = useCallback(async () => {
@@ -2413,14 +2444,17 @@ export default function App() {
       titleBlockWrapper.removeAttribute('data-export-ignore');
     }
 
-    // Helper to set black background for title block export
-    const withBlackBackground = async (exportFn) => {
+    const tbBgColor = '#000000';
+
+    // Helper to set background for title block export
+    const withTitleBlockCanvas = async (exportFn) => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const origBg = canvas.style.backgroundColor;
       const origBgImage = canvas.style.backgroundImage;
-      canvas.style.backgroundColor = '#000000';
+      canvas.style.backgroundColor = tbBgColor;
       canvas.style.backgroundImage = 'none';
+
       try {
         return await exportFn();
       } finally {
@@ -2432,10 +2466,16 @@ export default function App() {
     setExportProgress({ current: 1, total: 1 });
     try {
       await new Promise(r => setTimeout(r, 0));
-      const blob = await withBlackBackground(() =>
-        renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, backgroundColor: '#000000' })
+      const printClone = printFriendly ? printBoldCloneNode : undefined;
+      let blob = await withTitleBlockCanvas(() =>
+        renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, backgroundColor: tbBgColor, onCloneNode: printClone })
       );
-      if (blob) downloadBlob(blob, `${name}-with-titleblock-${stamp}`);
+      if (blob && printFriendly) blob = await invertBlob(blob);
+      if (blob) {
+        downloadBlob(blob, `${name}-with-titleblock-${stamp}`);
+        const pdfBlob = await pngBlobsToPdf([blob]);
+        if (pdfBlob) downloadBlob(pdfBlob, `${name}-with-titleblock-${stamp}`, 'pdf');
+      }
     } catch (err) {
       console.error('Export with title block failed:', err);
     } finally {
@@ -2445,7 +2485,7 @@ export default function App() {
       }
       setExportProgress(null);
     }
-  }, [projectName, showTitleBlock, pageBounds, exportScale]);
+  }, [projectName, showTitleBlock, pageBounds, exportScale, printFriendly]);
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
@@ -2534,6 +2574,17 @@ export default function App() {
               title="Save project to file"
             >
               Save As
+            </button>
+            <button
+              onClick={() => setPrintFriendly(p => !p)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                printFriendly
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="Print-friendly export (white background, darker lines)"
+            >
+              Print
             </button>
             <select
               value={exportScale}
@@ -2943,7 +2994,6 @@ export default function App() {
                 titleBlockData={titleBlockData}
                 onTitleBlockDataChange={handleTitleBlockDataChange}
                 darkMode={canvasBackground !== 'white'}
-                connections={connections}
               />
             </div>
           )}
@@ -3048,7 +3098,7 @@ export default function App() {
                           <path id={pathId} d={wirePath} />
                         </defs>
                         {/* Text outline for readability */}
-                        <text className="font-mono" style={{ fontSize }}>
+                        <text className="font-mono" dy={-3} style={{ fontSize }}>
                           <textPath
                             href={`#${pathId}`}
                             startOffset="50%"
@@ -3064,7 +3114,7 @@ export default function App() {
                           </textPath>
                         </text>
                         {/* Text fill */}
-                        <text className="font-mono" style={{ fontSize }}>
+                        <text className="font-mono" dy={-3} style={{ fontSize }}>
                           <textPath
                             href={`#${pathId}`}
                             startOffset="50%"

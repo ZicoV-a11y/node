@@ -232,7 +232,6 @@ function TitleBlockOverlayInner({
   titleBlockData,
   onTitleBlockDataChange,
   darkMode = true,
-  connections = [],
 }) {
   const bounds = useMemo(() => {
     if (pages.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -251,17 +250,6 @@ function TitleBlockOverlayInner({
   const panelBg = '#18181b';
   const sectionBg = '#1f1f23';
 
-  // Calculate cable tally from connections
-  const cableTally = useMemo(() => {
-    const tally = {};
-    connections.forEach(conn => {
-      const type = conn.cableType || 'Unspecified';
-      tally[type] = (tally[type] || 0) + 1;
-    });
-    return Object.entries(tally)
-      .map(([type, count]) => `${type}: ${count}`)
-      .join('\n') || 'No cables';
-  }, [connections]);
 
   const handleFieldSave = useCallback((fieldName, value) => {
     onTitleBlockDataChange?.({
@@ -290,8 +278,7 @@ function TitleBlockOverlayInner({
   const projectW = panelW * 0.25;
   const versionW = panelW * 0.15;
   const dateW = 80;
-  const notesW = panelW * 0.25;
-  const tallyW = panelW - logoW - projectW - versionW - dateW - notesW - 10; // Remaining space
+  const notesW = panelW - logoW - projectW - versionW - dateW - 10; // Remaining space
 
   // Font sizes
   const labelFont = 8;
@@ -304,8 +291,7 @@ function TitleBlockOverlayInner({
   const projectX = sectionX; sectionX += projectW + 2;
   const versionX = sectionX; sectionX += versionW + 2;
   const dateX = sectionX; sectionX += dateW + 2;
-  const notesX = sectionX; sectionX += notesW + 2;
-  const tallyX = sectionX;
+  const notesX = sectionX;
 
   const sectionPadding = 4;
   const labelHeight = 12;
@@ -455,26 +441,6 @@ function TitleBlockOverlayInner({
         multiline
       />
 
-      {/* CABLE TALLY SECTION */}
-      <rect x={tallyX} y={panelY} width={tallyW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
-      <text x={tallyX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="ui-monospace, monospace">CABLE TALLY</text>
-      <foreignObject x={tallyX + sectionPadding} y={contentY} width={tallyW - sectionPadding * 2} height={contentHeight}>
-        <div
-          xmlns="http://www.w3.org/1999/xhtml"
-          style={{
-            width: '100%',
-            height: '100%',
-            fontSize: 8,
-            fontFamily: 'ui-monospace, monospace',
-            color: '#10b981',
-            whiteSpace: 'pre-wrap',
-            overflow: 'auto',
-            padding: 2,
-          }}
-        >
-          {cableTally}
-        </div>
-      </foreignObject>
     </svg>
   );
 }

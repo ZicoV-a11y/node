@@ -1,6 +1,7 @@
 import { openDB } from 'idb';
 import { domToBlob } from 'modern-screenshot';
 import JSZip from 'jszip';
+import { jsPDF } from 'jspdf';
 
 const DB_NAME = 'nexus-x';
 const DB_VERSION = 1;
@@ -73,7 +74,7 @@ export function importProject(jsonString, fileName) {
 }
 
 export async function renderExportBlob(canvasElement, options = {}) {
-  const { scale = 1, backgroundColor = null, width, height, style, filter } = options;
+  const { scale = 1, backgroundColor = null, width, height, style, filter, onCloneNode } = options;
   // backgroundColor = null for transparent PNG (alpha channel)
   const blobOptions = {
     scale,
@@ -85,6 +86,9 @@ export async function renderExportBlob(canvasElement, options = {}) {
   // Only set backgroundColor if explicitly provided (null = transparent)
   if (backgroundColor !== null) {
     blobOptions.backgroundColor = backgroundColor;
+  }
+  if (onCloneNode) {
+    blobOptions.onCloneNode = onCloneNode;
   }
   return domToBlob(canvasElement, blobOptions);
 }
@@ -106,7 +110,7 @@ export async function renderPageBlob(canvasElement, page, options = {}) {
 }
 
 export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) {
-  const { scale = 1, backgroundColor = null } = options;
+  const { scale = 1, backgroundColor = null, onCloneNode } = options;
 
   // Temporarily expand canvas so child computed styles (w-full, h-full, inset-0)
   // resolve to the full layout size before domToBlob clones the DOM
@@ -119,6 +123,7 @@ export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) 
     return await renderExportBlob(canvasElement, {
       scale,
       backgroundColor,
+      onCloneNode,
       width: pageBounds.width,
       height: pageBounds.height,
       style: {
@@ -129,6 +134,41 @@ export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) 
     canvasElement.style.width = origWidth;
     canvasElement.style.height = origHeight;
   }
+}
+
+export async function invertBlob(blob) {
+  const img = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.filter = 'invert(1) hue-rotate(180deg)';
+  ctx.drawImage(img, 0, 0);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+}
+
+// Convert one or more PNG blobs into a single PDF (one image per page).
+// Each page is sized to fit the image at 300 DPI.
+export async function pngBlobsToPdf(blobs) {
+  let pdf = null;
+  for (const blob of blobs) {
+    const img = await createImageBitmap(blob);
+    const wPt = img.width * 72 / 300;  // px → points at 300 DPI
+    const hPt = img.height * 72 / 300;
+    const orientation = wPt > hPt ? 'l' : 'p';
+    if (!pdf) {
+      pdf = new jsPDF({ orientation, unit: 'pt', format: [wPt, hPt] });
+    } else {
+      pdf.addPage([wPt, hPt], orientation);
+    }
+    const dataUrl = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+    pdf.addImage(dataUrl, 'PNG', 0, 0, wPt, hPt);
+  }
+  return pdf ? pdf.output('blob') : null;
 }
 
 export async function cropPageBlobs(layoutBlob, pages, pageBounds, scale = 1) {
@@ -155,11 +195,11 @@ export async function cropPageBlobs(layoutBlob, pages, pageBounds, scale = 1) {
   return results;
 }
 
-export function downloadBlob(blob, projectName = 'diagram') {
+export function downloadBlob(blob, projectName = 'diagram', ext = 'png') {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${projectName}-${new Date().toISOString().slice(0, 10)}.png`;
+  link.download = `${projectName}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

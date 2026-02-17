@@ -3534,7 +3534,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
             ) : (
               (model || !manufacturer) && (
                 <span
-                  className="font-mono font-bold cursor-pointer hover:text-cyan-400 transition-colors"
+                  className="font-mono font-bold cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
                   style={{ color: headerTextHex, fontSize: modelFontSize }}
                   onDoubleClick={handleModelDoubleClick}
                   title="Double-click to edit model"
@@ -3564,7 +3564,7 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
             ) : (
               (manufacturer || !model) && (
                 <span
-                  className="font-mono text-zinc-400 cursor-pointer hover:text-cyan-400 transition-colors"
+                  className="font-mono text-zinc-400 cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
                   style={{ fontSize: manufacturerFontSize }}
                   onDoubleClick={handleManufacturerDoubleClick}
                   title="Double-click to edit manufacturer"
