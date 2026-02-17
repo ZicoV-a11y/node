@@ -584,6 +584,16 @@ export default function App() {
   const [showRecents, setShowRecents] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
+  const [exportScale, setExportScale] = useState(8);
+
+  // Export resolution presets
+  const EXPORT_PRESETS = [
+    { label: 'Screen (1x)', scale: 1, desc: '~72 DPI' },
+    { label: 'Draft (4x)', scale: 4, desc: '~150 DPI' },
+    { label: 'Print (8x)', scale: 8, desc: '~300 DPI on 11×17' },
+    { label: 'Large Print (16x)', scale: 16, desc: '~300 DPI on 24×36' },
+    { label: 'Ultra (24x)', scale: 24, desc: '~600 DPI on 24×36' },
+  ];
 
   // Refs for stable access in event handlers (avoids stale closures)
   const zoomRef = useRef(zoom);
@@ -2309,8 +2319,7 @@ export default function App() {
   }, [nodes, connections, paperSize, orientation, paperEnabled, pages.length, anchorLocalOffsets]);
 
   // Export canvas to PNG (single page) or ZIP (multi-page)
-  // Scale 8x for ultra-high print quality (~600 DPI on 11x17)
-  const EXPORT_SCALE = 8;
+  // Scale controlled by exportScale state (user-selectable resolution)
 
   const handleExportPNG = useCallback(async () => {
     const name = projectName || 'untitled';
@@ -2347,13 +2356,13 @@ export default function App() {
         setExportProgress({ current: 1, total });
         await new Promise(r => setTimeout(r, 0));
         const layoutBlob = await withTransparentCanvas(() =>
-          renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale })
         );
 
         // Crop each page from the layout image (cheap canvas ops)
         setExportProgress({ current: 2, total });
         await new Promise(r => setTimeout(r, 0));
-        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds, EXPORT_SCALE);
+        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds, exportScale);
         const namedBlobs = cropped.map(({ page, blob }) => ({
           name: `${name}-${page.label.replace(/\s+/g, '-')}.png`, blob,
         }));
@@ -2375,9 +2384,9 @@ export default function App() {
       setExportProgress({ current: 1, total: 1 });
       try {
         await new Promise(r => setTimeout(r, 0));
-        // Transparent background, 8x scale for high quality
+        // Transparent background, user-selected scale
         const blob = await withTransparentCanvas(() =>
-          renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE })
+          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale })
         );
         if (blob) downloadBlob(blob, name);
       } catch (err) {
@@ -2387,7 +2396,7 @@ export default function App() {
       }
       return;
     }
-  }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions]);
+  }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions, exportScale]);
 
   // Export with title block included (removes data-export-ignore temporarily)
   const handleExportWithTitleBlock = useCallback(async () => {
@@ -2424,7 +2433,7 @@ export default function App() {
     try {
       await new Promise(r => setTimeout(r, 0));
       const blob = await withBlackBackground(() =>
-        renderLayoutBlob(canvasRef.current, pageBounds, { scale: EXPORT_SCALE, backgroundColor: '#000000' })
+        renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, backgroundColor: '#000000' })
       );
       if (blob) downloadBlob(blob, `${name}-with-titleblock-${stamp}`);
     } catch (err) {
@@ -2436,7 +2445,7 @@ export default function App() {
       }
       setExportProgress(null);
     }
-  }, [projectName, showTitleBlock, pageBounds]);
+  }, [projectName, showTitleBlock, pageBounds, exportScale]);
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
@@ -2526,6 +2535,16 @@ export default function App() {
             >
               Save As
             </button>
+            <select
+              value={exportScale}
+              onChange={(e) => setExportScale(Number(e.target.value))}
+              className="px-1 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 bg-zinc-900 hover:border-zinc-500"
+              title="Export resolution"
+            >
+              {EXPORT_PRESETS.map(p => (
+                <option key={p.scale} value={p.scale}>{p.label} — {p.desc}</option>
+              ))}
+            </select>
             <button
               onClick={handleExportPNG}
               disabled={exportProgress !== null}
