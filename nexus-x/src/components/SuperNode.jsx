@@ -2404,8 +2404,9 @@ const IOSection = memo(({
         const deltaY = moveEvent.clientY - dragStartY.current;
         const rawSpacing = Math.max(0, dragStartSpacing.current + deltaY);
 
-        // Snap to half-row increments (15px)
-        const snapIncrement = SIZES.SPACING_SNAP;
+        // Ctrl/Cmd = 1px moves, otherwise snap to half-row increments (15px)
+        const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
+        const snapIncrement = pixelMode ? 1 : SIZES.SPACING_SNAP;
         const newSpacing = Math.round(rawSpacing / snapIncrement) * snapIncrement;
 
         // Throttle updates using requestAnimationFrame
@@ -4240,8 +4241,8 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
       let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
 
-      // Snap to grid if enabled
-      if (snapToGrid && gridSize > 0) {
+      // Snap to grid if enabled (Ctrl/Cmd bypasses snap for pixel-precise movement)
+      if (snapToGrid && gridSize > 0 && !e.ctrlKey && !e.metaKey) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }

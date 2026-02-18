@@ -424,6 +424,20 @@ export default function App() {
     };
   });
 
+  // Grid visibility state (independent of title block)
+  const [showGrid, setShowGrid] = useState(() => {
+    const saved = localStorage.getItem('nx-showGrid');
+    return saved !== null ? saved === 'true' : true; // Default to true
+  });
+
+  const toggleGrid = useCallback(() => {
+    setShowGrid(prev => {
+      const next = !prev;
+      localStorage.setItem('nx-showGrid', next.toString());
+      return next;
+    });
+  }, []);
+
   // Title block toggle handlers
   const toggleTitleBlock = useCallback(() => {
     setShowTitleBlock(prev => {
@@ -1902,7 +1916,7 @@ export default function App() {
       // Arrow keys — move selected nodes
       if (selectedNodes.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const step = e.shiftKey ? 10 : (snapToGrid && gridSize > 0 ? gridSize : 1);
+        const step = (e.ctrlKey || e.metaKey) ? 1 : e.shiftKey ? 10 : (snapToGrid && gridSize > 0 ? gridSize : 1);
         const delta = {
           ArrowUp: { x: 0, y: -step },
           ArrowDown: { x: 0, y: step },
@@ -2110,7 +2124,7 @@ export default function App() {
       map.set(conn.id, getWirePath(conn.from, conn.to, conn.waypoints));
     });
     return map;
-  }, [connections, getWirePath]);
+  }, [connections, getWirePath, computedAnchorPositions]);
 
   // Build current project data object
   const buildProjectData = useCallback(() => ({
@@ -2731,6 +2745,17 @@ export default function App() {
               Snap{snapToGrid ? ` ${gridSize}` : ''}
             </button>
             <button
+              onClick={toggleGrid}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showGrid
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-500'
+              }`}
+              title={showGrid ? 'Grid: ON' : 'Grid: OFF'}
+            >
+              Grid
+            </button>
+            <button
               onClick={toggleRatioOverlay}
               className={`px-2 py-1 border rounded text-xs font-mono ${
                 showRatioOverlay
@@ -2966,24 +2991,24 @@ export default function App() {
               height: canvasDimensions.height,
               overflow: 'visible',
               backgroundColor: showTitleBlock ? (canvasBackground === 'white' ? '#ffffff' : '#09090b') : '#09090b',
-              backgroundImage: (paperEnabled && !showTitleBlock) ? `
+              backgroundImage: (paperEnabled && showGrid) ? `
                 linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
                 linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
               ` : 'none',
-              backgroundSize: (paperEnabled && !showTitleBlock) ? '100px 100px, 100px 100px, 10px 10px, 10px 10px' : undefined
+              backgroundSize: (paperEnabled && showGrid) ? '100px 100px, 100px 100px, 10px 10px, 10px 10px' : undefined
             }}
             onClick={handleCanvasClick}
           >
           {/* Page grid overlay with per-page boundaries and margin guides */}
-          {paperEnabled && !showTitleBlock && (
+          {paperEnabled && showGrid && (
             <div data-export-ignore="true">
               <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
             </div>
           )}
 
-          {/* Title block overlay (replaces page grid when active) */}
+          {/* Title block overlay */}
           {paperEnabled && showTitleBlock && (
             <div data-export-ignore="true">
               <TitleBlockOverlay
@@ -3288,8 +3313,8 @@ export default function App() {
                           let newX = startWpX + dx;
                           let newY = startWpY + dy;
 
-                          // Apply snap to grid
-                          if (snapToGrid && gridSize > 0) {
+                          // Apply snap to grid (Ctrl/Cmd bypasses for pixel-precise movement)
+                          if (snapToGrid && gridSize > 0 && !moveEvent.ctrlKey && !moveEvent.metaKey) {
                             newX = Math.round(newX / gridSize) * gridSize;
                             newY = Math.round(newY / gridSize) * gridSize;
                           }
