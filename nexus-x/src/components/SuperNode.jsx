@@ -47,9 +47,9 @@ const SIZES = {
   ANCHOR: 'w-3 h-3',        // 12px
   DELETE: 'w-4',            // 16px
   PADDING_X: 'px-1.5',      // slightly tighter
-  PADDING_Y: 'py-1',        // slightly tighter
-  ROW_HEIGHT: 30,           // Approximate row height in pixels
-  SPACING_SNAP: 15,         // Snap spacing to half-row increments (ROW_HEIGHT / 2)
+  PADDING_Y: 'py-0',        // zero vertical padding
+  ROW_HEIGHT: 18,           // Tightest row height
+  SPACING_SNAP: 9,          // Snap spacing to half-row increments (ROW_HEIGHT / 2)
 };
 
 // Colors per section type
@@ -453,7 +453,7 @@ const SelectWithCustom = memo(({
     };
   }, [valueColor]);
 
-  const baseStyle = `bg-zinc-800 border rounded px-0.5 py-px font-mono text-[11px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
+  const baseStyle = `bg-zinc-800 border rounded px-0.5 py-px font-mono text-[13px] w-full min-w-0 max-w-full overflow-hidden text-ellipsis text-center ${
     isSelected ? 'border-cyan-500/50' : valueColor ? '' : 'border-zinc-700'
   } ${value ? 'text-zinc-300' : 'text-zinc-500'}`;
 
@@ -489,7 +489,7 @@ const SelectWithCustom = memo(({
           }}
           onClick={stopPropagation}
           placeholder="Type..."
-          className="flex-1 min-w-0 w-0 bg-transparent px-0.5 py-px font-mono text-[11px] text-zinc-300 outline-none"
+          className="flex-1 min-w-0 w-0 bg-transparent px-0.5 py-px font-mono text-[13px] text-zinc-300 outline-none"
         />
         <button
           onClick={(e) => {
@@ -1252,7 +1252,7 @@ const PortRow = memo(({
 
   return (
     <div
-      className={`flex items-center ${SIZES.PADDING_Y} group text-[12px] whitespace-nowrap px-2 w-full`}
+      className={`flex items-center ${SIZES.PADDING_Y} group text-[13px] whitespace-nowrap px-2 w-full`}
       style={rowStyle}
     >
       {fullColumnOrder.map((colId, index) => {
@@ -1410,7 +1410,7 @@ const ColumnHeaders = memo(({ anchorSide, canToggleAnchor, columnOrder, onReorde
   return (
     <div
       data-column-zone="true"
-      className={`flex items-center py-1 bg-zinc-800/30 border-b border-zinc-700/30
+      className={`flex items-center py-0 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-white uppercase tracking-wide w-full px-2`}
     >
       {fullColumnOrder.map((colId, index) => {
@@ -1619,7 +1619,7 @@ const CollapsedColumnHeaders = memo(({
 
   return (
     <div
-      className="flex items-center py-0.5 bg-zinc-800/30 border-b border-zinc-700/30
+      className="flex items-center py-0 bg-zinc-800/30 border-b border-zinc-700/30
         text-[10px] font-mono text-zinc-500 uppercase tracking-wide w-full px-1"
     >
       {/* Spacer to match spacing handle column when reversed - uses dynamic width */}
@@ -1824,7 +1824,7 @@ const CollapsedPortRow = memo(({
 
   return (
     <div
-      className="flex items-center w-full py-1 hover:bg-zinc-800/50 text-[11px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity"
+      className="flex items-center w-full py-0 hover:bg-zinc-800/50 text-[13px] whitespace-nowrap px-1 opacity-60 hover:opacity-100 transition-opacity"
       style={rowStyle}
     >
       {/* Spacing handle on LEFT (inside) when reversed (INPUT on right in side-by-side) */}
@@ -2616,11 +2616,12 @@ const IOSection = memo(({
     [sharedCollapsedColumnWidths, data.ports]
   );
 
-  // Memoize spacing styles cache (common spacing values: 0, 15, 30, 45, 60, 75, 90)
+  // Memoize spacing styles cache (common spacing values based on SPACING_SNAP)
   // Most ports have spacing: 0, so cache eliminates object creation for majority of ports
   const spacingStyleCache = useMemo(() => {
     const cache = {};
-    for (let i = 0; i <= 90; i += 15) {
+    const snap = SIZES.SPACING_SNAP;
+    for (let i = 0; i <= snap * 10; i += snap) {
       cache[i] = { marginTop: `${i}px` };
     }
     return cache;
