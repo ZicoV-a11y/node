@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
+import Node313 from './components/Node313';
 import SidePanel from './components/SidePanel';
 import CanvasControls from './components/canvas/CanvasControls';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
@@ -369,6 +370,22 @@ const createSuperNode = (id) => ({
         refreshRate: ''
       }
     ]
+  }
+});
+
+// Create Node 313 (generic 3-section table node)
+const createNode313 = (id) => ({
+  id,
+  title: 'NODE 313',
+  version: 3,
+  signalColor: null,
+  position: { x: 100, y: 100 },
+  scale: 0.5,
+  layout: 'ab_c',
+  sections: {
+    a: { title: 'SECTION A', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
+    b: { title: 'SECTION B', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
+    c: { title: 'SECTION C', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
   }
 });
 
@@ -744,8 +761,10 @@ export default function App() {
         newNode = createNode(nodeId);
       }
     }
-    // Handle string type (legacy)
-    else if (typeOrConfig === 'supernode') {
+    // Handle string type
+    else if (typeOrConfig === 'node313') {
+      newNode = createNode313(nodeId);
+    } else if (typeOrConfig === 'supernode') {
       newNode = createSuperNode(nodeId);
     } else {
       newNode = createNode(nodeId);
@@ -2840,6 +2859,13 @@ export default function App() {
             >
               + Aligned
             </button>
+            <button
+              onClick={() => addNode('node313')}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-mono text-white"
+              title="Add Node 313 with generic table sections"
+            >
+              + Node 313
+            </button>
           </div>
 
           {/* Version & Changelog */}
@@ -3370,7 +3396,7 @@ export default function App() {
 
           {/* Nodes */}
           {Object.values(nodes).map(node => {
-            const NodeComponent = node.version === 2 ? SuperNode : Node;
+            const NodeComponent = node.version === 3 ? Node313 : node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);
             return (
               <NodeComponent

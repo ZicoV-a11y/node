@@ -26,3 +26,33 @@
 * {
   border-radius: 0 !important;
 }
+
+/* ============================================ */
+/* NODE 313 — Auto-sizing input cells           */
+/* ============================================ */
+.n313-sz {
+  position: relative;
+  display: inline-grid;
+  min-width: 30px;
+  line-height: 1;
+  align-items: center;
+}
+.n313-sz::after {
+  content: attr(data-v) '\00a0';
+  visibility: hidden;
+  white-space: pre;
+  grid-area: 1/1;
+  font-family: 'Courier New', monospace !important;
+  padding: 0 4px;
+  line-height: 1;
+  font-size: 13px;
+  height: 13px;
+}
+.n313-sz[data-h]::after {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  height: 11px;
+}
+.n313-sz input {
+  font-family: 'Courier New', monospace !important;
+}
