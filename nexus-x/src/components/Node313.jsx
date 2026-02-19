@@ -230,6 +230,7 @@ const SzCell = memo(({ value, isHeader, isLast, onChange }) => {
     ...STYLES.cell,
     ...(isLast ? STYLES.cellLast : {}),
     ...(isHeader ? STYLES.headerCell : {}),
+    width: '1px',
   };
 
   return (
@@ -245,7 +246,7 @@ const SzCell = memo(({ value, isHeader, isLast, onChange }) => {
             gridArea: '1/1',
             width: '100%',
             minWidth: 0,
-            textAlign: 'left',
+            textAlign: 'center',
             ...(isHeader
               ? { fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '11px' }
               : { fontSize: '13px', height: '13px' }
@@ -398,7 +399,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       }
       cells.push(<AnchorCell key="anchor-h" isHeader />);
     } else {
-      // NORMAL: [anchor] [COL1] [×] [COL2] [×] [COL3] [×] [+] [row×]
+      // NORMAL: [anchor] [COL1] [×] [COL2] [×] [COL3] [×] [+] [row×] [fill]
       cells.push(<AnchorCell key="anchor-h" isHeader />);
       for (let ci = 0; ci < nc; ci++) {
         cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} />);
@@ -467,7 +468,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       </div>
 
       {/* Data table */}
-      <table style={{ ...STYLES.table, ...(fullWidth ? { width: '100%' } : {}) }}>
+      <table style={{ ...STYLES.table, width: '100%' }}>
         <thead>{renderHeader()}</thead>
         <tbody>{section.rows.map((row, ri) => renderRow(row, ri))}</tbody>
       </table>

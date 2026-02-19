@@ -383,9 +383,9 @@ const createNode313 = (id) => ({
   scale: 0.5,
   layout: 'ab_c',
   sections: {
-    a: { title: 'SECTION A', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
-    b: { title: 'SECTION B', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
-    c: { title: 'SECTION C', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['','',''], ['','',''], ['','','']] },
+    a: { title: 'SECTION A', cols: ['TEST COL 1', 'TEST COL 2', 'TEST COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
+    b: { title: 'SECTION B', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
+    c: { title: 'SECTION C', cols: ['TEST COL 1', 'TEST COL 2', 'TEST COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
   }
 });
 
@@ -2470,7 +2470,7 @@ export default function App() {
     const stamp = new Date().toISOString().slice(0, 10);
 
     // Find title block wrapper and temporarily remove data-export-ignore
-    const titleBlockWrapper = canvasRef.current.querySelector('[data-export-ignore="true"]:has(svg)');
+    const titleBlockWrapper = canvasRef.current.querySelector('[data-title-block-wrapper]');
     const hadIgnore = titleBlockWrapper?.getAttribute('data-export-ignore');
 
     if (titleBlockWrapper) {
@@ -3036,7 +3036,7 @@ export default function App() {
 
           {/* Title block overlay */}
           {paperEnabled && showTitleBlock && (
-            <div data-export-ignore="true">
+            <div data-export-ignore="true" data-title-block-wrapper="true">
               <TitleBlockOverlay
                 pages={pages}
                 zoom={zoom}

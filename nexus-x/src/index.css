@@ -32,7 +32,7 @@
 /* ============================================ */
 .n313-sz {
   position: relative;
-  display: inline-grid;
+  display: grid;
   min-width: 30px;
   line-height: 1;
   align-items: center;
