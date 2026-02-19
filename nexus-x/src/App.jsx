@@ -202,6 +202,10 @@ const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, on
   const anchorColor = isConnected ? themeColor : '#52525b';
   const anchorStroke = isConnected ? themeLightColor : '#71717a';
   const anchorOpacity = isConnected ? 1 : 0.4;
+  // Scale radius with node scale so anchors match the node's visual size
+  const s = pos.scale || 1;
+  const baseR = isActive ? 3 : 2.5;
+  const glowR = 5;
 
   return (
     <g data-export-ignore="true">
@@ -209,7 +213,7 @@ const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, on
         <circle
           cx={pos.x}
           cy={pos.y}
-          r={5}
+          r={glowR * s}
           fill={isActive ? '#22d3ee' : anchorColor}
           opacity={0.3}
         />
@@ -217,7 +221,7 @@ const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, on
       <circle
         cx={pos.x}
         cy={pos.y}
-        r={isActive ? 3 : 2.5}
+        r={baseR * s}
         fill={isActive ? '#22d3ee' : anchorColor}
         stroke={isActive ? '#67e8f9' : anchorStroke}
         strokeWidth={1}
@@ -233,6 +237,7 @@ const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, on
 }, (prev, next) => (
   prev.pos.x === next.pos.x &&
   prev.pos.y === next.pos.y &&
+  prev.pos.scale === next.pos.scale &&
   prev.isActive === next.isActive &&
   prev.isConnected === next.isConnected &&
   prev.themeColor === next.themeColor
@@ -2012,7 +2017,8 @@ export default function App() {
           x: node.position.x + offset.localX * s,
           y: node.position.y + offset.localY * s,
           type: offset.type,
-          side: offset.side || (offset.type === 'in' ? 'left' : 'right') // Default based on type
+          side: offset.side || (offset.type === 'in' ? 'left' : 'right'), // Default based on type
+          scale: s,
         };
       }
     });

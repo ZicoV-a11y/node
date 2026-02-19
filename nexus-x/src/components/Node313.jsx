@@ -155,7 +155,7 @@ const STYLES = {
     cursor: 'pointer',
     fontSize: '10px',
     userSelect: 'none',
-    lineHeight: 1,
+    lineHeight: '16px',
   },
   ac: {
     width: '14px',
@@ -165,16 +165,6 @@ const STYLES = {
     verticalAlign: 'middle',
     lineHeight: 1,
     padding: 0,
-  },
-  anchorDot: {
-    display: 'inline-block',
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    background: '#666',
-    border: '1px solid #444',
-    cursor: 'crosshair',
-    verticalAlign: 'middle',
   },
   dropZone: {
     border: '2px dashed #06b6d4',
@@ -370,55 +360,60 @@ const DropdownCell = memo(({ value, presets, onChange }) => {
 });
 DropdownCell.displayName = 'DropdownCell';
 
+// Flex centering wrappers for small-content cells (anchor, ×, +)
+const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
+const CELL_CENTER_HEAD = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '13px' };
+
+// Anchor dot style — visible circle that scales with the node
+const ANCHOR_DOT_STYLE = {
+  width: '8px', height: '8px', borderRadius: '50%',
+  background: '#666', boxShadow: '0 0 0 1px #444',
+};
+const AC_BODY_STYLE = { ...STYLES.ac, ...STYLES.cell, background: 'transparent', padding: 0 };
+const AC_HEAD_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent', padding: 0 };
+
 // X button cell (delete column, delete row, add column, or empty spacer)
 const XCell = memo(({ isHeader, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
     <Tag style={isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE}>
-      {label && (
-        <span
-          style={STYLES.xcSpan}
-          onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
-        >
-          {label}
-        </span>
-      )}
+      <div style={isHeader ? CELL_CENTER_HEAD : CELL_CENTER}>
+        {label && (
+          <span
+            style={STYLES.xcSpan}
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+          >
+            {label}
+          </span>
+        )}
+      </div>
     </Tag>
   );
 });
 XCell.displayName = 'XCell';
 
-// Anchor dot cell
-const AnchorCell = memo(({ isHeader, anchorId, onAnchorClick, activeWire, isConnected }) => {
+// Anchor dot cell — visible dot that scales with the node, interaction handled by SVG layer
+const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
-
-  const handleClick = useCallback((e) => {
-    e.stopPropagation();
-    if (anchorId && onAnchorClick) {
-      onAnchorClick(anchorId, 'both');
-    }
-  }, [anchorId, onAnchorClick]);
-
-  const isActive = activeWire?.from === anchorId;
-
   return (
-    <Tag style={isHeader ? AC_CELL_HEADER_STYLE : AC_CELL_STYLE}>
-      {!isHeader && (
-        <div
-          data-anchor-id={anchorId}
-          style={{
-            ...STYLES.anchorDot,
-            ...(isActive ? { background: '#fff', borderColor: '#aaa' } : {}),
-            ...(isConnected ? { background: '#4ade80', borderColor: '#22c55e' } : {}),
-          }}
-          onClick={handleClick}
-          onMouseEnter={(e) => { if (!isActive && !isConnected) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#aaa'; } }}
-          onMouseLeave={(e) => { if (!isActive && !isConnected) { e.currentTarget.style.background = '#666'; e.currentTarget.style.borderColor = '#444'; } }}
-        />
-      )}
+    <Tag style={isHeader ? AC_HEAD_STYLE : AC_BODY_STYLE}>
+      <div style={isHeader ? CELL_CENTER_HEAD : CELL_CENTER}>
+        {isHeader && label && (
+          <span
+            style={STYLES.xcSpan}
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+          >
+            {label}
+          </span>
+        )}
+        {!isHeader && <div data-anchor-id={anchorId} style={ANCHOR_DOT_STYLE} />}
+      </div>
     </Tag>
   );
 });
@@ -444,7 +439,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, onAnchorClick, activeWire, connectedAnchorIds }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate }) => {
   const nc = section.cols.length;
   const hiddenCols = section.hiddenCols || [];
   const canDel = nc > 1;
@@ -534,19 +529,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const cells = [];
     if (mirrored) {
       cells.push(<XCell key="rowx-h" isHeader label="" />);
-      cells.push(<XCell key="add-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
       }
-      cells.push(<AnchorCell key="anchor-h" isHeader />);
+      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
     } else {
-      cells.push(<AnchorCell key="anchor-h" isHeader />);
+      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
       }
-      cells.push(<XCell key="add-h" isHeader label="+" onClick={addColumn} />);
       cells.push(<XCell key="rowx-h" isHeader label="" />);
     }
     return <tr>{cells}</tr>;
@@ -554,7 +547,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
   const renderRow = (row, ri) => {
     const anchorId = `${nodeId}-${sectionId}-${ri}`;
-    const isConnected = connectedAnchorIds?.has(anchorId);
     const cells = [];
 
     const renderDataCell = (ci) => {
@@ -567,35 +559,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
     if (mirrored) {
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
-      cells.push(<XCell key="add-spacer" label={null} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(
-        <AnchorCell
-          key="anchor"
-          anchorId={anchorId}
-          onAnchorClick={onAnchorClick}
-          activeWire={activeWire}
-          isConnected={isConnected}
-        />
-      );
+      cells.push(<AnchorCell key="anchor" anchorId={anchorId} />);
     } else {
-      cells.push(
-        <AnchorCell
-          key="anchor"
-          anchorId={anchorId}
-          onAnchorClick={onAnchorClick}
-          activeWire={activeWire}
-          isConnected={isConnected}
-        />
-      );
+      cells.push(<AnchorCell key="anchor" anchorId={anchorId} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(<XCell key="add-spacer" label={null} />);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
     }
     return <tr key={ri}>{cells}</tr>;
@@ -910,12 +884,9 @@ function Node313({
         fullWidth={fullWidth}
         mirrored={mirrored}
         onUpdate={handleSectionUpdate}
-        onAnchorClick={onAnchorClick}
-        activeWire={activeWire}
-        connectedAnchorIds={connectedAnchorIds}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, onAnchorClick, activeWire, connectedAnchorIds]);
+  }, [node.sections, node.id, handleSectionUpdate]);
 
   // ---- Render layout with drop zones woven into correct positions ----
   const renderLayout = () => {
