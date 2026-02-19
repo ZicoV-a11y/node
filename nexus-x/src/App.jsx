@@ -389,9 +389,9 @@ const createNode313 = (id) => ({
   scale: 0.5,
   layout: 'a_b_c',
   sections: {
-    a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['IN 1','','','','',''], ['IN 2','','','','','']] },
-    b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['OUT 1','','','','',''], ['OUT 2','','','','','']] },
-    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['NETWORK','','','','',''], ['MULTIVIEW','','','','','']] },
+    a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['IN 1','4096x2160','23.98','HDMI 2.0','',''], ['IN 2','3840x2160','24','3G SDI','','']] },
+    b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['OUT 1','2560x1440','59.94','12G SDI','',''], ['OUT 2','1280x720','60','DP 1.2','','']] },
+    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['NETWORK','','','','',''], ['MULTIVIEW','','','','','']] },
   }
 });
 

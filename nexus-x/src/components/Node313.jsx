@@ -59,6 +59,8 @@ const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
 // LAYOUT SYSTEM
 // ============================================
 
+const SPACING_SNAP = 9; // Snap to half-row increments (matches SuperNode)
+
 // All valid layout arrangements for 3 sections (a, b, c)
 // c is always alone in its row; a and b can be side-by-side or stacked
 const LAYOUTS = {
@@ -138,7 +140,6 @@ const STYLES = {
     borderBottom: '1px solid #333',
     display: 'flex',
     alignItems: 'center',
-    cursor: 'grab',
   },
   grip: {
     color: '#444',
@@ -159,7 +160,6 @@ const STYLES = {
     borderBottom: '1px solid #333',
     display: 'flex',
     alignItems: 'center',
-    cursor: 'grab',
     userSelect: 'none',
     whiteSpace: 'nowrap',
   },
@@ -211,6 +211,22 @@ const STYLES = {
     userSelect: 'none',
     lineHeight: '16px',
   },
+  sp: {
+    width: '12px',
+    minWidth: '12px',
+    maxWidth: '12px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    lineHeight: 1,
+    padding: 0,
+  },
+  spHandle: {
+    color: '#333',
+    cursor: 'ns-resize',
+    fontSize: '10px',
+    userSelect: 'none',
+    lineHeight: '16px',
+  },
   ac: {
     width: '14px',
     minWidth: '14px',
@@ -221,19 +237,23 @@ const STYLES = {
     padding: 0,
   },
   dropZone: {
+    position: 'absolute',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     border: '2px dashed #06b6d4',
-    padding: '6px',
-    textAlign: 'center',
     fontSize: '10px',
     fontWeight: 700,
     color: '#06b6d4',
-    background: 'rgba(6, 182, 212, 0.05)',
+    background: 'rgba(6, 182, 212, 0.15)',
     userSelect: 'none',
+    zIndex: 10,
+    pointerEvents: 'auto',
   },
   dropZoneHover: {
     borderColor: '#22d3ee',
     color: '#fff',
-    background: 'rgba(6, 182, 212, 0.15)',
+    background: 'rgba(6, 182, 212, 0.3)',
   },
   dragHighlight: {
     outline: '2px solid #06b6d4',
@@ -393,24 +413,28 @@ function getPresetsForColumn(colName) {
 const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
 const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px' };
 const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', height: '16px' };
-const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '13px' };
+const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
 const AC_CELL_STYLE = { ...STYLES.ac, ...STYLES.cell };
 const AC_CELL_HEADER_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell };
+const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell, background: 'transparent' };
+const SP_CELL_HEADER_STYLE = { ...STYLES.sp, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent' };
 
 // ============================================
 // SUB-COMPONENTS
 // ============================================
 
 // Auto-sizing input cell
-const SzCell = memo(({ value, isHeader, onChange, onContextMenu }) => {
+const SzCell = memo(({ value, isHeader, onChange, onContextMenu, sizerValue }) => {
   const Tag = isHeader ? 'th' : 'td';
+  // Use sizerValue for data-v when it's longer, so synced columns size to the longest string
+  const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
   return (
     <Tag style={isHeader ? SZ_CELL_HEADER_STYLE : SZ_CELL_STYLE} onContextMenu={onContextMenu}>
       <div
         className="n313-sz"
-        data-v={value || ' '}
+        data-v={sizer}
         data-h={isHeader ? '' : undefined}
       >
         <input
@@ -426,7 +450,7 @@ const SzCell = memo(({ value, isHeader, onChange, onContextMenu }) => {
 SzCell.displayName = 'SzCell';
 
 // Dropdown cell — looks like SzCell but click opens preset options
-const DropdownCell = memo(({ value, presets, onChange }) => {
+const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
   const [open, setOpen] = useState(false);
   const cellRef = useRef(null);
 
@@ -457,9 +481,11 @@ const DropdownCell = memo(({ value, presets, onChange }) => {
     return { left: rect.left, top: rect.bottom, width: Math.max(rect.width, 120) };
   };
 
+  const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
+
   return (
     <td style={SZ_CELL_STYLE} ref={cellRef}>
-      <div className="n313-sz" data-v={value || ' '}>
+      <div className="n313-sz" data-v={sizer}>
         <input
           style={SZ_INPUT_BODY}
           value={value}
@@ -507,7 +533,7 @@ DropdownCell.displayName = 'DropdownCell';
 
 // Flex centering wrappers for small-content cells (anchor, ×, +)
 const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
-const CELL_CENTER_HEAD = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '13px' };
+const CELL_CENTER_HEAD = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
 
 // Anchor dot style — visible circle that scales with the node
 const ANCHOR_DOT_STYLE = {
@@ -564,13 +590,32 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
 });
 AnchorCell.displayName = 'AnchorCell';
 
+// Spacing drag handle cell — drag vertically to add space above a row
+const SpacingCell = memo(({ isHeader, onMouseDown }) => {
+  const Tag = isHeader ? 'th' : 'td';
+  return (
+    <Tag style={isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE}>
+      {!isHeader && (
+        <span
+          style={STYLES.spHandle}
+          onMouseDown={onMouseDown}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#888'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#333'; }}
+        >
+          ⋮
+        </span>
+      )}
+    </Tag>
+  );
+});
+SpacingCell.displayName = 'SpacingCell';
 
-// Drop zone for section rearranging
-const DropZone = memo(({ label, onDrop }) => {
+// Drop zone for section rearranging — absolutely positioned overlay
+const DropZone = memo(({ label, onDrop, placement }) => {
   const [hover, setHover] = useState(false);
   return (
     <div
-      style={{ ...STYLES.dropZone, ...(hover ? STYLES.dropZoneHover : {}) }}
+      style={{ ...STYLES.dropZone, ...placement, ...(hover ? STYLES.dropZoneHover : {}) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onMouseUp={() => onDrop()}
@@ -585,11 +630,17 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown }) => {
   const nc = section.cols.length;
   const hiddenCols = section.hiddenCols || [];
+  const rowSpacing = section.rowSpacing || [];
   const canDel = nc > 1;
   const [contextMenu, setContextMenu] = useState(null); // { x, y, colIndex }
+  const tableRef = useRef(null);
+
+  // Spacing drag refs
+  const dragStartY = useRef(null);
+  const dragStartSpacing = useRef(0);
 
   const updateSection = useCallback((updates) => {
     onUpdate(sectionId, updates);
@@ -632,13 +683,57 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
   const addRow = useCallback(() => {
     const newRows = [...section.rows, section.cols.map(() => '')];
-    updateSection({ rows: renumberRows(newRows) });
-  }, [section.cols, section.rows, updateSection, renumberRows]);
+    const newSpacing = [...rowSpacing, 0];
+    updateSection({ rows: renumberRows(newRows), rowSpacing: newSpacing });
+  }, [section.cols, section.rows, rowSpacing, updateSection, renumberRows]);
 
   const deleteRow = useCallback((ri) => {
     const remaining = section.rows.filter((_, i) => i !== ri);
-    updateSection({ rows: renumberRows(remaining) });
-  }, [section.rows, updateSection, renumberRows]);
+    const newSpacing = rowSpacing.filter((_, i) => i !== ri);
+    updateSection({ rows: renumberRows(remaining), rowSpacing: newSpacing });
+  }, [section.rows, rowSpacing, updateSection, renumberRows]);
+
+  // Vertical spacing drag handler (like SuperNode)
+  const handleSpacingMouseDown = useCallback((e, ri) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragStartY.current = e.clientY;
+    dragStartSpacing.current = rowSpacing[ri] || 0;
+
+    let rafId = null;
+    let pending = null;
+
+    const handleMouseMove = (moveEvent) => {
+      const delta = moveEvent.clientY - dragStartY.current;
+      const raw = Math.max(0, dragStartSpacing.current + delta);
+      const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
+      const snap = pixelMode ? 1 : SPACING_SNAP;
+      const newSpacing = Math.round(raw / snap) * snap;
+
+      pending = newSpacing;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pending !== null) {
+            const updated = [...rowSpacing];
+            // Ensure array is long enough
+            while (updated.length < section.rows.length) updated.push(0);
+            updated[ri] = pending;
+            updateSection({ rowSpacing: updated });
+          }
+          rafId = null;
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [rowSpacing, section.rows.length, updateSection]);
 
   const updateColName = useCallback((ci, value) => {
     const newCols = [...section.cols];
@@ -690,39 +785,59 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   }, [contextMenu]);
 
   // Build column order for header and body (right-click header to delete/hide column)
+  // Count visible columns for spacer colspan
+  const visibleColCount = nc - hiddenCols.length;
+  // Total cell count: anchor(1) + visibleCols + x(1) + spacing(1)
+  const totalColspan = visibleColCount + 3;
+
   const renderHeader = () => {
     const cells = [];
     if (mirrored) {
+      cells.push(<SpacingCell key="sp-h" isHeader />);
       cells.push(<XCell key="rowx-h" isHeader label="" />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
+        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={colSizerValues ? colSizerValues[ci] : undefined} />);
       }
       cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
     } else {
       cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
+        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={colSizerValues ? colSizerValues[ci] : undefined} />);
       }
       cells.push(<XCell key="rowx-h" isHeader label="" />);
+      cells.push(<SpacingCell key="sp-h" isHeader />);
     }
     return <tr>{cells}</tr>;
   };
 
   const renderRow = (row, ri) => {
     const anchorId = `${nodeId}-${sectionId}-${ri}`;
+    const spacing = rowSpacing[ri] || 0;
     const cells = [];
+    const result = [];
+
+    // Spacer row if this row has spacing > 0
+    if (spacing > 0) {
+      result.push(
+        <tr key={`sp-${ri}`}>
+          <td colSpan={totalColspan} style={{ height: `${spacing}px`, padding: 0, border: 'none', background: 'transparent' }} />
+        </tr>
+      );
+    }
 
     const renderDataCell = (ci) => {
+      const sizer = colSizerValues ? colSizerValues[ci] : undefined;
       const presets = getPresetsForColumn(section.cols[ci]);
       if (presets) {
-        return <DropdownCell key={`cell-${ci}`} value={row[ci]} presets={presets} onChange={(v) => updateCell(ri, ci, v)} />;
+        return <DropdownCell key={`cell-${ci}`} value={row[ci]} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
       }
-      return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} />;
+      return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
 
     if (mirrored) {
+      cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
@@ -736,8 +851,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         cells.push(renderDataCell(ci));
       }
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
+      cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
     }
-    return <tr key={ri}>{cells}</tr>;
+    result.push(<tr key={ri}>{cells}</tr>);
+    return result;
   };
 
   const wrapperStyle = fullWidth ? STYLES.sectionFull : undefined;
@@ -756,7 +873,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div style={tintedSectionTitle}>
-        <span style={STYLES.grip}>⠿</span>
+        <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <input
           style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}) }}
           value={section.title}
@@ -772,6 +889,18 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         >
           + row
         </span>
+        {onFlip && (
+          <span
+            style={{ ...STYLES.xcSpan, fontSize: '11px', padding: '0 4px', flexShrink: 0 }}
+            onClick={(e) => { e.stopPropagation(); onFlip(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+            title="Flip anchor side"
+          >
+            ⇄
+          </span>
+        )}
       </div>
 
       {/* Scoped tint for cells */}
@@ -785,9 +914,9 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       )}
 
       {/* Data table */}
-      <table style={{ ...STYLES.table, width: '100%' }} data-sec={`${nodeId}-${sectionId}`}>
+      <table ref={tableRef} style={{ ...STYLES.table, width: '100%' }} data-sec={`${nodeId}-${sectionId}`}>
         <thead>{renderHeader()}</thead>
-        <tbody>{section.rows.map((row, ri) => renderRow(row, ri))}</tbody>
+        <tbody>{section.rows.flatMap((row, ri) => renderRow(row, ri))}</tbody>
       </table>
 
       {/* Column context menu (portaled to body to escape transform) */}
@@ -877,6 +1006,9 @@ function Node313({
   // Hidden sections
   const hiddenSections = node.hiddenSections || [];
 
+  // Mirrored (flipped) sections
+  const mirroredSections = node.mirroredSections || [];
+
   // Toggle section visibility
   const toggleSectionVisibility = useCallback((sectionId) => {
     const current = node.hiddenSections || [];
@@ -884,6 +1016,14 @@ function Node313({
     const next = isHidden ? current.filter(s => s !== sectionId) : [...current, sectionId];
     onUpdate({ hiddenSections: next });
   }, [node.hiddenSections, onUpdate]);
+
+  // Toggle section anchor side (flip)
+  const toggleSectionMirrored = useCallback((sectionId) => {
+    const current = node.mirroredSections || [];
+    const isMirrored = current.includes(sectionId);
+    const next = isMirrored ? current.filter(s => s !== sectionId) : [...current, sectionId];
+    onUpdate({ mirroredSections: next });
+  }, [node.mirroredSections, onUpdate]);
 
   // Dismiss settings/color picker on outside click
   useEffect(() => {
@@ -1070,6 +1210,7 @@ function Node313({
     const currentAnchors = new Set();
 
     const currentHidden = node.hiddenSections || [];
+    const nodeMidX = nodeRect.width / 2;
     ['a', 'b', 'c'].forEach(secId => {
       const sec = node.sections[secId];
       if (!sec || currentHidden.includes(secId)) return;
@@ -1079,11 +1220,16 @@ function Node313({
         const dotEl = nodeRef.current.querySelector(`[data-anchor-id="${anchorId}"]`);
         if (dotEl) {
           const r = dotEl.getBoundingClientRect();
+          const localX = (r.left + r.width / 2 - nodeRect.left) / totalScale;
+          const localY = (r.top + r.height / 2 - nodeRect.top) / totalScale;
+          // Determine wire routing side based on anchor position within the node
+          const side = localX < nodeMidX / totalScale ? 'left' : 'right';
           registerAnchor(anchorId, {
             nodeId: node.id,
-            localX: (r.left + r.width / 2 - nodeRect.left) / totalScale,
-            localY: (r.top + r.height / 2 - nodeRect.top) / totalScale,
+            localX,
+            localY,
             type: 'both',
+            side,
           });
         }
       });
@@ -1104,11 +1250,42 @@ function Node313({
     }
   }, [node.id, onSelect]);
 
+  // ---- Sync ALL column widths between A and B via longest string per column ----
+  const colSizerValues = useMemo(() => {
+    const secA = node.sections.a;
+    const secB = node.sections.b;
+    if (!secA || !secB) return null;
+    const count = Math.min(secA.cols.length, secB.cols.length);
+    const sizers = [];
+    for (let ci = 0; ci < count; ci++) {
+      let longest = '';
+      // Headers
+      if (secA.cols[ci] && secA.cols[ci].length > longest.length) longest = secA.cols[ci];
+      if (secB.cols[ci] && secB.cols[ci].length > longest.length) longest = secB.cols[ci];
+      // Row values
+      for (const row of secA.rows) {
+        if (row[ci] && row[ci].length > longest.length) longest = row[ci];
+      }
+      for (const row of secB.rows) {
+        if (row[ci] && row[ci].length > longest.length) longest = row[ci];
+      }
+      sizers.push(longest || null);
+    }
+    return sizers;
+  }, [node.sections]);
+
   // ---- Render sections ----
-  const renderSection = useCallback((sectionId, fullWidth, mirrored) => {
+  const renderSection = useCallback((sectionId, fullWidth, layoutMirrored) => {
     if (hiddenSections.includes(sectionId)) return null;
     const sec = node.sections[sectionId];
     if (!sec) return null;
+
+    // In stacked (fullWidth) view, allow per-section flip override
+    const flipped = mirroredSections.includes(sectionId);
+    const mirrored = fullWidth ? flipped : layoutMirrored;
+
+    // Sync all column widths between A and B (not C)
+    const sizers = (sectionId === 'a' || sectionId === 'b') ? colSizerValues : null;
 
     return (
       <Section313
@@ -1119,103 +1296,106 @@ function Node313({
         mirrored={mirrored}
         onUpdate={handleSectionUpdate}
         signalColorHex={signalColorHex}
+        onFlip={fullWidth ? () => toggleSectionMirrored(sectionId) : null}
+        colSizerValues={sizers}
+        onGripDown={(e) => handleSectionGripDown(e, sectionId)}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown]);
 
-  // ---- Render layout with drop zones woven into correct positions ----
+  // ---- Render layout with overlay drop zones (no shifting) ----
+  const DZ_THICKNESS = 24; // px thickness for edge drop zones
+
   const renderLayout = () => {
-    // Compute drag info once
     const currentPos = dragSec ? getPosition(layoutKey, dragSec) : null;
     const cZones = dragSec === 'c' ? ['top', 'bottom'].filter(p => p !== currentPos) : [];
     const abZones = (dragSec === 'a' || dragSec === 'b') ? ['left', 'right', 'above', 'below'].filter(p => p !== currentPos) : [];
 
-    // For A/B drag: find the row containing the OTHER section (target for drop zones)
     const otherAB = dragSec === 'a' ? 'b' : dragSec === 'b' ? 'a' : null;
     const otherRowIndex = otherAB ? layout.findIndex(r => r.includes(otherAB)) : -1;
 
     const elements = [];
 
     layout.forEach((row, rowIndex) => {
-      // C drop zone: TOP — before the first row
-      if (rowIndex === 0 && cZones.includes('top')) {
-        elements.push(<DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')} />);
-      }
-
-      // A/B drop zone: ABOVE — before the other section's row
-      if (rowIndex === otherRowIndex && abZones.includes('above')) {
-        elements.push(<DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')} />);
-      }
-
       if (row.length === 2) {
-        // Side-by-side row — inject LEFT/RIGHT drop zones within
+        // Side-by-side row
         elements.push(
-          <div key={rowIndex} style={STYLES.abRow}>
-            {abZones.includes('left') && (
-              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} />
-            )}
+          <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
             <div style={STYLES.sectionWrap}>
-              <div
-                onMouseDown={(e) => handleSectionGripDown(e, row[0])}
-                style={dragSec === row[0] ? STYLES.dragHighlight : undefined}
-              >
+              <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[0], false, false)}
               </div>
             </div>
             <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder }}>
-              <div
-                onMouseDown={(e) => handleSectionGripDown(e, row[1])}
-                style={dragSec === row[1] ? STYLES.dragHighlight : undefined}
-              >
+              <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true)}
               </div>
             </div>
+            {/* Overlay drop zones */}
+            {abZones.includes('left') && (
+              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')}
+                placement={{ left: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
+            )}
             {abZones.includes('right') && (
-              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} />
+              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
+                placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
+            )}
+            {abZones.includes('above') && (
+              <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {abZones.includes('below') && (
+              <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === 0 && cZones.includes('top') && (
+              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
+                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
+              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
+                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
             )}
           </div>
         );
       } else {
-        // Single-section row — wrap with LEFT/RIGHT zones if this is the other A/B section
-        const isOtherRow = rowIndex === otherRowIndex;
-        if (isOtherRow && (abZones.includes('left') || abZones.includes('right'))) {
-          elements.push(
-            <div key={rowIndex} style={STYLES.abRow}>
-              {abZones.includes('left') && (
-                <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} />
-              )}
-              <div
-                style={dragSec === row[0] ? { flex: 1, ...STYLES.dragHighlight } : { flex: 1 }}
-                onMouseDown={(e) => handleSectionGripDown(e, row[0])}
-              >
-                {renderSection(row[0], true, false)}
-              </div>
-              {abZones.includes('right') && (
-                <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} />
-              )}
-            </div>
-          );
-        } else {
-          elements.push(
-            <div
-              key={rowIndex}
-              onMouseDown={(e) => handleSectionGripDown(e, row[0])}
-              style={dragSec === row[0] ? STYLES.dragHighlight : undefined}
-            >
+        // Single-section row
+        elements.push(
+          <div
+            key={rowIndex}
+            style={{ position: 'relative' }}
+          >
+            <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
               {renderSection(row[0], true, false)}
             </div>
-          );
-        }
-      }
-
-      // A/B drop zone: BELOW — after the other section's row
-      if (rowIndex === otherRowIndex && abZones.includes('below')) {
-        elements.push(<DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')} />);
-      }
-
-      // C drop zone: BOTTOM — after the last row
-      if (rowIndex === layout.length - 1 && cZones.includes('bottom')) {
-        elements.push(<DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')} />);
+            {/* Overlay drop zones for the OTHER section's row */}
+            {rowIndex === otherRowIndex && abZones.includes('left') && (
+              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')}
+                placement={{ left: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === otherRowIndex && abZones.includes('right') && (
+              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
+                placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === otherRowIndex && abZones.includes('above') && (
+              <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === otherRowIndex && abZones.includes('below') && (
+              <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {/* C zones on first/last rows */}
+            {rowIndex === 0 && cZones.includes('top') && (
+              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
+                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+            {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
+              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
+                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
+            )}
+          </div>
+        );
       }
     });
 
@@ -1261,8 +1441,8 @@ function Node313({
       data-node-id={node.id}
     >
       {/* Title bar */}
-      <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
-        <span style={STYLES.grip}>⠿</span>
+      <div style={titleBarStyle}>
+        <span style={STYLES.grip} onMouseDown={handleTitleMouseDown}>⠿</span>
         <input
           style={{ ...STYLES.input, ...STYLES.titleInput }}
           value={node.title}
