@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, memo } from 'react';
+import { createPortal } from 'react-dom';
 
 // ============================================
 // LAYOUT SYSTEM
@@ -138,9 +139,6 @@ const STYLES = {
     lineHeight: 1,
     background: '#141414',
   },
-  cellLast: {
-    borderRight: 'none',
-  },
   headerCell: {
     background: '#111',
   },
@@ -176,17 +174,7 @@ const STYLES = {
     background: '#666',
     border: '1px solid #444',
     cursor: 'crosshair',
-    transition: 'background 0.1s, border-color 0.1s',
     verticalAlign: 'middle',
-  },
-  addRow: {
-    textAlign: 'center',
-    color: '#444',
-    fontSize: '11px',
-    cursor: 'pointer',
-    userSelect: 'none',
-    borderBottom: '1px solid #333',
-    lineHeight: 1,
   },
   dropZone: {
     border: '2px dashed #06b6d4',
@@ -225,41 +213,73 @@ const STYLES = {
     width: '100%',
     alignSelf: 'stretch',
   },
+  contextMenuItem: {
+    padding: '4px 12px',
+    fontSize: '11px',
+    fontFamily: 'ui-monospace, monospace',
+    color: '#ccc',
+    cursor: 'pointer',
+  },
 };
+
+// ============================================
+// DROPDOWN PRESETS
+// ============================================
+const COLUMN_PRESETS = {
+  RESOLUTION: [
+    '4096x2160',
+    '3840x2160',
+    '2560x1440',
+    '1920x1080',
+    '1280x720',
+  ],
+  CONNECTOR: [
+    'HDMI 2.0', '3G SDI', '12G SDI', 'DP 1.2', 'SMPTE FIBER', 'OPTICAL-CON QUAD FIBER', 'CAT5', 'CAT6A',
+  ],
+  RATE: [
+    '23.98', '24', '25', '29.97', '30',
+    '50', '59.94', '60', '120',
+  ],
+};
+
+// Match column name to preset list (case-insensitive)
+function getPresetsForColumn(colName) {
+  if (!colName) return null;
+  const upper = colName.toUpperCase().trim();
+  if (upper.includes('RESOLUTION') || upper.includes('RES')) return COLUMN_PRESETS.RESOLUTION;
+  if (upper.includes('CONNECTOR') || upper.includes('CONN')) return COLUMN_PRESETS.CONNECTOR;
+  if (upper.includes('RATE') || upper.includes('REFRESH') || upper.includes('FPS')) return COLUMN_PRESETS.RATE;
+  return null;
+}
+
+// ============================================
+// PRE-COMPUTED CELL STYLES (avoid allocation per render)
+// ============================================
+const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
+const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px' };
+const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', height: '16px' };
+const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '13px' };
+const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
+const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
+const AC_CELL_STYLE = { ...STYLES.ac, ...STYLES.cell };
+const AC_CELL_HEADER_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell };
 
 // ============================================
 // SUB-COMPONENTS
 // ============================================
 
 // Auto-sizing input cell
-const SzCell = memo(({ value, isHeader, isLast, onChange }) => {
+const SzCell = memo(({ value, isHeader, onChange, onContextMenu }) => {
   const Tag = isHeader ? 'th' : 'td';
-  const cellStyle = {
-    ...STYLES.cell,
-    ...(isLast ? STYLES.cellLast : {}),
-    ...(isHeader ? STYLES.headerCell : {}),
-    width: '1px',
-  };
-
   return (
-    <Tag style={cellStyle}>
+    <Tag style={isHeader ? SZ_CELL_HEADER_STYLE : SZ_CELL_STYLE} onContextMenu={onContextMenu}>
       <div
         className="n313-sz"
         data-v={value || ' '}
         data-h={isHeader ? '' : undefined}
       >
         <input
-          style={{
-            ...STYLES.input,
-            gridArea: '1/1',
-            width: '100%',
-            minWidth: 0,
-            textAlign: 'center',
-            ...(isHeader
-              ? { fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '13px' }
-              : { fontSize: '16px', height: '16px' }
-            ),
-          }}
+          style={isHeader ? SZ_INPUT_HEADER : SZ_INPUT_BODY}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onClick={(e) => e.stopPropagation()}
@@ -270,15 +290,96 @@ const SzCell = memo(({ value, isHeader, isLast, onChange }) => {
 });
 SzCell.displayName = 'SzCell';
 
+// Dropdown cell — looks like SzCell but click opens preset options
+const DropdownCell = memo(({ value, presets, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const cellRef = useRef(null);
+
+  const handleInputClick = useCallback((e) => {
+    e.stopPropagation();
+    setOpen(prev => !prev);
+  }, []);
+
+  const handleSelect = useCallback((preset) => {
+    onChange(preset);
+    setOpen(false);
+  }, [onChange]);
+
+  // Dismiss on click outside
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (e) => {
+      if (cellRef.current && !cellRef.current.contains(e.target)) setOpen(false);
+    };
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [open]);
+
+  // Get position for the portal dropdown
+  const getDropdownPos = () => {
+    if (!cellRef.current) return { left: 0, top: 0, width: 0 };
+    const rect = cellRef.current.getBoundingClientRect();
+    return { left: rect.left, top: rect.bottom, width: Math.max(rect.width, 120) };
+  };
+
+  return (
+    <td style={SZ_CELL_STYLE} ref={cellRef}>
+      <div className="n313-sz" data-v={value || ' '}>
+        <input
+          style={SZ_INPUT_BODY}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onClick={handleInputClick}
+        />
+      </div>
+      {open && createPortal(
+        (() => {
+          const pos = getDropdownPos();
+          return (
+            <div
+              style={{
+                position: 'fixed',
+                left: pos.left,
+                top: pos.top,
+                minWidth: pos.width,
+                zIndex: 10000,
+                background: '#1f1f23',
+                border: '1px solid #333',
+                padding: '2px 0',
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {presets.map((p) => (
+                <div
+                  key={p}
+                  style={STYLES.contextMenuItem}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  onMouseDown={(e) => { e.stopPropagation(); handleSelect(p); }}
+                >
+                  {p}
+                </div>
+              ))}
+            </div>
+          );
+        })(),
+        document.body
+      )}
+    </td>
+  );
+});
+DropdownCell.displayName = 'DropdownCell';
+
 // X button cell (delete column, delete row, add column, or empty spacer)
-const XCell = memo(({ isHeader, isLast, label, onClick }) => {
+const XCell = memo(({ isHeader, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
-    <Tag style={{ ...STYLES.xc, ...STYLES.cell, ...(isLast ? STYLES.cellLast : {}), ...(isHeader ? STYLES.headerCell : {}) }}>
+    <Tag style={isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE}>
       {label && (
         <span
           style={STYLES.xcSpan}
           onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
         >
@@ -291,9 +392,8 @@ const XCell = memo(({ isHeader, isLast, label, onClick }) => {
 XCell.displayName = 'XCell';
 
 // Anchor dot cell
-const AnchorCell = memo(({ isHeader, isLast, anchorId, onAnchorClick, activeWire, isConnected }) => {
+const AnchorCell = memo(({ isHeader, anchorId, onAnchorClick, activeWire, isConnected }) => {
   const Tag = isHeader ? 'th' : 'td';
-  const dotRef = useRef(null);
 
   const handleClick = useCallback((e) => {
     e.stopPropagation();
@@ -305,10 +405,9 @@ const AnchorCell = memo(({ isHeader, isLast, anchorId, onAnchorClick, activeWire
   const isActive = activeWire?.from === anchorId;
 
   return (
-    <Tag style={{ ...STYLES.ac, ...STYLES.cell, ...(isLast ? STYLES.cellLast : {}), ...(isHeader ? STYLES.headerCell : {}) }}>
+    <Tag style={isHeader ? AC_CELL_HEADER_STYLE : AC_CELL_STYLE}>
       {!isHeader && (
         <div
-          ref={dotRef}
           data-anchor-id={anchorId}
           style={{
             ...STYLES.anchorDot,
@@ -347,7 +446,9 @@ DropZone.displayName = 'DropZone';
 
 const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, onAnchorClick, activeWire, connectedAnchorIds }) => {
   const nc = section.cols.length;
+  const hiddenCols = section.hiddenCols || [];
   const canDel = nc > 1;
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, colIndex }
 
   const updateSection = useCallback((updates) => {
     onUpdate(sectionId, updates);
@@ -394,24 +495,56 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     updateSection({ title: value });
   }, [updateSection]);
 
-  // Build column order for header and body
+  // Column header right-click context menu
+  const handleColContextMenu = useCallback((e, ci) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, colIndex: ci });
+  }, []);
+
+  const handleDeleteFromMenu = useCallback(() => {
+    if (contextMenu) {
+      deleteColumn(contextMenu.colIndex);
+      setContextMenu(null);
+    }
+  }, [contextMenu, deleteColumn]);
+
+  const handleHideFromMenu = useCallback(() => {
+    if (contextMenu) {
+      updateSection({ hiddenCols: [...hiddenCols, contextMenu.colIndex] });
+      setContextMenu(null);
+    }
+  }, [contextMenu, hiddenCols, updateSection]);
+
+  const handleUnhideAll = useCallback(() => {
+    updateSection({ hiddenCols: [] });
+    setContextMenu(null);
+  }, [updateSection]);
+
+  // Dismiss context menu on click anywhere
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [contextMenu]);
+
+  // Build column order for header and body (right-click header to delete/hide column)
   const renderHeader = () => {
     const cells = [];
     if (mirrored) {
-      // MIRRORED: [row×] [+] [×] [COL3] [×] [COL2] [×] [COL1] [anchor]
       cells.push(<XCell key="rowx-h" isHeader label="" />);
       cells.push(<XCell key="add-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
-        if (canDel) cells.push(<XCell key={`delcol-${ci}`} isHeader label="×" onClick={() => deleteColumn(ci)} />);
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} />);
+        if (hiddenCols.includes(ci)) continue;
+        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
       }
       cells.push(<AnchorCell key="anchor-h" isHeader />);
     } else {
-      // NORMAL: [anchor] [COL1] [×] [COL2] [×] [COL3] [×] [+] [row×] [fill]
       cells.push(<AnchorCell key="anchor-h" isHeader />);
       for (let ci = 0; ci < nc; ci++) {
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} />);
-        if (canDel) cells.push(<XCell key={`delcol-${ci}`} isHeader label="×" onClick={() => deleteColumn(ci)} />);
+        if (hiddenCols.includes(ci)) continue;
+        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} />);
       }
       cells.push(<XCell key="add-h" isHeader label="+" onClick={addColumn} />);
       cells.push(<XCell key="rowx-h" isHeader label="" />);
@@ -424,12 +557,20 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const isConnected = connectedAnchorIds?.has(anchorId);
     const cells = [];
 
+    const renderDataCell = (ci) => {
+      const presets = getPresetsForColumn(section.cols[ci]);
+      if (presets) {
+        return <DropdownCell key={`cell-${ci}`} value={row[ci]} presets={presets} onChange={(v) => updateCell(ri, ci, v)} />;
+      }
+      return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} />;
+    };
+
     if (mirrored) {
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
       cells.push(<XCell key="add-spacer" label={null} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
-        if (canDel) cells.push(<XCell key={`delcol-spacer-${ci}`} label={null} />);
-        cells.push(<SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} />);
+        if (hiddenCols.includes(ci)) continue;
+        cells.push(renderDataCell(ci));
       }
       cells.push(
         <AnchorCell
@@ -451,8 +592,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         />
       );
       for (let ci = 0; ci < nc; ci++) {
-        cells.push(<SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} />);
-        if (canDel) cells.push(<XCell key={`delcol-spacer-${ci}`} label={null} />);
+        if (hiddenCols.includes(ci)) continue;
+        cells.push(renderDataCell(ci));
       }
       cells.push(<XCell key="add-spacer" label={null} />);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
@@ -489,6 +630,56 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         <thead>{renderHeader()}</thead>
         <tbody>{section.rows.map((row, ri) => renderRow(row, ri))}</tbody>
       </table>
+
+      {/* Column context menu (portaled to body to escape transform) */}
+      {contextMenu && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 10000,
+            background: '#1f1f23',
+            border: '1px solid #333',
+            padding: '2px 0',
+            minWidth: 140,
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {canDel && (
+            <div
+              style={STYLES.contextMenuItem}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              onMouseDown={(e) => { e.stopPropagation(); handleDeleteFromMenu(); }}
+            >
+              Delete Column
+            </div>
+          )}
+          <div
+            style={STYLES.contextMenuItem}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            onMouseDown={(e) => { e.stopPropagation(); handleHideFromMenu(); }}
+          >
+            Hide Column
+          </div>
+          {hiddenCols.length > 0 && (
+            <>
+              <div style={{ height: 1, background: '#333', margin: '2px 0' }} />
+              <div
+                style={STYLES.contextMenuItem}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}
+              >
+                Show All Columns ({hiddenCols.length} hidden)
+              </div>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   );
 });
@@ -500,13 +691,15 @@ Section313.displayName = 'Section313';
 
 function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
-  onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors,
+  onUpdate, onAnchorClick, registerAnchor, unregisterAnchors,
   activeWire, connectedAnchorIds, onSelect, selectedNodes, onMoveSelectedNodes,
 }) {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [dragSec, setDragSec] = useState(null);
+  const [isScaling, setIsScaling] = useState(false);
+  const scaleStartRef = useRef(null);
   const lastPositionRef = useRef(null);
 
   const layoutKey = node.layout || 'ab_c';
@@ -620,6 +813,48 @@ function Node313({
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y]);
+
+  // ---- Scale by dragging bottom-right handle ----
+  const handleScaleMouseDown = useCallback((e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const nodeEl = nodeRef.current;
+    if (!nodeEl) return;
+    const rect = nodeEl.getBoundingClientRect();
+    scaleStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startScale: node.scale || 1,
+      nodeWidth: rect.width,
+      nodeHeight: rect.height,
+    };
+    setIsScaling(true);
+  }, [node.scale]);
+
+  useEffect(() => {
+    if (!isScaling) return;
+    const handleMove = (e) => {
+      const s = scaleStartRef.current;
+      if (!s) return;
+      // Use diagonal distance for smooth scaling
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      const diagonal = Math.sqrt(s.nodeWidth * s.nodeWidth + s.nodeHeight * s.nodeHeight);
+      const delta = (dx + dy) / diagonal;
+      const newScale = Math.max(0.1, Math.min(3, s.startScale + delta * s.startScale));
+      onUpdate({ scale: Math.round(newScale * 100) / 100 });
+    };
+    const handleUp = () => {
+      setIsScaling(false);
+      scaleStartRef.current = null;
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [isScaling, onUpdate]);
 
   // ---- Anchor registration ----
   useLayoutEffect(() => {
@@ -812,6 +1047,26 @@ function Node313({
 
       {/* Sections */}
       {renderLayout()}
+
+      {/* Scale handle — bottom-right corner */}
+      <div
+        onMouseDown={handleScaleMouseDown}
+        style={{
+          position: 'absolute',
+          right: 0,
+          bottom: 0,
+          width: 12,
+          height: 12,
+          cursor: 'nwse-resize',
+          zIndex: 10,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}>
+          <line x1="10" y1="2" x2="2" y2="10" stroke="#555" strokeWidth="1" />
+          <line x1="10" y1="5" x2="5" y2="10" stroke="#555" strokeWidth="1" />
+          <line x1="10" y1="8" x2="8" y2="10" stroke="#555" strokeWidth="1" />
+        </svg>
+      </div>
     </div>
   );
 }

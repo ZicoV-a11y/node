@@ -381,11 +381,11 @@ const createNode313 = (id) => ({
   signalColor: null,
   position: { x: 100, y: 100 },
   scale: 0.5,
-  layout: 'ab_c',
+  layout: 'a_b_c',
   sections: {
-    a: { title: 'SECTION A', cols: ['TEST COL 1', 'TEST COL 2', 'TEST COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
-    b: { title: 'SECTION B', cols: ['COL 1', 'COL 2', 'COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
-    c: { title: 'SECTION C', cols: ['TEST COL 1', 'TEST COL 2', 'TEST COL 3'], rows: [['TEST ROW 1','TEST','TEST'], ['TEST ROW 2','TEST','TEST'], ['TEST ROW 3','TEST','TEST']] },
+    a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['IN 1','',''], ['IN 2','',''], ['IN 3','','']] },
+    b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['OUT 1','',''], ['OUT 2','',''], ['OUT 3','','']] },
+    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['1','',''], ['2','',''], ['3','','']] },
   }
 });
 
@@ -422,7 +422,7 @@ export default function App() {
   });
   const [showTitleBlockGrid, setShowTitleBlockGrid] = useState(() => {
     const saved = localStorage.getItem('nx-showTitleBlockGrid');
-    return saved !== null ? saved === 'true' : true; // Default to true
+    return saved !== null ? saved === 'true' : false; // Default to false
   });
   const [canvasBackground, setCanvasBackground] = useState(() => {
     return localStorage.getItem('nx-canvasBackground') || 'dark';

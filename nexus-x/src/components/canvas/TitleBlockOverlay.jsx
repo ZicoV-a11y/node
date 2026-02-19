@@ -307,7 +307,7 @@ function TitleBlockOverlayInner({
         width: bounds.width,
         height: bounds.height,
         pointerEvents: 'none',
-        zIndex: 5,
+        zIndex: 0,
         overflow: 'visible',
       }}
     >
