@@ -416,10 +416,42 @@ const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidt
 const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
-const AC_CELL_STYLE = { ...STYLES.ac, ...STYLES.cell };
-const AC_CELL_HEADER_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell };
 const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell, background: 'transparent' };
 const SP_CELL_HEADER_STYLE = { ...STYLES.sp, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent' };
+
+// Port selection highlight
+const PORT_CELL_SELECTED = { color: '#67e8f9', background: 'rgba(6,182,212,0.2)' };
+
+// Pre-computed port header styles (avoids allocation per render)
+const PORT_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, cursor: 'pointer' };
+const PORT_HEADER_SEL_STYLE = { ...PORT_HEADER_STYLE, ...PORT_CELL_SELECTED };
+const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: '#67e8f9' };
+const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: '#888' };
+
+// Pre-computed port display styles (PortCell read-only mode)
+const PORT_DISPLAY_SEL = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#67e8f9' };
+const PORT_DISPLAY_NORM = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#ddd' };
+
+// Phantom column styles (invisible cells to equalize column counts between sections)
+const PHANTOM_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' };
+const PHANTOM_DATA_STYLE = { ...SZ_CELL_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' };
+
+// Selected row background tint
+const ROW_SELECTED_BG = { background: 'rgba(6,182,212,0.07)' };
+
+// Spacer row cell style
+const SPACER_TD_STYLE = { padding: 0, border: 'none', background: 'transparent' };
+
+// Hover handler factory — returns onMouseEnter/onMouseLeave pair
+const hover = (prop, normal, hovered) => ({
+  onMouseEnter: (e) => { e.currentTarget.style[prop] = hovered; },
+  onMouseLeave: (e) => { e.currentTarget.style[prop] = normal; },
+});
+const HOVER_444_999 = hover('color', '#444', '#999');
+const HOVER_333_888 = hover('color', '#333', '#888');
+const HOVER_888_CCC = hover('color', '#888', '#ccc');
+const HOVER_BG_333 = hover('background', 'transparent', '#333');
+const HOVER_BG_2A = hover('background', 'none', '#2a2a2e');
 
 // ============================================
 // SUB-COMPONENTS
@@ -514,8 +546,7 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
                 <div
                   key={p}
                   style={STYLES.contextMenuItem}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  {...HOVER_BG_333}
                   onMouseDown={(e) => { e.stopPropagation(); handleSelect(p); }}
                 >
                   {p}
@@ -531,9 +562,8 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
 });
 DropdownCell.displayName = 'DropdownCell';
 
-// Flex centering wrappers for small-content cells (anchor, ×, +)
+// Flex centering wrapper for small-content cells (anchor, ×, +)
 const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
-const CELL_CENTER_HEAD = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
 
 // Anchor dot style — visible circle that scales with the node
 const ANCHOR_DOT_STYLE = {
@@ -548,14 +578,13 @@ const XCell = memo(({ isHeader, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
     <Tag style={isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE}>
-      <div style={isHeader ? CELL_CENTER_HEAD : CELL_CENTER}>
+      <div style={CELL_CENTER}>
         {label && (
           <span
             style={STYLES.xcSpan}
             onClick={(e) => { e.stopPropagation(); onClick?.(); }}
             onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+            {...HOVER_444_999}
           >
             {label}
           </span>
@@ -571,14 +600,13 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
     <Tag style={isHeader ? AC_HEAD_STYLE : AC_BODY_STYLE}>
-      <div style={isHeader ? CELL_CENTER_HEAD : CELL_CENTER}>
+      <div style={CELL_CENTER}>
         {isHeader && label && (
           <span
             style={STYLES.xcSpan}
             onClick={(e) => { e.stopPropagation(); onClick?.(); }}
             onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+            {...HOVER_444_999}
           >
             {label}
           </span>
@@ -591,19 +619,15 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
 AnchorCell.displayName = 'AnchorCell';
 
 // Spacing drag handle cell — drag vertically to add space above a row
-const SpacingCell = memo(({ isHeader, onMouseDown }) => {
+const SpacingCell = memo(({ isHeader, onMouseDown, headerLabel, onHeaderClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
     <Tag style={isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE}>
+      {isHeader && headerLabel && (
+        <span style={STYLES.xcSpan} onClick={(e) => { e.stopPropagation(); onHeaderClick?.(); }} onMouseDown={(e) => e.stopPropagation()} {...HOVER_444_999} title="Flip anchor side">{headerLabel}</span>
+      )}
       {!isHeader && (
-        <span
-          style={STYLES.spHandle}
-          onMouseDown={onMouseDown}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#888'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#333'; }}
-        >
-          ⋮
-        </span>
+        <span style={STYLES.spHandle} onMouseDown={onMouseDown} {...HOVER_333_888}>⋮</span>
       )}
     </Tag>
   );
@@ -611,7 +635,6 @@ const SpacingCell = memo(({ isHeader, onMouseDown }) => {
 SpacingCell.displayName = 'SpacingCell';
 
 // Port cell — left-click toggles selection, right-click edits label
-const PORT_CELL_SELECTED = { color: '#67e8f9', background: 'rgba(6,182,212,0.2)' };
 const PortCell = memo(({ value, isSelected, onToggle, onChange, sizerValue }) => {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -643,13 +666,8 @@ const PortCell = memo(({ value, isSelected, onToggle, onChange, sizerValue }) =>
     setEditing(false);
   }, [editValue, onChange]);
 
-  const cellStyle = {
-    ...SZ_CELL_STYLE,
-    ...(isSelected ? PORT_CELL_SELECTED : {}),
-  };
-
   return (
-    <td style={cellStyle}>
+    <td style={isSelected ? { ...SZ_CELL_STYLE, ...PORT_CELL_SELECTED } : SZ_CELL_STYLE}>
       <div className="n313-sz" data-v={sizer}>
         {editing ? (
           <input
@@ -663,11 +681,7 @@ const PortCell = memo(({ value, isSelected, onToggle, onChange, sizerValue }) =>
           />
         ) : (
           <input
-            style={{
-              ...SZ_INPUT_BODY,
-              cursor: 'pointer',
-              color: isSelected ? '#67e8f9' : '#ddd',
-            }}
+            style={isSelected ? PORT_DISPLAY_SEL : PORT_DISPLAY_NORM}
             value={value}
             readOnly
             onClick={handleClick}
@@ -908,11 +922,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const renderHeaderCell = (ci) => {
       const sizer = colSizerValues ? colSizerValues[ci] : undefined;
       if (ci === 0) {
-        const headerStyle = { ...SZ_CELL_HEADER_STYLE, cursor: 'pointer', ...(allSelected ? PORT_CELL_SELECTED : {}) };
         return (
-          <th key={`col-${ci}`} style={headerStyle} onClick={toggleSelectAll} onContextMenu={(e) => handleColContextMenu(e, ci)}>
+          <th key={`col-${ci}`} style={allSelected ? PORT_HEADER_SEL_STYLE : PORT_HEADER_STYLE} onClick={toggleSelectAll} onContextMenu={(e) => handleColContextMenu(e, ci)}>
             <div className="n313-sz" data-v={sizer && sizer.length > (section.cols[ci] || '').length ? sizer : (section.cols[ci] || ' ')} data-h="">
-              <input style={{ ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: allSelected ? '#67e8f9' : '#888' }} value={section.cols[ci]} readOnly />
+              <input style={allSelected ? PORT_HDR_INPUT_SEL : PORT_HDR_INPUT_NORM} value={section.cols[ci]} readOnly />
             </div>
           </th>
         );
@@ -925,14 +938,14 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       const pci = nc + pi;
       const pSizer = colSizerValues[pci];
       phantomHeaders.push(
-        <th key={`phantom-${pci}`} style={{ ...SZ_CELL_HEADER_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' }}>
+        <th key={`phantom-${pci}`} style={PHANTOM_HEADER_STYLE}>
           <div className="n313-sz" data-v={pSizer || ' '} data-h="" />
         </th>
       );
     }
     if (mirrored) {
-      cells.push(<SpacingCell key="sp-h" isHeader />);
-      cells.push(<XCell key="rowx-h" isHeader label="" />);
+      cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
+      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
       cells.push(...phantomHeaders);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
@@ -946,8 +959,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         cells.push(renderHeaderCell(ci));
       }
       cells.push(...phantomHeaders);
-      cells.push(<XCell key="rowx-h" isHeader label="" />);
-      cells.push(<SpacingCell key="sp-h" isHeader />);
+      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
+      cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
     }
     return <tr>{cells}</tr>;
   };
@@ -962,7 +975,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     if (spacing > 0) {
       result.push(
         <tr key={`sp-${ri}`}>
-          <td colSpan={totalColspan} style={{ height: `${spacing}px`, padding: 0, border: 'none', background: 'transparent' }} />
+          <td colSpan={totalColspan} style={{ ...SPACER_TD_STYLE, height: `${spacing}px` }} />
         </tr>
       );
     }
@@ -986,7 +999,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       const pci = nc + pi;
       const pSizer = colSizerValues[pci];
       phantomCells.push(
-        <td key={`phantom-${pci}`} style={{ ...SZ_CELL_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' }}>
+        <td key={`phantom-${pci}`} style={PHANTOM_DATA_STYLE}>
           <div className="n313-sz" data-v={pSizer || ' '} />
         </td>
       );
@@ -1012,7 +1025,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     }
     const rowSelected = selectedRows.has(ri);
     result.push(
-      <tr key={ri} style={rowSelected ? { background: 'rgba(6,182,212,0.07)' } : undefined}>
+      <tr key={ri} style={rowSelected ? ROW_SELECTED_BG : undefined}>
         {cells}
       </tr>
     );
@@ -1026,7 +1039,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const base = { ...STYLES.sectionTitle, ...(mirrored ? { flexDirection: 'row-reverse' } : {}) };
     if (signalColorHex) {
       base.background = `color-mix(in srgb, ${signalColorHex} 20%, #111)`;
-      base.borderBottom = `1px solid color-mix(in srgb, ${signalColorHex} 30%, #333)`;
+      base.borderBottom = `1px solid ${signalColorHex}`;
     }
     return base;
   }, [mirrored, signalColorHex]);
@@ -1042,27 +1055,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           onChange={(e) => updateTitle(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
-        <span
-          style={{ ...STYLES.xcSpan, fontSize: '11px', padding: '0 4px', flexShrink: 0 }}
-          onClick={(e) => { e.stopPropagation(); addRow(); }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
-        >
-          + row
-        </span>
-        {onFlip && (
-          <span
-            style={{ ...STYLES.xcSpan, fontSize: '11px', padding: '0 4px', flexShrink: 0 }}
-            onClick={(e) => { e.stopPropagation(); onFlip(); }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
-            title="Flip anchor side"
-          >
-            ⇄
-          </span>
-        )}
       </div>
 
       {/* Scoped tint for cells */}
@@ -1071,7 +1063,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           [data-sec="${nodeId}-${sectionId}"] td { background: color-mix(in srgb, ${signalColorHex} 3%, #141414) !important; }
           [data-sec="${nodeId}-${sectionId}"] th { background: color-mix(in srgb, ${signalColorHex} 18%, #111) !important; }
           [data-sec="${nodeId}-${sectionId}"] td,
-          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 25%, #333) !important; }
+          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 60%, #333) !important; }
         `}</style>
       )}
 
@@ -1097,32 +1089,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           onMouseDown={(e) => e.stopPropagation()}
         >
           {canDel && (
-            <div
-              style={STYLES.contextMenuItem}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              onMouseDown={(e) => { e.stopPropagation(); handleDeleteFromMenu(); }}
-            >
+            <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); handleDeleteFromMenu(); }}>
               Delete Column
             </div>
           )}
-          <div
-            style={STYLES.contextMenuItem}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            onMouseDown={(e) => { e.stopPropagation(); handleHideFromMenu(); }}
-          >
+          <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); handleHideFromMenu(); }}>
             Hide Column
           </div>
           {hiddenCols.length > 0 && (
             <>
               <div style={{ height: 1, background: '#333', margin: '2px 0' }} />
-              <div
-                style={STYLES.contextMenuItem}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}
-              >
+              <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}>
                 Show All Columns ({hiddenCols.length} hidden)
               </div>
             </>
@@ -1141,8 +1118,8 @@ Section313.displayName = 'Section313';
 
 function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
-  onUpdate, onAnchorClick, registerAnchor, unregisterAnchors,
-  activeWire, connectedAnchorIds, onSelect, selectedNodes, onMoveSelectedNodes,
+  onUpdate, registerAnchor, unregisterAnchors,
+  onSelect, selectedNodes, onMoveSelectedNodes,
 }) {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1580,7 +1557,7 @@ function Node313({
     };
     if (signalColorHex) {
       base.background = `color-mix(in srgb, ${signalColorHex} 25%, #0a0a0a)`;
-      base.borderColor = `color-mix(in srgb, ${signalColorHex} 50%, #333)`;
+      base.borderColor = signalColorHex;
     }
     return base;
   }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, colorPickerOpen, signalColorHex]);
@@ -1590,7 +1567,7 @@ function Node313({
     const base = { ...STYLES.nodeTitle };
     if (signalColorHex) {
       base.background = `color-mix(in srgb, ${signalColorHex} 35%, #111)`;
-      base.borderBottom = `1px solid color-mix(in srgb, ${signalColorHex} 50%, #333)`;
+      base.borderBottom = `1px solid ${signalColorHex}`;
     }
     return base;
   }, [signalColorHex]);
@@ -1619,9 +1596,7 @@ function Node313({
             ref={colorBtnRef}
             style={{
               ...STYLES.colorSwatch,
-              backgroundColor: signalColorHex
-                ? `color-mix(in srgb, ${signalColorHex} 35%, #111)`
-                : '#333',
+              backgroundColor: signalColorHex || '#333',
               boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
             }}
             title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
@@ -1684,13 +1659,8 @@ function Node313({
                 ))}
                 <div
                   style={STYLES.colorGridClear}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    onUpdate({ signalColor: null });
-                    setColorPickerOpen(false);
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ccc'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; }}
+                  onMouseDown={(e) => { e.stopPropagation(); onUpdate({ signalColor: null }); setColorPickerOpen(false); }}
+                  {...HOVER_888_CCC}
                 >
                   Clear Color
                 </div>
@@ -1714,17 +1684,8 @@ function Node313({
                   const types = node.deviceTypes || [];
                   const isActive = types.includes(dt);
                   return (
-                    <button
-                      key={dt}
-                      style={STYLES.settingsItem}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        const next = isActive ? types.filter(t => t !== dt) : [...types, dt];
-                        onUpdate({ deviceTypes: next });
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2e'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                    >
+                    <button key={dt} style={STYLES.settingsItem} {...HOVER_BG_2A}
+                      onMouseDown={(e) => { e.stopPropagation(); onUpdate({ deviceTypes: isActive ? types.filter(t => t !== dt) : [...types, dt] }); }}>
                       <span>{dt}</span>
                       <span style={{ color: isActive ? '#4ade80' : '#555' }}>{isActive ? '✓' : '○'}</span>
                     </button>
@@ -1739,16 +1700,8 @@ function Node313({
                 ].map((sec) => {
                   const isVisible = !hiddenSections.includes(sec.id);
                   return (
-                    <button
-                      key={sec.id}
-                      style={STYLES.settingsItem}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        toggleSectionVisibility(sec.id);
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2e'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                    >
+                    <button key={sec.id} style={STYLES.settingsItem} {...HOVER_BG_2A}
+                      onMouseDown={(e) => { e.stopPropagation(); toggleSectionVisibility(sec.id); }}>
                       <span>{sec.label}</span>
                       <span style={{ color: isVisible ? '#4ade80' : '#555' }}>{isVisible ? '✓' : '○'}</span>
                     </button>

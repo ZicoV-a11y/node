@@ -1074,6 +1074,11 @@ export default function App() {
     return null;
   }, [nodes, connections]);
 
+  // Check if a node is a "source" device (works for both SuperNode deviceRoles and Node313 deviceTypes)
+  const isSourceDevice = useCallback((node) =>
+    node?.deviceRoles?.includes('source') || node?.deviceTypes?.includes('Source')
+  , []);
+
   // Build a map of source names to colors from INPUT ports with wire connections
   // This is built first so it can be used by getConnectionColor
   const sourceNameToColor = useMemo(() => {
@@ -1084,8 +1089,7 @@ export default function App() {
       const fromNodeId = getNodeIdFromAnchor(conn.from);
       const fromNode = nodes[fromNodeId];
       // Get color from source device
-      const isSource = fromNode?.deviceRoles?.includes('source');
-      if (isSource && fromNode?.signalColor) {
+      if (isSourceDevice(fromNode) && fromNode?.signalColor) {
         const color = SIGNAL_COLORS.find(c => c.id === fromNode.signalColor)?.hex;
         if (color) anchorColors.set(conn.to, color);
       }
@@ -1103,7 +1107,7 @@ export default function App() {
       });
     });
     return map;
-  }, [nodes, connections]);
+  }, [nodes, connections, isSourceDevice]);
 
   // Get signal color for a connection
   // Checks: 1) source device, 2) upstream source, 3) output port's source field
@@ -1113,15 +1117,13 @@ export default function App() {
     const node = nodes[nodeId];
 
     // Check if this node is a "source" device type and has a signal color
-    const isSource = node?.deviceRoles?.includes('source');
-    if (isSource && node?.signalColor) {
+    if (isSourceDevice(node) && node?.signalColor) {
       return SIGNAL_COLORS.find(c => c.id === node.signalColor)?.hex || '#22d3ee';
     }
 
     // Try to trace back to find a source device type upstream
     const upstreamSource = getSourceNode(conn.from);
-    const isUpstreamSource = upstreamSource?.deviceRoles?.includes('source');
-    if (isUpstreamSource && upstreamSource?.signalColor) {
+    if (isSourceDevice(upstreamSource) && upstreamSource?.signalColor) {
       return SIGNAL_COLORS.find(c => c.id === upstreamSource.signalColor)?.hex || '#22d3ee';
     }
 
@@ -1135,7 +1137,7 @@ export default function App() {
     }
 
     return '#22d3ee'; // Default cyan
-  }, [nodes, getSourceNode, sourceNameToColor]);
+  }, [nodes, getSourceNode, sourceNameToColor, isSourceDevice]);
 
   // Pre-compute connected anchor IDs for O(1) lookup instead of O(connections) per anchor
   const connectedAnchorIds = useMemo(() => {
@@ -1273,11 +1275,23 @@ export default function App() {
         // Start new wire with empty waypoints array
         return { from: anchorId, direction, waypoints: [] };
       } else {
-        if (prev.from !== anchorId && prev.direction !== direction) {
-          const fromAnchor = prev.direction === 'out' ? prev.from : anchorId;
-          const toAnchor = prev.direction === 'out' ? anchorId : prev.from;
-          // Reverse waypoints if direction was swapped (user clicked output then input)
-          const waypoints = prev.direction === 'out' ? (prev.waypoints || []) : (prev.waypoints || []).slice().reverse();
+        // Allow connection if directions are opposite, or either side is 'both' (Node313)
+        const canConnect = prev.from !== anchorId && (
+          prev.direction === 'both' || direction === 'both' || prev.direction !== direction
+        );
+        if (canConnect) {
+          // Determine from/to: 'out' is always from, 'in' is always to, 'both' adapts
+          let fromAnchor, toAnchor, fwd;
+          if (prev.direction === 'out' || (prev.direction === 'both' && direction !== 'out')) {
+            fromAnchor = prev.from;
+            toAnchor = anchorId;
+            fwd = true;
+          } else {
+            fromAnchor = anchorId;
+            toAnchor = prev.from;
+            fwd = false;
+          }
+          const waypoints = fwd ? (prev.waypoints || []) : (prev.waypoints || []).slice().reverse();
 
           // Check if connection already exists
           const exists = connections.some(
@@ -1285,8 +1299,6 @@ export default function App() {
           );
 
           if (!exists) {
-            // Show cable prompt instead of creating connection immediately
-            // Pre-fill with last used cable settings and include waypoints
             setCablePromptData({
               mode: 'create',
               from: fromAnchor,
@@ -2148,6 +2160,23 @@ export default function App() {
     const map = new Map();
     connections.forEach(conn => {
       map.set(conn.id, getWirePath(conn.from, conn.to, conn.waypoints));
+    });
+    return map;
+  }, [connections, getWirePath, computedAnchorPositions]);
+
+  // Pre-compute text paths — always left-to-right so labels never render upside down
+  const wireTextPathMap = useMemo(() => {
+    const map = new Map();
+    connections.forEach(conn => {
+      const fromPos = computedAnchorPositions[conn.from];
+      const toPos = computedAnchorPositions[conn.to];
+      if (!fromPos || !toPos) return;
+      if (fromPos.x > toPos.x) {
+        // Wire goes right-to-left — reverse path for readable text
+        const reversedWaypoints = conn.waypoints ? [...conn.waypoints].reverse() : [];
+        map.set(conn.id, getWirePath(conn.to, conn.from, reversedWaypoints));
+      }
+      // If left-to-right, no entry needed — use the original wirePath
     });
     return map;
   }, [connections, getWirePath, computedAnchorPositions]);
@@ -3148,12 +3177,14 @@ export default function App() {
                     if (!displayText || !wirePath) return null;
 
                     const fontSize = 4; // Fixed size for all wire labels
-                    const pathId = `wire-path-${conn.id}`;
+                    const pathId = `wire-text-${conn.id}`;
+                    // Use reversed path when wire goes right-to-left so text is never upside down
+                    const textPath = wireTextPathMap.get(conn.id) || wirePath;
 
                     return (
                       <g style={{ pointerEvents: 'none' }}>
                         <defs>
-                          <path id={pathId} d={wirePath} />
+                          <path id={pathId} d={textPath} />
                         </defs>
                         {/* Text outline for readability */}
                         <text className="font-mono" dy={-3} style={{ fontSize }}>
