@@ -136,6 +136,7 @@ const STYLES = {
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
     lineHeight: 1,
+    background: '#141414',
   },
   cellLast: {
     borderRight: 'none',
@@ -188,17 +189,24 @@ const STYLES = {
     lineHeight: 1,
   },
   dropZone: {
-    border: '1px dashed #333',
-    padding: '4px',
+    border: '2px dashed #06b6d4',
+    padding: '6px',
     textAlign: 'center',
     fontSize: '10px',
-    color: '#444',
+    fontWeight: 700,
+    color: '#06b6d4',
+    background: 'rgba(6, 182, 212, 0.05)',
     userSelect: 'none',
   },
   dropZoneHover: {
-    borderColor: '#aaa',
-    color: '#aaa',
-    background: '#1a1a1a',
+    borderColor: '#22d3ee',
+    color: '#fff',
+    background: 'rgba(6, 182, 212, 0.15)',
+  },
+  dragHighlight: {
+    outline: '2px solid #06b6d4',
+    outlineOffset: '-2px',
+    opacity: 0.6,
   },
   abRow: {
     display: 'inline-flex',
@@ -248,8 +256,8 @@ const SzCell = memo(({ value, isHeader, isLast, onChange }) => {
             minWidth: 0,
             textAlign: 'center',
             ...(isHeader
-              ? { fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '11px' }
-              : { fontSize: '13px', height: '13px' }
+              ? { fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '13px' }
+              : { fontSize: '16px', height: '16px' }
             ),
           }}
           value={value}
@@ -465,6 +473,15 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           onChange={(e) => updateTitle(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
+        <span
+          style={{ ...STYLES.xcSpan, fontSize: '11px', padding: '0 4px', flexShrink: 0 }}
+          onClick={(e) => { e.stopPropagation(); addRow(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#999'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
+        >
+          + row
+        </span>
       </div>
 
       {/* Data table */}
@@ -472,16 +489,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         <thead>{renderHeader()}</thead>
         <tbody>{section.rows.map((row, ri) => renderRow(row, ri))}</tbody>
       </table>
-
-      {/* Add row */}
-      <div
-        style={STYLES.addRow}
-        onClick={addRow}
-        onMouseEnter={(e) => { e.currentTarget.style.color = '#888'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = '#444'; }}
-      >
-        + row
-      </div>
     </div>
   );
 });
@@ -675,92 +682,103 @@ function Node313({
     );
   }, [node.sections, node.id, handleSectionUpdate, onAnchorClick, activeWire, connectedAnchorIds]);
 
-  // ---- Render normal layout ----
-  const renderNormalLayout = () => {
-    return layout.map((row, rowIndex) => {
+  // ---- Render layout with drop zones woven into correct positions ----
+  const renderLayout = () => {
+    // Compute drag info once
+    const currentPos = dragSec ? getPosition(layoutKey, dragSec) : null;
+    const cZones = dragSec === 'c' ? ['top', 'bottom'].filter(p => p !== currentPos) : [];
+    const abZones = (dragSec === 'a' || dragSec === 'b') ? ['left', 'right', 'above', 'below'].filter(p => p !== currentPos) : [];
+
+    // For A/B drag: find the row containing the OTHER section (target for drop zones)
+    const otherAB = dragSec === 'a' ? 'b' : dragSec === 'b' ? 'a' : null;
+    const otherRowIndex = otherAB ? layout.findIndex(r => r.includes(otherAB)) : -1;
+
+    const elements = [];
+
+    layout.forEach((row, rowIndex) => {
+      // C drop zone: TOP — before the first row
+      if (rowIndex === 0 && cZones.includes('top')) {
+        elements.push(<DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')} />);
+      }
+
+      // A/B drop zone: ABOVE — before the other section's row
+      if (rowIndex === otherRowIndex && abZones.includes('above')) {
+        elements.push(<DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')} />);
+      }
+
       if (row.length === 2) {
-        return (
+        // Side-by-side row — inject LEFT/RIGHT drop zones within
+        elements.push(
           <div key={rowIndex} style={STYLES.abRow}>
+            {abZones.includes('left') && (
+              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} />
+            )}
             <div style={STYLES.sectionWrap}>
-              <div onMouseDown={(e) => handleSectionGripDown(e, row[0])}>
+              <div
+                onMouseDown={(e) => handleSectionGripDown(e, row[0])}
+                style={dragSec === row[0] ? STYLES.dragHighlight : undefined}
+              >
                 {renderSection(row[0], false, false)}
               </div>
             </div>
             <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder }}>
-              <div onMouseDown={(e) => handleSectionGripDown(e, row[1])}>
+              <div
+                onMouseDown={(e) => handleSectionGripDown(e, row[1])}
+                style={dragSec === row[1] ? STYLES.dragHighlight : undefined}
+              >
                 {renderSection(row[1], false, true)}
               </div>
             </div>
+            {abZones.includes('right') && (
+              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} />
+            )}
           </div>
         );
+      } else {
+        // Single-section row — wrap with LEFT/RIGHT zones if this is the other A/B section
+        const isOtherRow = rowIndex === otherRowIndex;
+        if (isOtherRow && (abZones.includes('left') || abZones.includes('right'))) {
+          elements.push(
+            <div key={rowIndex} style={STYLES.abRow}>
+              {abZones.includes('left') && (
+                <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} />
+              )}
+              <div
+                style={dragSec === row[0] ? { flex: 1, ...STYLES.dragHighlight } : { flex: 1 }}
+                onMouseDown={(e) => handleSectionGripDown(e, row[0])}
+              >
+                {renderSection(row[0], true, false)}
+              </div>
+              {abZones.includes('right') && (
+                <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} />
+              )}
+            </div>
+          );
+        } else {
+          elements.push(
+            <div
+              key={rowIndex}
+              onMouseDown={(e) => handleSectionGripDown(e, row[0])}
+              style={dragSec === row[0] ? STYLES.dragHighlight : undefined}
+            >
+              {renderSection(row[0], true, false)}
+            </div>
+          );
+        }
       }
-      return (
-        <div key={rowIndex} onMouseDown={(e) => handleSectionGripDown(e, row[0])}>
-          {renderSection(row[0], true, false)}
-        </div>
-      );
+
+      // A/B drop zone: BELOW — after the other section's row
+      if (rowIndex === otherRowIndex && abZones.includes('below')) {
+        elements.push(<DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')} />);
+      }
+
+      // C drop zone: BOTTOM — after the last row
+      if (rowIndex === layout.length - 1 && cZones.includes('bottom')) {
+        elements.push(<DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')} />);
+      }
     });
-  };
 
-  // ---- Render drag mode (drop zones) ----
-  const renderDragLayout = () => {
-    const currentPos = getPosition(layoutKey, dragSec);
-
-    if (dragSec === 'c') {
-      // C can only go top or bottom
-      const zones = ['top', 'bottom'].filter(p => p !== currentPos);
-      const remaining = layout.map(r => r.filter(x => x !== 'c')).filter(r => r.length);
-
-      return (
-        <>
-          {zones.includes('top') && <DropZone label="TOP" onDrop={() => handleDrop('top')} />}
-          {remaining.map((row, ri) => {
-            if (row.length === 2) {
-              return (
-                <div key={ri} style={STYLES.abRow}>
-                  <div style={STYLES.sectionWrap}>{renderSection(row[0], false, false)}</div>
-                  <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder }}>{renderSection(row[1], false, true)}</div>
-                </div>
-              );
-            }
-            return <div key={ri}>{renderSection(row[0], true, false)}</div>;
-          })}
-          {zones.includes('bottom') && <DropZone label="BOTTOM" onDrop={() => handleDrop('bottom')} />}
-        </>
-      );
-    }
-
-    // A or B dragging: show LEFT/RIGHT/ABOVE/BELOW around the other
-    const other = dragSec === 'a' ? 'b' : 'a';
-    const cOnTop = layout.findIndex(r => r.includes('c')) === 0;
-    const zones = ['left', 'right', 'above', 'below'].filter(p => p !== currentPos);
-
-    const abContent = (
-      <div>
-        {zones.includes('above') && <DropZone label="ABOVE" onDrop={() => handleDrop('above')} />}
-        <div style={{ display: 'flex' }}>
-          {zones.includes('left') && <DropZone label="LEFT" onDrop={() => handleDrop('left')} />}
-          <div>{renderSection(other, false, false)}</div>
-          {zones.includes('right') && <DropZone label="RIGHT" onDrop={() => handleDrop('right')} />}
-        </div>
-        {zones.includes('below') && <DropZone label="BELOW" onDrop={() => handleDrop('below')} />}
-      </div>
-    );
-
-    if (cOnTop) {
-      return (
-        <>
-          {renderSection('c', true, false)}
-          {abContent}
-        </>
-      );
-    }
-    return (
-      <>
-        {abContent}
-        {renderSection('c', true, false)}
-      </>
-    );
+    return elements;
   };
 
   const totalScale = node.scale || 1;
@@ -793,7 +811,7 @@ function Node313({
       </div>
 
       {/* Sections */}
-      {dragSec ? renderDragLayout() : renderNormalLayout()}
+      {renderLayout()}
     </div>
   );
 }
