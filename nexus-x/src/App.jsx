@@ -384,13 +384,14 @@ const createNode313 = (id) => ({
   title: 'NODE 313',
   version: 3,
   signalColor: null,
+  deviceTypes: [],
   position: { x: 100, y: 100 },
   scale: 0.5,
   layout: 'a_b_c',
   sections: {
-    a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['IN 1','',''], ['IN 2','',''], ['IN 3','','']] },
-    b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['OUT 1','',''], ['OUT 2','',''], ['OUT 3','','']] },
-    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'CONNECTOR'], rows: [['1','',''], ['2','',''], ['3','','']] },
+    a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['IN 1','','','','',''], ['IN 2','','','','','']] },
+    b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['OUT 1','','','','',''], ['OUT 2','','','','','']] },
+    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'CONNECTOR', 'SOURCE', 'DESTINATION', 'RATE'], rows: [['NETWORK','','','','',''], ['MULTIVIEW','','','','','']] },
   }
 });
 

@@ -1367,6 +1367,28 @@ function Node313({
                 style={{ ...STYLES.settingsDropdown, left: pos.left - 150, top: pos.top }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
+                <div style={STYLES.settingsLabel}>Device Type</div>
+                {['Router', 'Switcher', 'Source', 'Destination', 'Converter'].map((dt) => {
+                  const types = node.deviceTypes || [];
+                  const isActive = types.includes(dt);
+                  return (
+                    <button
+                      key={dt}
+                      style={STYLES.settingsItem}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const next = isActive ? types.filter(t => t !== dt) : [...types, dt];
+                        onUpdate({ deviceTypes: next });
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2e'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span>{dt}</span>
+                      <span style={{ color: isActive ? '#4ade80' : '#555' }}>{isActive ? '✓' : '○'}</span>
+                    </button>
+                  );
+                })}
+                <div style={STYLES.settingsDivider} />
                 <div style={STYLES.settingsLabel}>Sections</div>
                 {[
                   { id: 'a', label: 'Input (A)' },
