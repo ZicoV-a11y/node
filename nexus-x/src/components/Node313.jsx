@@ -610,6 +610,78 @@ const SpacingCell = memo(({ isHeader, onMouseDown }) => {
 });
 SpacingCell.displayName = 'SpacingCell';
 
+// Port cell — left-click toggles selection, right-click edits label
+const PORT_CELL_SELECTED = { color: '#67e8f9', background: 'rgba(6,182,212,0.2)' };
+const PortCell = memo(({ value, isSelected, onToggle, onChange, sizerValue }) => {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef(null);
+
+  const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
+
+  const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    if (!editing) onToggle?.();
+  }, [editing, onToggle]);
+
+  const handleContextMenu = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditValue(value || '');
+    setEditing(true);
+  }, [value]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commitEdit = useCallback(() => {
+    onChange(editValue);
+    setEditing(false);
+  }, [editValue, onChange]);
+
+  const cellStyle = {
+    ...SZ_CELL_STYLE,
+    ...(isSelected ? PORT_CELL_SELECTED : {}),
+  };
+
+  return (
+    <td style={cellStyle}>
+      <div className="n313-sz" data-v={sizer}>
+        {editing ? (
+          <input
+            ref={inputRef}
+            style={SZ_INPUT_BODY}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <input
+            style={{
+              ...SZ_INPUT_BODY,
+              cursor: 'pointer',
+              color: isSelected ? '#67e8f9' : '#ddd',
+            }}
+            value={value}
+            readOnly
+            onClick={handleClick}
+            onContextMenu={handleContextMenu}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Click to select • Right-click to edit"
+          />
+        )}
+      </div>
+    </td>
+  );
+});
+PortCell.displayName = 'PortCell';
+
 // Drop zone for section rearranging — absolutely positioned overlay
 const DropZone = memo(({ label, onDrop, placement }) => {
   const [hover, setHover] = useState(false);
@@ -636,7 +708,28 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const rowSpacing = section.rowSpacing || [];
   const canDel = nc > 1;
   const [contextMenu, setContextMenu] = useState(null); // { x, y, colIndex }
+  const [selectedRows, setSelectedRows] = useState(new Set());
   const tableRef = useRef(null);
+
+  // Toggle port row selection
+  const toggleRowSelection = useCallback((ri) => {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(ri)) next.delete(ri);
+      else next.add(ri);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedRows(prev => {
+      const rowCount = section.rows.length;
+      if (prev.size === rowCount) return new Set();
+      const all = new Set();
+      for (let i = 0; i < rowCount; i++) all.add(i);
+      return all;
+    });
+  }, [section.rows.length]);
 
   // Spacing drag refs
   const dragStartY = useRef(null);
@@ -691,6 +784,15 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const remaining = section.rows.filter((_, i) => i !== ri);
     const newSpacing = rowSpacing.filter((_, i) => i !== ri);
     updateSection({ rows: renumberRows(remaining), rowSpacing: newSpacing });
+    // Rebuild selection indices after deletion
+    setSelectedRows(prev => {
+      const next = new Set();
+      for (const idx of prev) {
+        if (idx < ri) next.add(idx);
+        else if (idx > ri) next.add(idx - 1);
+      }
+      return next;
+    });
   }, [section.rows, rowSpacing, updateSection, renumberRows]);
 
   // Vertical spacing drag handler (like SuperNode)
@@ -742,9 +844,16 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   }, [section.cols, updateSection]);
 
   const updateCell = useCallback((ri, ci, value) => {
-    const newRows = section.rows.map((r, i) => i === ri ? r.map((c, j) => j === ci ? value : c) : r);
+    // Bulk update: if the edited row is selected, apply to all selected rows
+    const bulkTargets = selectedRows.has(ri) && selectedRows.size > 1 ? selectedRows : null;
+    const newRows = section.rows.map((r, i) => {
+      if (i === ri || (bulkTargets && bulkTargets.has(i))) {
+        return r.map((c, j) => j === ci ? value : c);
+      }
+      return r;
+    });
     updateSection({ rows: newRows });
-  }, [section.rows, updateSection]);
+  }, [section.rows, updateSection, selectedRows]);
 
   const updateTitle = useCallback((value) => {
     updateSection({ title: value });
@@ -785,27 +894,58 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   }, [contextMenu]);
 
   // Build column order for header and body (right-click header to delete/hide column)
+  // Phantom columns: when colSizerValues has more entries than this section's columns,
+  // add invisible cells so both A/B tables have the same column count for equal space distribution
+  const phantomCount = colSizerValues ? Math.max(0, colSizerValues.length - nc) : 0;
   // Count visible columns for spacer colspan
-  const visibleColCount = nc - hiddenCols.length;
+  const visibleColCount = nc - hiddenCols.length + phantomCount;
   // Total cell count: anchor(1) + visibleCols + x(1) + spacing(1)
   const totalColspan = visibleColCount + 3;
 
   const renderHeader = () => {
     const cells = [];
+    const allSelected = selectedRows.size > 0 && selectedRows.size === section.rows.length;
+    const renderHeaderCell = (ci) => {
+      const sizer = colSizerValues ? colSizerValues[ci] : undefined;
+      if (ci === 0) {
+        const headerStyle = { ...SZ_CELL_HEADER_STYLE, cursor: 'pointer', ...(allSelected ? PORT_CELL_SELECTED : {}) };
+        return (
+          <th key={`col-${ci}`} style={headerStyle} onClick={toggleSelectAll} onContextMenu={(e) => handleColContextMenu(e, ci)}>
+            <div className="n313-sz" data-v={sizer && sizer.length > (section.cols[ci] || '').length ? sizer : (section.cols[ci] || ' ')} data-h="">
+              <input style={{ ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: allSelected ? '#67e8f9' : '#888' }} value={section.cols[ci]} readOnly />
+            </div>
+          </th>
+        );
+      }
+      return <SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={sizer} />;
+    };
+    // Phantom header cells for columns that exist in the other section but not this one
+    const phantomHeaders = [];
+    for (let pi = 0; pi < phantomCount; pi++) {
+      const pci = nc + pi;
+      const pSizer = colSizerValues[pci];
+      phantomHeaders.push(
+        <th key={`phantom-${pci}`} style={{ ...SZ_CELL_HEADER_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' }}>
+          <div className="n313-sz" data-v={pSizer || ' '} data-h="" />
+        </th>
+      );
+    }
     if (mirrored) {
       cells.push(<SpacingCell key="sp-h" isHeader />);
       cells.push(<XCell key="rowx-h" isHeader label="" />);
+      cells.push(...phantomHeaders);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={colSizerValues ? colSizerValues[ci] : undefined} />);
+        cells.push(renderHeaderCell(ci));
       }
       cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
     } else {
       cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
-        cells.push(<SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={colSizerValues ? colSizerValues[ci] : undefined} />);
+        cells.push(renderHeaderCell(ci));
       }
+      cells.push(...phantomHeaders);
       cells.push(<XCell key="rowx-h" isHeader label="" />);
       cells.push(<SpacingCell key="sp-h" isHeader />);
     }
@@ -829,6 +969,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
     const renderDataCell = (ci) => {
       const sizer = colSizerValues ? colSizerValues[ci] : undefined;
+      // Port column (col 0): use PortCell with selection toggle
+      if (ci === 0) {
+        return <PortCell key={`cell-${ci}`} value={row[ci]} isSelected={selectedRows.has(ri)} onToggle={() => toggleRowSelection(ri)} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
+      }
       const presets = getPresetsForColumn(section.cols[ci]);
       if (presets) {
         return <DropdownCell key={`cell-${ci}`} value={row[ci]} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
@@ -836,9 +980,21 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
 
+    // Phantom data cells for columns that exist in the other section but not this one
+    const phantomCells = [];
+    for (let pi = 0; pi < phantomCount; pi++) {
+      const pci = nc + pi;
+      const pSizer = colSizerValues[pci];
+      phantomCells.push(
+        <td key={`phantom-${pci}`} style={{ ...SZ_CELL_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' }}>
+          <div className="n313-sz" data-v={pSizer || ' '} />
+        </td>
+      );
+    }
     if (mirrored) {
       cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
+      cells.push(...phantomCells);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
@@ -850,10 +1006,16 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
+      cells.push(...phantomCells);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
       cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
     }
-    result.push(<tr key={ri}>{cells}</tr>);
+    const rowSelected = selectedRows.has(ri);
+    result.push(
+      <tr key={ri} style={rowSelected ? { background: 'rgba(6,182,212,0.07)' } : undefined}>
+        {cells}
+      </tr>
+    );
     return result;
   };
 
@@ -1255,7 +1417,7 @@ function Node313({
     const secA = node.sections.a;
     const secB = node.sections.b;
     if (!secA || !secB) return null;
-    const count = Math.min(secA.cols.length, secB.cols.length);
+    const count = Math.max(secA.cols.length, secB.cols.length);
     const sizers = [];
     for (let ci = 0; ci < count; ci++) {
       let longest = '';
