@@ -2,6 +2,60 @@ import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, mem
 import { createPortal } from 'react-dom';
 
 // ============================================
+// SIGNAL COLORS
+// ============================================
+
+// Grouped by hue — columns read top-to-bottom as shade families
+// Layout: 6 columns × 6 rows. Each column is a hue group.
+//         Reds      Oranges     Greens      Blues       Purples     Muted
+const SIGNAL_COLORS = [
+  // Row 1
+  { id: 'red',       hex: '#ef4444', label: 'Red' },
+  { id: 'orange',    hex: '#f97316', label: 'Orange' },
+  { id: 'emerald',   hex: '#10b981', label: 'Emerald' },
+  { id: 'cyan',      hex: '#06b6d4', label: 'Cyan' },
+  { id: 'violet',    hex: '#8b5cf6', label: 'Violet' },
+  { id: 'lavender',  hex: '#c084fc', label: 'Lavender' },
+  // Row 2
+  { id: 'crimson',   hex: '#dc2626', label: 'Crimson' },
+  { id: 'tangerine', hex: '#ea580c', label: 'Tangerine' },
+  { id: 'green',     hex: '#22c55e', label: 'Green' },
+  { id: 'sky',       hex: '#0ea5e9', label: 'Sky' },
+  { id: 'indigo',    hex: '#6366f1', label: 'Indigo' },
+  { id: 'wine',      hex: '#881337', label: 'Wine' },
+  // Row 3
+  { id: 'rose',      hex: '#f43f5e', label: 'Rose' },
+  { id: 'amber',     hex: '#f59e0b', label: 'Amber' },
+  { id: 'jade',      hex: '#059669', label: 'Jade' },
+  { id: 'blue',      hex: '#3b82f6', label: 'Blue' },
+  { id: 'purple',    hex: '#a855f7', label: 'Purple' },
+  { id: 'bronze',    hex: '#b45309', label: 'Bronze' },
+  // Row 4
+  { id: 'coral',     hex: '#fb7185', label: 'Coral' },
+  { id: 'gold',      hex: '#fbbf24', label: 'Gold' },
+  { id: 'mint',      hex: '#34d399', label: 'Mint' },
+  { id: 'sapphire',  hex: '#2563eb', label: 'Sapphire' },
+  { id: 'plum',      hex: '#9333ea', label: 'Plum' },
+  { id: 'navy',      hex: '#1e40af', label: 'Navy' },
+  // Row 5
+  { id: 'salmon',    hex: '#f87171', label: 'Salmon' },
+  { id: 'yellow',    hex: '#eab308', label: 'Yellow' },
+  { id: 'lime',      hex: '#84cc16', label: 'Lime' },
+  { id: 'teal',      hex: '#14b8a6', label: 'Teal' },
+  { id: 'fuchsia',   hex: '#d946ef', label: 'Fuchsia' },
+  { id: 'steel',     hex: '#475569', label: 'Steel' },
+  // Row 6
+  { id: 'pink',      hex: '#ec4899', label: 'Pink' },
+  { id: 'peach',     hex: '#fdba74', label: 'Peach' },
+  { id: 'chartreuse',hex: '#a3e635', label: 'Chartreuse' },
+  { id: 'turquoise', hex: '#2dd4bf', label: 'Turquoise' },
+  { id: 'magenta',   hex: '#e879f9', label: 'Magenta' },
+  { id: 'slate',     hex: '#64748b', label: 'Slate' },
+];
+
+const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
+
+// ============================================
 // LAYOUT SYSTEM
 // ============================================
 
@@ -210,6 +264,97 @@ const STYLES = {
     color: '#ccc',
     cursor: 'pointer',
   },
+  // Settings & color picker
+  titleRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginLeft: 'auto',
+    flexShrink: 0,
+  },
+  colorSwatch: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '2px',
+    border: '1px solid #555',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  gearBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#666',
+    fontSize: '13px',
+    cursor: 'pointer',
+    padding: '0 2px',
+    fontFamily: 'sans-serif',
+    lineHeight: 1,
+    flexShrink: 0,
+  },
+  settingsDropdown: {
+    position: 'fixed',
+    background: '#1a1a1e',
+    border: '1px solid #333',
+    padding: '4px 0',
+    minWidth: '150px',
+    zIndex: 10001,
+    fontFamily: "'Courier New', monospace",
+  },
+  settingsItem: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '4px 10px',
+    fontSize: '11px',
+    fontFamily: "'Courier New', monospace",
+    color: '#ccc',
+    cursor: 'pointer',
+    border: 'none',
+    background: 'none',
+    width: '100%',
+    textAlign: 'left',
+  },
+  settingsLabel: {
+    padding: '3px 10px',
+    fontSize: '9px',
+    fontFamily: "'Courier New', monospace",
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  settingsDivider: {
+    height: '1px',
+    background: '#333',
+    margin: '3px 0',
+  },
+  colorGrid: {
+    position: 'fixed',
+    background: '#1a1a1e',
+    border: '1px solid #333',
+    padding: '6px',
+    zIndex: 10001,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(6, 1fr)',
+    gap: '3px',
+  },
+  colorGridItem: {
+    width: '16px',
+    height: '16px',
+    borderRadius: '2px',
+    border: '1px solid #444',
+    cursor: 'pointer',
+  },
+  colorGridClear: {
+    gridColumn: '1 / -1',
+    padding: '3px 0',
+    fontSize: '10px',
+    fontFamily: "'Courier New', monospace",
+    color: '#888',
+    cursor: 'pointer',
+    textAlign: 'center',
+    borderTop: '1px solid #333',
+    marginTop: '2px',
+  },
 };
 
 // ============================================
@@ -395,7 +540,7 @@ const XCell = memo(({ isHeader, label, onClick }) => {
 });
 XCell.displayName = 'XCell';
 
-// Anchor dot cell — visible dot that scales with the node, interaction handled by SVG layer
+// Anchor dot cell — visible dot + row number, interaction handled by SVG layer
 const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
   return (
@@ -419,6 +564,7 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
 });
 AnchorCell.displayName = 'AnchorCell';
 
+
 // Drop zone for section rearranging
 const DropZone = memo(({ label, onDrop }) => {
   const [hover, setHover] = useState(false);
@@ -439,7 +585,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex }) => {
   const nc = section.cols.length;
   const hiddenCols = section.hiddenCols || [];
   const canDel = nc > 1;
@@ -463,17 +609,36 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     });
   }, [section.cols, section.rows, updateSection]);
 
-  const addRow = useCallback(() => {
-    updateSection({
-      rows: [...section.rows, section.cols.map(() => '')],
+  // Detect the port-label prefix from existing rows (e.g. "IN", "OUT", or just "")
+  const portPrefix = useMemo(() => {
+    for (const row of section.rows) {
+      if (row[0]) {
+        const match = row[0].match(/^([A-Za-z]+\s*)\d+$/);
+        if (match) return match[1];
+      }
+    }
+    return '';
+  }, [section.rows]);
+
+  // Renumber the first column (port labels) sequentially: "IN 1", "IN 2", ...
+  const renumberRows = useCallback((rows) => {
+    if (!portPrefix) return rows;
+    return rows.map((r, i) => {
+      const newRow = [...r];
+      newRow[0] = `${portPrefix}${i + 1}`;
+      return newRow;
     });
-  }, [section.cols, section.rows, updateSection]);
+  }, [portPrefix]);
+
+  const addRow = useCallback(() => {
+    const newRows = [...section.rows, section.cols.map(() => '')];
+    updateSection({ rows: renumberRows(newRows) });
+  }, [section.cols, section.rows, updateSection, renumberRows]);
 
   const deleteRow = useCallback((ri) => {
-    updateSection({
-      rows: section.rows.filter((_, i) => i !== ri),
-    });
-  }, [section.rows, updateSection]);
+    const remaining = section.rows.filter((_, i) => i !== ri);
+    updateSection({ rows: renumberRows(remaining) });
+  }, [section.rows, updateSection, renumberRows]);
 
   const updateColName = useCallback((ci, value) => {
     const newCols = [...section.cols];
@@ -577,10 +742,20 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
   const wrapperStyle = fullWidth ? STYLES.sectionFull : undefined;
 
+  // Tinted styles when signal color is set
+  const tintedSectionTitle = useMemo(() => {
+    const base = { ...STYLES.sectionTitle, ...(mirrored ? { flexDirection: 'row-reverse' } : {}) };
+    if (signalColorHex) {
+      base.background = `color-mix(in srgb, ${signalColorHex} 20%, #111)`;
+      base.borderBottom = `1px solid color-mix(in srgb, ${signalColorHex} 30%, #333)`;
+    }
+    return base;
+  }, [mirrored, signalColorHex]);
+
   return (
     <div style={wrapperStyle}>
       {/* Section title bar */}
-      <div style={{ ...STYLES.sectionTitle, ...(mirrored ? { flexDirection: 'row-reverse' } : {}) }}>
+      <div style={tintedSectionTitle}>
         <span style={STYLES.grip}>⠿</span>
         <input
           style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}) }}
@@ -599,8 +774,18 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         </span>
       </div>
 
+      {/* Scoped tint for cells */}
+      {signalColorHex && (
+        <style>{`
+          [data-sec="${nodeId}-${sectionId}"] td { background: color-mix(in srgb, ${signalColorHex} 3%, #141414) !important; }
+          [data-sec="${nodeId}-${sectionId}"] th { background: color-mix(in srgb, ${signalColorHex} 18%, #111) !important; }
+          [data-sec="${nodeId}-${sectionId}"] td,
+          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 25%, #333) !important; }
+        `}</style>
+      )}
+
       {/* Data table */}
-      <table style={{ ...STYLES.table, width: '100%' }}>
+      <table style={{ ...STYLES.table, width: '100%' }} data-sec={`${nodeId}-${sectionId}`}>
         <thead>{renderHeader()}</thead>
         <tbody>{section.rows.map((row, ri) => renderRow(row, ri))}</tbody>
       </table>
@@ -675,6 +860,53 @@ function Node313({
   const [isScaling, setIsScaling] = useState(false);
   const scaleStartRef = useRef(null);
   const lastPositionRef = useRef(null);
+
+  // Settings dropdown & color picker state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const settingsBtnRef = useRef(null);
+  const colorBtnRef = useRef(null);
+
+  // Signal color
+  const signalColorHex = useMemo(() => {
+    if (!node.signalColor) return null;
+    const c = SIGNAL_COLORS_BY_ID.get(node.signalColor);
+    return c ? c.hex : null;
+  }, [node.signalColor]);
+
+  // Hidden sections
+  const hiddenSections = node.hiddenSections || [];
+
+  // Toggle section visibility
+  const toggleSectionVisibility = useCallback((sectionId) => {
+    const current = node.hiddenSections || [];
+    const isHidden = current.includes(sectionId);
+    const next = isHidden ? current.filter(s => s !== sectionId) : [...current, sectionId];
+    onUpdate({ hiddenSections: next });
+  }, [node.hiddenSections, onUpdate]);
+
+  // Dismiss settings/color picker on outside click
+  useEffect(() => {
+    if (!settingsOpen && !colorPickerOpen) return;
+    const dismiss = (e) => {
+      if (settingsBtnRef.current && settingsBtnRef.current.contains(e.target)) return;
+      if (colorBtnRef.current && colorBtnRef.current.contains(e.target)) return;
+      setSettingsOpen(false);
+      setColorPickerOpen(false);
+    };
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [settingsOpen, colorPickerOpen]);
+
+  // Get dropdown position relative to a ref
+  const getPortalPos = useCallback((ref, align) => {
+    if (!ref.current) return { left: 0, top: 0 };
+    const rect = ref.current.getBoundingClientRect();
+    return {
+      left: align === 'right' ? rect.right : rect.left,
+      top: rect.bottom + 2,
+    };
+  }, []);
 
   const layoutKey = node.layout || 'ab_c';
   const layout = LAYOUTS[layoutKey] || LAYOUTS['ab_c'];
@@ -837,9 +1069,10 @@ function Node313({
     const totalScale = (node.scale || 1) * zoom;
     const currentAnchors = new Set();
 
+    const currentHidden = node.hiddenSections || [];
     ['a', 'b', 'c'].forEach(secId => {
       const sec = node.sections[secId];
-      if (!sec) return;
+      if (!sec || currentHidden.includes(secId)) return;
       sec.rows.forEach((_, ri) => {
         const anchorId = `${node.id}-${secId}-${ri}`;
         currentAnchors.add(anchorId);
@@ -861,7 +1094,7 @@ function Node313({
         unregisterAnchors(Array.from(currentAnchors));
       }
     };
-  }, [node.id, node.sections, node.scale, node.layout, zoom, registerAnchor, unregisterAnchors]);
+  }, [node.id, node.sections, node.scale, node.layout, node.hiddenSections, zoom, registerAnchor, unregisterAnchors]);
 
   // ---- Click to select ----
   const handleNodeClick = useCallback((e) => {
@@ -873,6 +1106,7 @@ function Node313({
 
   // ---- Render sections ----
   const renderSection = useCallback((sectionId, fullWidth, mirrored) => {
+    if (hiddenSections.includes(sectionId)) return null;
     const sec = node.sections[sectionId];
     if (!sec) return null;
 
@@ -884,9 +1118,10 @@ function Node313({
         fullWidth={fullWidth}
         mirrored={mirrored}
         onUpdate={handleSectionUpdate}
+        signalColorHex={signalColorHex}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections]);
 
   // ---- Render layout with drop zones woven into correct positions ----
   const renderLayout = () => {
@@ -989,24 +1224,44 @@ function Node313({
 
   const totalScale = node.scale || 1;
 
+  // Build node style with solid color tint
+  const nodeStyle = useMemo(() => {
+    const base = {
+      ...STYLES.node,
+      left: `${node.position.x}px`,
+      top: `${node.position.y}px`,
+      transform: `scale(${totalScale})`,
+      transformOrigin: 'top left',
+      outline: isSelected ? '2px solid #3b82f6' : 'none',
+      outlineOffset: '1px',
+      zIndex: settingsOpen || colorPickerOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
+    };
+    if (signalColorHex) {
+      base.background = `color-mix(in srgb, ${signalColorHex} 25%, #0a0a0a)`;
+      base.borderColor = `color-mix(in srgb, ${signalColorHex} 50%, #333)`;
+    }
+    return base;
+  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, colorPickerOpen, signalColorHex]);
+
+  // Tinted title bar
+  const titleBarStyle = useMemo(() => {
+    const base = { ...STYLES.nodeTitle };
+    if (signalColorHex) {
+      base.background = `color-mix(in srgb, ${signalColorHex} 35%, #111)`;
+      base.borderBottom = `1px solid color-mix(in srgb, ${signalColorHex} 50%, #333)`;
+    }
+    return base;
+  }, [signalColorHex]);
+
   return (
     <div
       ref={nodeRef}
-      style={{
-        ...STYLES.node,
-        left: `${node.position.x}px`,
-        top: `${node.position.y}px`,
-        transform: `scale(${totalScale})`,
-        transformOrigin: 'top left',
-        outline: isSelected ? '2px solid #3b82f6' : 'none',
-        outlineOffset: '1px',
-        zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
-      }}
+      style={nodeStyle}
       onClick={handleNodeClick}
       data-node-id={node.id}
     >
       {/* Title bar */}
-      <div style={STYLES.nodeTitle} onMouseDown={handleTitleMouseDown}>
+      <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
         <span style={STYLES.grip}>⠿</span>
         <input
           style={{ ...STYLES.input, ...STYLES.titleInput }}
@@ -1014,6 +1269,132 @@ function Node313({
           onChange={(e) => onUpdate({ title: e.target.value })}
           onClick={(e) => e.stopPropagation()}
         />
+
+        {/* Color picker + Settings buttons */}
+        <div style={STYLES.titleRight}>
+          {/* Color swatch — matches the node body color */}
+          <div
+            ref={colorBtnRef}
+            style={{
+              ...STYLES.colorSwatch,
+              backgroundColor: signalColorHex
+                ? `color-mix(in srgb, ${signalColorHex} 35%, #111)`
+                : '#333',
+              boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
+            }}
+            title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setColorPickerOpen(prev => !prev);
+              setSettingsOpen(false);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+
+          {/* Settings gear */}
+          <button
+            ref={settingsBtnRef}
+            style={{
+              ...STYLES.gearBtn,
+              color: settingsOpen ? '#ccc' : '#666',
+            }}
+            title="Settings"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsOpen(prev => !prev);
+              setColorPickerOpen(false);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#ccc'; }}
+            onMouseLeave={(e) => { if (!settingsOpen) e.currentTarget.style.color = '#666'; }}
+          >
+            ⚙
+          </button>
+        </div>
+
+        {/* Color picker grid (portaled) */}
+        {colorPickerOpen && createPortal(
+          (() => {
+            const pos = getPortalPos(colorBtnRef, 'left');
+            return (
+              <div
+                style={{ ...STYLES.colorGrid, left: pos.left, top: pos.top }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {SIGNAL_COLORS.map((c) => (
+                  <div
+                    key={c.id}
+                    style={{
+                      ...STYLES.colorGridItem,
+                      backgroundColor: c.hex,
+                      borderColor: node.signalColor === c.id ? '#fff' : '#444',
+                      boxShadow: node.signalColor === c.id ? `0 0 4px ${c.hex}` : 'none',
+                    }}
+                    title={c.label}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      onUpdate({ signalColor: c.id });
+                      setColorPickerOpen(false);
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#aaa'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = node.signalColor === c.id ? '#fff' : '#444'; }}
+                  />
+                ))}
+                <div
+                  style={STYLES.colorGridClear}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    onUpdate({ signalColor: null });
+                    setColorPickerOpen(false);
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#ccc'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; }}
+                >
+                  Clear Color
+                </div>
+              </div>
+            );
+          })(),
+          document.body
+        )}
+
+        {/* Settings dropdown (portaled) */}
+        {settingsOpen && createPortal(
+          (() => {
+            const pos = getPortalPos(settingsBtnRef, 'right');
+            return (
+              <div
+                style={{ ...STYLES.settingsDropdown, left: pos.left - 150, top: pos.top }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div style={STYLES.settingsLabel}>Sections</div>
+                {[
+                  { id: 'a', label: 'Input (A)' },
+                  { id: 'b', label: 'Output (B)' },
+                  { id: 'c', label: 'System (C)' },
+                ].map((sec) => {
+                  const isVisible = !hiddenSections.includes(sec.id);
+                  return (
+                    <button
+                      key={sec.id}
+                      style={STYLES.settingsItem}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        toggleSectionVisibility(sec.id);
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2e'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span>{sec.label}</span>
+                      <span style={{ color: isVisible ? '#4ade80' : '#555' }}>{isVisible ? '✓' : '○'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })(),
+          document.body
+        )}
       </div>
 
       {/* Sections */}
