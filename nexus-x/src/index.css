@@ -38,18 +38,18 @@
   align-items: center;
 }
 .n313-sz::after {
-  content: attr(data-v) '\00a0';
+  content: attr(data-v);
   visibility: hidden;
   white-space: pre;
   grid-area: 1/1;
   font-family: 'Courier New', monospace !important;
-  padding: 0 4px;
+  padding: 0 1px;
   line-height: 1;
   font-size: 16px;
-  height: 16px;
+  height: 20px;
 }
 .n313-sz[data-h]::after {
-  font-size: 13px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
   height: 13px;
 }

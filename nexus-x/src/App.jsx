@@ -382,12 +382,16 @@ const createSuperNode = (id) => ({
 const createNode313 = (id) => ({
   id,
   title: 'NODE 313',
+  model: '',
+  manufacturer: '',
+  tag: '',
   version: 3,
   signalColor: null,
   deviceTypes: [],
   position: { x: 100, y: 100 },
   scale: 0.5,
   layout: 'a_b_c',
+  sectionSpacing: { a: 0, b: 0, c: 0 },
   sections: {
     a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['IN 1','4096x2160','23.98','HDMI 2.0','',''], ['IN 2','3840x2160','24','3G SDI','','']] },
     b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['OUT 1','2560x1440','59.94','12G SDI','',''], ['OUT 2','1280x720','60','DP 1.2','','']] },
@@ -585,28 +589,11 @@ export default function App() {
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
 
-  // Create single Aligned System node on first load
+  // Create a single Node313 on first load
   useEffect(() => {
     if (Object.keys(nodes).length === 0) {
-      const alignedNode = createSuperNode('aligned-demo');
-      alignedNode.title = 'ALIGNED SYSTEM';
-      alignedNode.position = { x: 100, y: 100 };
-      alignedNode.system.systemSectionStyle = 'aligned';
-      // Pre-populate with test data
-      alignedNode.inputSection.ports = [
-        { id: 'in-1', number: 1, source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-        { id: 'in-2', number: 2, source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-        { id: 'in-3', number: 3, source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
-      ];
-      alignedNode.outputSection.ports = [
-        { id: 'out-1', number: 1, destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-        { id: 'out-2', number: 2, destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-        { id: 'out-3', number: 3, destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
-      ];
-
-      setNodes({
-        [alignedNode.id]: alignedNode
-      });
+      const node = createNode313(`node-${Date.now()}`);
+      setNodes({ [node.id]: node });
     }
   }, []); // Empty deps - only run once on mount
 

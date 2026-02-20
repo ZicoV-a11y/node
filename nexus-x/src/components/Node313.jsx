@@ -139,6 +139,13 @@ const STYLES = {
     background: '#111',
     borderBottom: '1px solid #333',
     display: 'flex',
+    flexDirection: 'column',
+    cursor: 'grab',
+    padding: '4px 4px',
+    gap: '2px',
+  },
+  titleTopRow: {
+    display: 'flex',
     alignItems: 'center',
   },
   grip: {
@@ -147,13 +154,33 @@ const STYLES = {
     padding: '0 3px',
     cursor: 'grab',
     flexShrink: 0,
+    alignSelf: 'stretch',
+    display: 'flex',
+    alignItems: 'center',
   },
   titleInput: {
     fontSize: '14px',
     fontWeight: 700,
-    textAlign: 'center',
-    width: '100%',
+    textAlign: 'left',
     height: '14px',
+    minWidth: '30px',
+  },
+  tagInput: {
+    fontSize: '18px',
+    color: '#999',
+    textAlign: 'right',
+    lineHeight: '30px',
+    minWidth: '20px',
+    borderLeft: '1px solid #333',
+    marginLeft: '4px',
+    paddingLeft: '4px',
+  },
+  subInput: {
+    fontSize: '11px',
+    color: '#777',
+    textAlign: 'left',
+    height: '12px',
+    minWidth: '30px',
   },
   sectionTitle: {
     background: '#111',
@@ -164,10 +191,11 @@ const STYLES = {
     whiteSpace: 'nowrap',
   },
   sectionTitleInput: {
-    fontSize: '12px',
+    fontSize: '10px',
     fontWeight: 700,
     width: '100%',
     height: '12px',
+    lineHeight: '12px',
   },
   input: {
     background: 'transparent',
@@ -176,7 +204,7 @@ const STYLES = {
     fontFamily: "'Courier New', monospace",
     outline: 'none',
     margin: 0,
-    padding: '0 4px',
+    padding: '0 1px',
     lineHeight: 1,
     display: 'block',
   },
@@ -187,7 +215,7 @@ const STYLES = {
   cell: {
     borderBottom: '1px solid #333',
     borderRight: '1px solid #333',
-    padding: 0,
+    padding: '0 2px',
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
     lineHeight: 1,
@@ -209,7 +237,6 @@ const STYLES = {
     cursor: 'pointer',
     fontSize: '10px',
     userSelect: 'none',
-    lineHeight: '16px',
   },
   sp: {
     width: '12px',
@@ -225,7 +252,6 @@ const STYLES = {
     cursor: 'ns-resize',
     fontSize: '10px',
     userSelect: 'none',
-    lineHeight: '16px',
   },
   ac: {
     width: '14px',
@@ -412,8 +438,8 @@ function getPresetsForColumn(colName) {
 // ============================================
 const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
 const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px' };
-const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', height: '16px' };
-const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px' };
+const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', height: '20px', lineHeight: '20px', transform: 'translateY(1px)' };
+const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px', lineHeight: '16px' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
 const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell, background: 'transparent' };
@@ -563,7 +589,7 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
 DropdownCell.displayName = 'DropdownCell';
 
 // Flex centering wrapper for small-content cells (anchor, ×, +)
-const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16px' };
+const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' };
 
 // Anchor dot style — visible circle that scales with the node
 const ANCHOR_DOT_STYLE = {
@@ -623,12 +649,14 @@ const SpacingCell = memo(({ isHeader, onMouseDown, headerLabel, onHeaderClick })
   const Tag = isHeader ? 'th' : 'td';
   return (
     <Tag style={isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE}>
-      {isHeader && headerLabel && (
-        <span style={STYLES.xcSpan} onClick={(e) => { e.stopPropagation(); onHeaderClick?.(); }} onMouseDown={(e) => e.stopPropagation()} {...HOVER_444_999} title="Flip anchor side">{headerLabel}</span>
-      )}
-      {!isHeader && (
-        <span style={STYLES.spHandle} onMouseDown={onMouseDown} {...HOVER_333_888}>⋮</span>
-      )}
+      <div style={CELL_CENTER}>
+        {isHeader && headerLabel && (
+          <span style={STYLES.xcSpan} onClick={(e) => { e.stopPropagation(); onHeaderClick?.(); }} onMouseDown={(e) => e.stopPropagation()} {...HOVER_444_999} title="Flip anchor side">{headerLabel}</span>
+        )}
+        {!isHeader && (
+          <span style={STYLES.spHandle} onMouseDown={onMouseDown} {...HOVER_333_888}>⋮</span>
+        )}
+      </div>
     </Tag>
   );
 });
@@ -716,7 +744,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown }) => {
   const nc = section.cols.length;
   const hiddenCols = section.hiddenCols || [];
   const rowSpacing = section.rowSpacing || [];
@@ -1055,6 +1083,9 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           onChange={(e) => updateTitle(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
+        {onSpacingDown && (
+          <span style={{ ...STYLES.spHandle, marginLeft: 'auto', width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>⋮</span>
+        )}
       </div>
 
       {/* Scoped tint for cells */}
@@ -1223,9 +1254,41 @@ function Node313({
     return () => window.removeEventListener('mouseup', handleUp);
   }, [dragSec]);
 
+  // ---- Section vertical spacing drag (like row spacing) ----
+  const handleSectionSpacingDown = useCallback((e, sectionId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startSpacing = (node.sectionSpacing?.[sectionId]) || 0;
+    let rafId = null;
+    let pending = null;
+
+    const onMove = (moveEvent) => {
+      const delta = moveEvent.clientY - startY;
+      const raw = Math.max(0, startSpacing + delta);
+      const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
+      const snap = pixelMode ? 1 : SPACING_SNAP;
+      pending = Math.round(raw / snap) * snap;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pending !== null) {
+            onUpdate({ sectionSpacing: { ...node.sectionSpacing, [sectionId]: pending } });
+          }
+          rafId = null;
+        });
+      }
+    };
+    const onUp = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [node.sectionSpacing, onUpdate]);
+
   // ---- Node dragging ----
   const handleTitleMouseDown = useCallback((e) => {
-    if (e.target.tagName === 'INPUT') return;
     e.stopPropagation();
 
     // Select this node
@@ -1438,9 +1501,10 @@ function Node313({
         onFlip={fullWidth ? () => toggleSectionMirrored(sectionId) : null}
         colSizerValues={sizers}
         onGripDown={(e) => handleSectionGripDown(e, sectionId)}
+        onSpacingDown={fullWidth ? (e) => handleSectionSpacingDown(e, sectionId) : null}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 24; // px thickness for edge drop zones
@@ -1499,6 +1563,10 @@ function Node313({
         );
       } else {
         // Single-section row
+        const secSpacing = node.sectionSpacing?.[row[0]] || 0;
+        if (secSpacing > 0) {
+          elements.push(<div key={`sec-sp-${rowIndex}`} style={{ height: `${secSpacing}px` }} />);
+        }
         elements.push(
           <div
             key={rowIndex}
@@ -1579,18 +1647,28 @@ function Node313({
       onClick={handleNodeClick}
       data-node-id={node.id}
     >
-      {/* Title bar */}
-      <div style={titleBarStyle}>
-        <span style={STYLES.grip} onMouseDown={handleTitleMouseDown}>⠿</span>
-        <input
-          style={{ ...STYLES.input, ...STYLES.titleInput }}
-          value={node.title}
-          onChange={(e) => onUpdate({ title: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        />
-
-        {/* Color picker + Settings buttons */}
-        <div style={STYLES.titleRight}>
+      {/* Title bar — click empty area to drag */}
+      <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
+        {/* Top row: name + tag + buttons */}
+        <div style={STYLES.titleTopRow}>
+          <input
+            style={{ ...STYLES.input, ...STYLES.titleInput, width: `${Math.max((node.title || '').length, 4) + 1}ch` }}
+            value={node.title}
+            onChange={(e) => onUpdate({ title: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="Name"
+          />
+          <input
+            style={{ ...STYLES.input, ...STYLES.tagInput, width: `${Math.max((node.tag || '').length, 3) + 2}ch` }}
+            value={node.tag || ''}
+            onChange={(e) => onUpdate({ tag: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="Tag"
+          />
+          {/* Color picker + Settings buttons */}
+          <div style={STYLES.titleRight}>
           {/* Color swatch — matches the node body color */}
           <div
             ref={colorBtnRef}
@@ -1628,6 +1706,26 @@ function Node313({
             ⚙
           </button>
         </div>
+        </div>
+
+        {/* Manufacturer */}
+        <input
+          style={{ ...STYLES.input, ...STYLES.subInput, width: `${Math.max((node.manufacturer || '').length, 12) + 1}ch` }}
+          value={node.manufacturer || ''}
+          onChange={(e) => onUpdate({ manufacturer: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          placeholder="Manufacturer"
+        />
+        {/* Model */}
+        <input
+          style={{ ...STYLES.input, ...STYLES.subInput, width: `${Math.max((node.model || '').length, 5) + 1}ch` }}
+          value={node.model || ''}
+          onChange={(e) => onUpdate({ model: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          placeholder="Model"
+        />
 
         {/* Color picker grid (portaled) */}
         {colorPickerOpen && createPortal(
@@ -1736,6 +1834,25 @@ function Node313({
           <line x1="10" y1="8" x2="8" y2="10" stroke="#555" strokeWidth="1" />
         </svg>
       </div>
+
+      {/* Scale percentage badge */}
+      {totalScale !== 1 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -16,
+            left: 0,
+            fontSize: '10px',
+            fontFamily: "'Courier New', monospace",
+            color: '#777',
+            transform: `scale(${1 / totalScale})`,
+            transformOrigin: 'top left',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {Math.round(totalScale * 100)}%
+        </div>
+      )}
     </div>
   );
 }
