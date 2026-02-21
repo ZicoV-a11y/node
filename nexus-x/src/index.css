@@ -46,6 +46,7 @@
   padding: 0 1px;
   line-height: 1;
   font-size: 16px;
+  font-weight: 700 !important;
   height: 20px;
 }
 .n313-sz[data-h]::after {
@@ -55,4 +56,5 @@
 }
 .n313-sz input {
   font-family: 'Courier New', monospace !important;
+  font-weight: 700 !important;
 }

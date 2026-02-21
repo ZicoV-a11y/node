@@ -437,9 +437,9 @@ function getPresetsForColumn(colName) {
 // PRE-COMPUTED CELL STYLES (avoid allocation per render)
 // ============================================
 const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
-const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px' };
-const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', height: '20px', lineHeight: '20px', transform: 'translateY(1px)' };
-const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px', lineHeight: '16px' };
+const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px', cursor: 'grab' };
+const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 700, height: '20px', lineHeight: '20px', transform: 'translateY(1px)' };
+const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px', lineHeight: '16px', cursor: 'grab' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
 const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell, background: 'transparent' };
@@ -449,18 +449,15 @@ const SP_CELL_HEADER_STYLE = { ...STYLES.sp, ...STYLES.cell, ...STYLES.headerCel
 const PORT_CELL_SELECTED = { color: '#67e8f9', background: 'rgba(6,182,212,0.2)' };
 
 // Pre-computed port header styles (avoids allocation per render)
-const PORT_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, cursor: 'pointer' };
+const PORT_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, cursor: 'grab' };
 const PORT_HEADER_SEL_STYLE = { ...PORT_HEADER_STYLE, ...PORT_CELL_SELECTED };
-const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: '#67e8f9' };
-const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'pointer', pointerEvents: 'none', color: '#888' };
+const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: '#67e8f9' };
+const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: '#888' };
 
 // Pre-computed port display styles (PortCell read-only mode)
 const PORT_DISPLAY_SEL = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#67e8f9' };
 const PORT_DISPLAY_NORM = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#ddd' };
 
-// Phantom column styles (invisible cells to equalize column counts between sections)
-const PHANTOM_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' };
-const PHANTOM_DATA_STYLE = { ...SZ_CELL_STYLE, visibility: 'hidden', padding: 0, borderRight: 'none' };
 
 // Selected row background tint
 const ROW_SELECTED_BG = { background: 'rgba(6,182,212,0.07)' };
@@ -484,12 +481,12 @@ const HOVER_BG_2A = hover('background', 'none', '#2a2a2e');
 // ============================================
 
 // Auto-sizing input cell
-const SzCell = memo(({ value, isHeader, onChange, onContextMenu, sizerValue }) => {
+const SzCell = memo(({ value, isHeader, onChange, onContextMenu, sizerValue, onMouseDown, colIndex }) => {
   const Tag = isHeader ? 'th' : 'td';
   // Use sizerValue for data-v when it's longer, so synced columns size to the longest string
   const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
   return (
-    <Tag style={isHeader ? SZ_CELL_HEADER_STYLE : SZ_CELL_STYLE} onContextMenu={onContextMenu}>
+    <Tag style={isHeader ? SZ_CELL_HEADER_STYLE : SZ_CELL_STYLE} onContextMenu={onContextMenu} onMouseDown={onMouseDown} data-ci={isHeader && colIndex != null ? colIndex : undefined}>
       <div
         className="n313-sz"
         data-v={sizer}
@@ -746,12 +743,30 @@ DropZone.displayName = 'DropZone';
 
 const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown }) => {
   const nc = section.cols.length;
-  const hiddenCols = section.hiddenCols || [];
+  const rawHidden = section.hiddenCols || [];
+  const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
   const rowSpacing = section.rowSpacing || [];
   const canDel = nc > 1;
   const [contextMenu, setContextMenu] = useState(null); // { x, y, colIndex }
   const [selectedRows, setSelectedRows] = useState(new Set());
   const tableRef = useRef(null);
+
+  // Auto-repair stale hiddenCols and oversized rows
+  useEffect(() => {
+    const repairs = {};
+    if (rawHidden.length !== hiddenCols.length) {
+      repairs.hiddenCols = hiddenCols;
+    }
+    const badRows = section.rows.some(r => r.length !== nc);
+    if (badRows) {
+      repairs.rows = section.rows.map(r =>
+        r.length > nc ? r.slice(0, nc) : r.length < nc ? [...r, ...Array(nc - r.length).fill('')] : r
+      );
+    }
+    if (Object.keys(repairs).length > 0) {
+      onUpdate(sectionId, repairs);
+    }
+  }, [rawHidden, hiddenCols, nc, section.rows, sectionId, onUpdate]);
 
   // Toggle port row selection
   const toggleRowSelection = useCallback((ri) => {
@@ -789,11 +804,168 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   }, [section.cols, section.rows, updateSection]);
 
   const deleteColumn = useCallback((ci) => {
+    // Adjust hiddenCols indices: remove ci, shift down indices above ci
+    const newHidden = hiddenCols
+      .filter(h => h !== ci)
+      .map(h => h > ci ? h - 1 : h);
     updateSection({
       cols: section.cols.filter((_, i) => i !== ci),
       rows: section.rows.map(r => r.filter((_, i) => i !== ci)),
+      hiddenCols: newHidden,
     });
+  }, [section.cols, section.rows, hiddenCols, updateSection]);
+
+  const moveColumn = useCallback((ci, dir) => {
+    const target = ci + dir;
+    if (target < 0 || target >= section.cols.length) return;
+    const newCols = [...section.cols];
+    [newCols[ci], newCols[target]] = [newCols[target], newCols[ci]];
+    const newRows = section.rows.map(r => {
+      const nr = [...r];
+      [nr[ci], nr[target]] = [nr[target], nr[ci]];
+      return nr;
+    });
+    updateSection({ cols: newCols, rows: newRows });
   }, [section.cols, section.rows, updateSection]);
+
+  const moveColumnTo = useCallback((fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    const newCols = [...section.cols];
+    const [col] = newCols.splice(fromIdx, 1);
+    newCols.splice(toIdx, 0, col);
+    const newRows = section.rows.map(r => {
+      const nr = [...r];
+      const [val] = nr.splice(fromIdx, 1);
+      nr.splice(toIdx, 0, val);
+      return nr;
+    });
+    updateSection({ cols: newCols, rows: newRows });
+  }, [section.cols, section.rows, updateSection]);
+
+  const handleColDragStart = useCallback((e, ci) => {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    let dragging = false;
+    let lastDropTarget = ci;
+    let highlightEl = null;
+    let dimmedCells = [];
+    let ghost = null;
+    const THRESHOLD = 5;
+
+    const clearHighlight = () => {
+      if (highlightEl) {
+        highlightEl.style.boxShadow = '';
+        highlightEl = null;
+      }
+    };
+
+    const buildGhost = (clientX, clientY) => {
+      const sourceTh = tableRef.current?.querySelector(`thead th[data-ci="${ci}"]`);
+      if (!sourceTh) return;
+      const colPos = sourceTh.cellIndex;
+      const colWidth = sourceTh.getBoundingClientRect().width;
+
+      // Collect cell text values for the ghost column
+      const cells = [{ text: section.cols[ci], isHeader: true }];
+      const bodyRows = tableRef.current?.querySelectorAll('tbody tr');
+      bodyRows?.forEach(tr => {
+        if (tr.cells.length > 1 && tr.cells[colPos]) {
+          cells.push({ text: tr.cells[colPos]?.textContent || '', isHeader: false });
+        }
+      });
+
+      // Build ghost element
+      ghost = document.createElement('div');
+      ghost.style.cssText = `position:fixed;z-index:99999;pointer-events:none;opacity:0.85;border:1px solid #67e8f9;background:#1a1a1e;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:'Courier New',monospace;overflow:hidden;min-width:${colWidth}px;`;
+      cells.forEach(({ text, isHeader }) => {
+        const row = document.createElement('div');
+        row.style.cssText = `padding:1px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid #333;color:${isHeader ? '#888' : '#ddd'};font-size:${isHeader ? '11px' : '16px'};font-weight:${isHeader ? '700' : '400'};text-transform:${isHeader ? 'uppercase' : 'none'};line-height:${isHeader ? '16px' : '20px'};`;
+        row.textContent = text;
+        ghost.appendChild(row);
+      });
+
+      ghost.style.left = `${clientX + 8}px`;
+      ghost.style.top = `${clientY - 10}px`;
+      document.body.appendChild(ghost);
+    };
+
+    const dimSourceColumn = () => {
+      const sourceTh = tableRef.current?.querySelector(`thead th[data-ci="${ci}"]`);
+      if (!sourceTh) return;
+      const colPos = sourceTh.cellIndex;
+      sourceTh.style.opacity = '0.3';
+      dimmedCells.push(sourceTh);
+      const bodyRows = tableRef.current?.querySelectorAll('tbody tr');
+      bodyRows?.forEach(tr => {
+        if (tr.cells.length > 1 && tr.cells[colPos]) {
+          tr.cells[colPos].style.opacity = '0.3';
+          dimmedCells.push(tr.cells[colPos]);
+        }
+      });
+    };
+
+    const restoreSourceColumn = () => {
+      dimmedCells.forEach(cell => { cell.style.opacity = ''; });
+      dimmedCells = [];
+    };
+
+    const onMove = (moveEvent) => {
+      if (!dragging && Math.abs(moveEvent.clientX - startX) > THRESHOLD) {
+        dragging = true;
+        document.activeElement?.blur();
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+        dimSourceColumn();
+        buildGhost(moveEvent.clientX, moveEvent.clientY);
+      }
+      if (!dragging) return;
+
+      if (ghost) {
+        ghost.style.left = `${moveEvent.clientX + 8}px`;
+        ghost.style.top = `${moveEvent.clientY - 10}px`;
+      }
+
+      const ths = tableRef.current?.querySelectorAll('thead th[data-ci]');
+      if (!ths) return;
+      let target = ci;
+      for (const th of ths) {
+        const rect = th.getBoundingClientRect();
+        if (moveEvent.clientX >= rect.left && moveEvent.clientX < rect.right) {
+          target = parseInt(th.dataset.ci, 10);
+          break;
+        }
+      }
+      if (target !== lastDropTarget) {
+        clearHighlight();
+        if (target !== ci) {
+          for (const th of ths) {
+            if (parseInt(th.dataset.ci, 10) === target) {
+              th.style.boxShadow = 'inset 0 0 0 1px #67e8f9';
+              highlightEl = th;
+              break;
+            }
+          }
+        }
+        lastDropTarget = target;
+      }
+    };
+
+    const onUp = () => {
+      clearHighlight();
+      restoreSourceColumn();
+      if (ghost) { ghost.remove(); ghost = null; }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (dragging && lastDropTarget !== ci) {
+        moveColumnTo(ci, lastDropTarget);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [moveColumnTo, section.cols]);
 
   // Detect the port-label prefix from existing rows (e.g. "IN", "OUT", or just "")
   const portPrefix = useMemo(() => {
@@ -935,12 +1107,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     return () => window.removeEventListener('mousedown', dismiss);
   }, [contextMenu]);
 
-  // Build column order for header and body (right-click header to delete/hide column)
-  // Phantom columns: when colSizerValues has more entries than this section's columns,
-  // add invisible cells so both A/B tables have the same column count for equal space distribution
-  const phantomCount = colSizerValues ? Math.max(0, colSizerValues.length - nc) : 0;
   // Count visible columns for spacer colspan
-  const visibleColCount = nc - hiddenCols.length + phantomCount;
+  const visibleColCount = nc - hiddenCols.length;
   // Total cell count: anchor(1) + visibleCols + x(1) + spacing(1)
   const totalColspan = visibleColCount + 3;
 
@@ -951,30 +1119,18 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       const sizer = colSizerValues ? colSizerValues[ci] : undefined;
       if (ci === 0) {
         return (
-          <th key={`col-${ci}`} style={allSelected ? PORT_HEADER_SEL_STYLE : PORT_HEADER_STYLE} onClick={toggleSelectAll} onContextMenu={(e) => handleColContextMenu(e, ci)}>
+          <th key={`col-${ci}`} style={allSelected ? PORT_HEADER_SEL_STYLE : PORT_HEADER_STYLE} onClick={toggleSelectAll} onContextMenu={(e) => handleColContextMenu(e, ci)} onMouseDown={(e) => handleColDragStart(e, ci)} data-ci={ci}>
             <div className="n313-sz" data-v={sizer && sizer.length > (section.cols[ci] || '').length ? sizer : (section.cols[ci] || ' ')} data-h="">
               <input style={allSelected ? PORT_HDR_INPUT_SEL : PORT_HDR_INPUT_NORM} value={section.cols[ci]} readOnly />
             </div>
           </th>
         );
       }
-      return <SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={sizer} />;
+      return <SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={sizer} onMouseDown={(e) => handleColDragStart(e, ci)} colIndex={ci} />;
     };
-    // Phantom header cells for columns that exist in the other section but not this one
-    const phantomHeaders = [];
-    for (let pi = 0; pi < phantomCount; pi++) {
-      const pci = nc + pi;
-      const pSizer = colSizerValues[pci];
-      phantomHeaders.push(
-        <th key={`phantom-${pci}`} style={PHANTOM_HEADER_STYLE}>
-          <div className="n313-sz" data-v={pSizer || ' '} data-h="" />
-        </th>
-      );
-    }
     if (mirrored) {
       cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
       cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
-      cells.push(...phantomHeaders);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
@@ -986,7 +1142,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(...phantomHeaders);
       cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
       cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
     }
@@ -1021,21 +1176,9 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
 
-    // Phantom data cells for columns that exist in the other section but not this one
-    const phantomCells = [];
-    for (let pi = 0; pi < phantomCount; pi++) {
-      const pci = nc + pi;
-      const pSizer = colSizerValues[pci];
-      phantomCells.push(
-        <td key={`phantom-${pci}`} style={PHANTOM_DATA_STYLE}>
-          <div className="n313-sz" data-v={pSizer || ' '} />
-        </td>
-      );
-    }
     if (mirrored) {
       cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
-      cells.push(...phantomCells);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
@@ -1047,7 +1190,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(...phantomCells);
       cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} />);
       cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
     }
@@ -1119,6 +1261,16 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {contextMenu.colIndex > 0 && (
+            <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); moveColumn(contextMenu.colIndex, -1); setContextMenu(null); }}>
+              Move Left
+            </div>
+          )}
+          {contextMenu.colIndex < nc - 1 && (
+            <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); moveColumn(contextMenu.colIndex, 1); setContextMenu(null); }}>
+              Move Right
+            </div>
+          )}
           {canDel && (
             <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); handleDeleteFromMenu(); }}>
               Delete Column

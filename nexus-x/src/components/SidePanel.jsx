@@ -644,6 +644,29 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
           );
         })}
 
+        {/* Add Node buttons */}
+        <div className="border-t border-zinc-800 my-2" />
+
+        <div className="px-3 py-1">
+          <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
+            Add Node
+          </span>
+        </div>
+        <div className="px-3 py-1 flex flex-col gap-1">
+          <button
+            onClick={() => onAddNode('supernode')}
+            className="w-full px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 rounded text-[11px] font-mono text-violet-300 text-left transition-colors"
+          >
+            + SuperNode
+          </button>
+          <button
+            onClick={() => onAddNode('node313')}
+            className="w-full px-2 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 rounded text-[11px] font-mono text-emerald-300 text-left transition-colors"
+          >
+            + Node 313
+          </button>
+        </div>
+
         {/* Placeholder for future manufacturer categories */}
         <div className="border-t border-zinc-800 my-2" />
 
