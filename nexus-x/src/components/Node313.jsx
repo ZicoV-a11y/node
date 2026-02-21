@@ -123,25 +123,38 @@ function applyDrop(currentKey, droppedId, position) {
 // STYLES (inline to match prototype exactly)
 // ============================================
 
+// Noir theme palette
+const T = {
+  bg: '#08090b', card: '#0e1014', rowHover: '#151820',
+  border: 'rgba(255,215,140,0.09)', borderStrong: 'rgba(255,215,140,0.13)',
+  borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,215,140,0.09)',
+  accent: '#c9a96e', accentLight: '#dfc599', accentDim: '#8a7550',
+  accentGlow: 'rgba(201,169,110,0.08)',
+  text: '#d4d0c8', textSec: '#7d7a72', textMuted: '#4a483f',
+  white: '#eae7df', green: '#7db88a',
+  hFont: "'Cormorant Garamond', serif", mono: "'IBM Plex Mono', monospace",
+};
+
 const STYLES = {
   node: {
     position: 'absolute',
-    border: '1px solid #333',
-    background: '#0a0a0a',
+    border: `2px solid ${T.border}`,
+    background: T.card,
     display: 'inline-flex',
     flexDirection: 'column',
     whiteSpace: 'nowrap',
-    fontFamily: "'Courier New', monospace",
-    color: '#ddd',
+    fontFamily: T.mono,
+    color: T.text,
     userSelect: 'none',
+    overflow: 'hidden',
   },
   nodeTitle: {
-    background: '#111',
-    borderBottom: '1px solid #333',
+    background: T.card,
+    borderBottom: `2px solid ${T.border}`,
     display: 'flex',
     flexDirection: 'column',
     cursor: 'grab',
-    padding: '4px 4px',
+    padding: '6px 8px',
     gap: '2px',
   },
   titleTopRow: {
@@ -149,7 +162,7 @@ const STYLES = {
     alignItems: 'center',
   },
   grip: {
-    color: '#444',
+    color: T.textMuted,
     fontSize: '10px',
     padding: '0 3px',
     cursor: 'grab',
@@ -160,31 +173,38 @@ const STYLES = {
   },
   titleInput: {
     fontSize: '14px',
-    fontWeight: 700,
+    fontWeight: 300,
+    fontFamily: T.hFont,
+    letterSpacing: '2px',
     textAlign: 'left',
-    height: '14px',
+    height: '18px',
     minWidth: '30px',
+    color: T.white,
   },
   tagInput: {
-    fontSize: '18px',
-    color: '#999',
+    fontSize: '14px',
+    color: T.accent,
     textAlign: 'right',
     lineHeight: '30px',
     minWidth: '20px',
-    borderLeft: '1px solid #333',
-    marginLeft: '4px',
-    paddingLeft: '4px',
+    borderLeft: `2px solid ${T.borderStrong}`,
+    marginLeft: '6px',
+    paddingLeft: '6px',
+    fontFamily: T.mono,
+    letterSpacing: '1px',
+    background: T.accentGlow,
   },
   subInput: {
-    fontSize: '11px',
-    color: '#777',
+    fontSize: '10px',
+    color: T.textMuted,
     textAlign: 'left',
     height: '12px',
-    minWidth: '30px',
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
   },
   sectionTitle: {
-    background: '#111',
-    borderBottom: '1px solid #333',
+    background: T.bg,
+    borderBottom: `2px solid ${T.border}`,
     display: 'flex',
     alignItems: 'center',
     userSelect: 'none',
@@ -192,16 +212,20 @@ const STYLES = {
   },
   sectionTitleInput: {
     fontSize: '10px',
-    fontWeight: 700,
+    fontWeight: 500,
+    fontFamily: T.hFont,
+    letterSpacing: '4px',
+    textTransform: 'uppercase',
     width: '100%',
-    height: '12px',
-    lineHeight: '12px',
+    height: '14px',
+    lineHeight: '14px',
+    color: T.accentDim,
   },
   input: {
     background: 'transparent',
     border: 'none',
-    color: '#ddd',
-    fontFamily: "'Courier New', monospace",
+    color: T.text,
+    fontFamily: T.mono,
     outline: 'none',
     margin: 0,
     padding: '0 1px',
@@ -213,16 +237,17 @@ const STYLES = {
     whiteSpace: 'nowrap',
   },
   cell: {
-    borderBottom: '1px solid #333',
-    borderRight: '1px solid #333',
+    borderBottom: `1px solid ${T.borderSubtle}`,
+    borderRight: `1px solid ${T.divider}`,
     padding: '0 2px',
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
     lineHeight: 1,
-    background: '#141414',
+    background: T.card,
   },
   headerCell: {
-    background: '#111',
+    background: T.bg,
+    borderBottom: `2px solid ${T.border}`,
   },
   xc: {
     width: '12px',
@@ -233,7 +258,7 @@ const STYLES = {
     lineHeight: 1,
   },
   xcSpan: {
-    color: '#444',
+    color: T.textMuted,
     cursor: 'pointer',
     fontSize: '10px',
     userSelect: 'none',
@@ -248,7 +273,7 @@ const STYLES = {
     padding: 0,
   },
   spHandle: {
-    color: '#333',
+    color: T.textMuted,
     cursor: 'ns-resize',
     fontSize: '10px',
     userSelect: 'none',
@@ -267,22 +292,23 @@ const STYLES = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    border: '2px dashed #06b6d4',
+    border: `2px dashed ${T.accent}`,
     fontSize: '10px',
     fontWeight: 700,
-    color: '#06b6d4',
-    background: 'rgba(6, 182, 212, 0.15)',
+    letterSpacing: '1px',
+    color: '#1a1408',
+    background: 'rgba(201,169,110,0.65)',
     userSelect: 'none',
     zIndex: 10,
     pointerEvents: 'auto',
   },
   dropZoneHover: {
-    borderColor: '#22d3ee',
-    color: '#fff',
-    background: 'rgba(6, 182, 212, 0.3)',
+    borderColor: T.white,
+    color: '#000',
+    background: 'rgba(201,169,110,0.85)',
   },
   dragHighlight: {
-    outline: '2px solid #06b6d4',
+    outline: `2px solid ${T.accent}`,
     outlineOffset: '-2px',
     opacity: 0.6,
   },
@@ -296,7 +322,7 @@ const STYLES = {
     verticalAlign: 'top',
   },
   sectionWrapBorder: {
-    borderLeft: '1px solid #333',
+    borderLeft: `2px solid ${T.border}`,
   },
   sectionFull: {
     display: 'block',
@@ -306,8 +332,8 @@ const STYLES = {
   contextMenuItem: {
     padding: '4px 12px',
     fontSize: '11px',
-    fontFamily: 'ui-monospace, monospace',
-    color: '#ccc',
+    fontFamily: T.mono,
+    color: T.text,
     cursor: 'pointer',
   },
   // Settings & color picker
@@ -322,14 +348,14 @@ const STYLES = {
     width: '12px',
     height: '12px',
     borderRadius: '2px',
-    border: '1px solid #555',
+    border: `1px solid ${T.textMuted}`,
     cursor: 'pointer',
     flexShrink: 0,
   },
   gearBtn: {
     background: 'none',
     border: 'none',
-    color: '#666',
+    color: T.textSec,
     fontSize: '13px',
     cursor: 'pointer',
     padding: '0 2px',
@@ -339,12 +365,12 @@ const STYLES = {
   },
   settingsDropdown: {
     position: 'fixed',
-    background: '#1a1a1e',
-    border: '1px solid #333',
+    background: T.card,
+    border: `2px solid ${T.borderStrong}`,
     padding: '4px 0',
     minWidth: '150px',
     zIndex: 10001,
-    fontFamily: "'Courier New', monospace",
+    fontFamily: T.mono,
   },
   settingsItem: {
     display: 'flex',
@@ -352,8 +378,8 @@ const STYLES = {
     justifyContent: 'space-between',
     padding: '4px 10px',
     fontSize: '11px',
-    fontFamily: "'Courier New', monospace",
-    color: '#ccc',
+    fontFamily: T.mono,
+    color: T.text,
     cursor: 'pointer',
     border: 'none',
     background: 'none',
@@ -363,20 +389,20 @@ const STYLES = {
   settingsLabel: {
     padding: '3px 10px',
     fontSize: '9px',
-    fontFamily: "'Courier New', monospace",
-    color: '#666',
+    fontFamily: T.mono,
+    color: T.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    letterSpacing: '1.5px',
   },
   settingsDivider: {
     height: '1px',
-    background: '#333',
+    background: T.border,
     margin: '3px 0',
   },
   colorGrid: {
     position: 'fixed',
-    background: '#1a1a1e',
-    border: '1px solid #333',
+    background: T.card,
+    border: `2px solid ${T.borderStrong}`,
     padding: '6px',
     zIndex: 10001,
     display: 'grid',
@@ -387,18 +413,18 @@ const STYLES = {
     width: '16px',
     height: '16px',
     borderRadius: '2px',
-    border: '1px solid #444',
+    border: `1px solid ${T.textMuted}`,
     cursor: 'pointer',
   },
   colorGridClear: {
     gridColumn: '1 / -1',
     padding: '3px 0',
     fontSize: '10px',
-    fontFamily: "'Courier New', monospace",
-    color: '#888',
+    fontFamily: T.mono,
+    color: T.textSec,
     cursor: 'pointer',
     textAlign: 'center',
-    borderTop: '1px solid #333',
+    borderTop: `1px solid ${T.border}`,
     marginTop: '2px',
   },
 };
@@ -438,29 +464,28 @@ function getPresetsForColumn(colName) {
 // ============================================
 const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
 const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px', cursor: 'grab' };
-const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 700, height: '20px', lineHeight: '20px', transform: 'translateY(1px)' };
-const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#888', height: '16px', lineHeight: '16px', cursor: 'grab' };
+const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 500, height: '20px', lineHeight: '20px', transform: 'translateY(1px)', color: T.white };
+const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '9px', fontWeight: 400, textTransform: 'uppercase', color: T.textMuted, height: '16px', lineHeight: '16px', cursor: 'grab', letterSpacing: '2px' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
 const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell, background: 'transparent' };
 const SP_CELL_HEADER_STYLE = { ...STYLES.sp, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent' };
 
 // Port selection highlight
-const PORT_CELL_SELECTED = { color: '#67e8f9', background: 'rgba(6,182,212,0.2)' };
+const PORT_CELL_SELECTED = { color: T.accent, background: T.accentGlow };
 
 // Pre-computed port header styles (avoids allocation per render)
 const PORT_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, cursor: 'grab' };
 const PORT_HEADER_SEL_STYLE = { ...PORT_HEADER_STYLE, ...PORT_CELL_SELECTED };
-const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: '#67e8f9' };
-const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: '#888' };
+const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: T.accent };
+const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: T.textMuted };
 
 // Pre-computed port display styles (PortCell read-only mode)
-const PORT_DISPLAY_SEL = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#67e8f9' };
-const PORT_DISPLAY_NORM = { ...SZ_INPUT_BODY, cursor: 'pointer', color: '#ddd' };
-
+const PORT_DISPLAY_SEL = { ...SZ_INPUT_BODY, cursor: 'pointer', color: T.accent };
+const PORT_DISPLAY_NORM = { ...SZ_INPUT_BODY, cursor: 'pointer', color: T.white };
 
 // Selected row background tint
-const ROW_SELECTED_BG = { background: 'rgba(6,182,212,0.07)' };
+const ROW_SELECTED_BG = { background: T.accentGlow };
 
 // Spacer row cell style
 const SPACER_TD_STYLE = { padding: 0, border: 'none', background: 'transparent' };
@@ -470,11 +495,11 @@ const hover = (prop, normal, hovered) => ({
   onMouseEnter: (e) => { e.currentTarget.style[prop] = hovered; },
   onMouseLeave: (e) => { e.currentTarget.style[prop] = normal; },
 });
-const HOVER_444_999 = hover('color', '#444', '#999');
-const HOVER_333_888 = hover('color', '#333', '#888');
-const HOVER_888_CCC = hover('color', '#888', '#ccc');
-const HOVER_BG_333 = hover('background', 'transparent', '#333');
-const HOVER_BG_2A = hover('background', 'none', '#2a2a2e');
+const HOVER_444_999 = hover('color', T.textMuted, T.textSec);
+const HOVER_333_888 = hover('color', T.textMuted, T.textSec);
+const HOVER_888_CCC = hover('color', T.textSec, T.accentLight);
+const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
+const HOVER_BG_2A = hover('background', 'none', T.rowHover);
 
 // ============================================
 // SUB-COMPONENTS
@@ -559,8 +584,8 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
                 top: pos.top,
                 minWidth: pos.width,
                 zIndex: 10000,
-                background: '#1f1f23',
-                border: '1px solid #333',
+                background: T.card,
+                border: `1px solid ${T.borderStrong}`,
                 padding: '2px 0',
               }}
               onMouseDown={(e) => e.stopPropagation()}
@@ -590,8 +615,8 @@ const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'ce
 
 // Anchor dot style — visible circle that scales with the node
 const ANCHOR_DOT_STYLE = {
-  width: '8px', height: '8px', borderRadius: '50%',
-  background: '#666', boxShadow: '0 0 0 1px #444',
+  width: '7px', height: '7px', borderRadius: '50%',
+  background: T.accent, opacity: 0.7, boxShadow: `0 0 8px ${T.accent}44`,
 };
 const AC_BODY_STYLE = { ...STYLES.ac, ...STYLES.cell, background: 'transparent', padding: 0 };
 const AC_HEAD_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent', padding: 0 };
@@ -731,7 +756,7 @@ const DropZone = memo(({ label, onDrop, placement }) => {
       onMouseLeave={() => setHover(false)}
       onMouseUp={() => onDrop()}
     >
-      {label}
+      <span style={{ background: '#1a1408', padding: '1px 6px', color: T.accentLight, fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>{label}</span>
     </div>
   );
 });
@@ -876,10 +901,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
       // Build ghost element
       ghost = document.createElement('div');
-      ghost.style.cssText = `position:fixed;z-index:99999;pointer-events:none;opacity:0.85;border:1px solid #67e8f9;background:#1a1a1e;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:'Courier New',monospace;overflow:hidden;min-width:${colWidth}px;`;
+      ghost.style.cssText = `position:fixed;z-index:99999;pointer-events:none;opacity:0.85;border:2px solid ${T.accent};background:${T.card};box-shadow:0 4px 16px rgba(0,0,0,0.5);font-family:'IBM Plex Mono',monospace;overflow:hidden;min-width:${colWidth}px;`;
       cells.forEach(({ text, isHeader }) => {
         const row = document.createElement('div');
-        row.style.cssText = `padding:1px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid #333;color:${isHeader ? '#888' : '#ddd'};font-size:${isHeader ? '11px' : '16px'};font-weight:${isHeader ? '700' : '400'};text-transform:${isHeader ? 'uppercase' : 'none'};line-height:${isHeader ? '16px' : '20px'};`;
+        row.style.cssText = `padding:1px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid ${T.borderSubtle};color:${isHeader ? T.textMuted : T.white};font-size:${isHeader ? '9px' : '16px'};font-weight:${isHeader ? '400' : '500'};text-transform:${isHeader ? 'uppercase' : 'none'};line-height:${isHeader ? '16px' : '20px'};letter-spacing:${isHeader ? '2px' : '0'};`;
         row.textContent = text;
         ghost.appendChild(row);
       });
@@ -940,7 +965,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (target !== ci) {
           for (const th of ths) {
             if (parseInt(th.dataset.ci, 10) === target) {
-              th.style.boxShadow = 'inset 0 0 0 1px #67e8f9';
+              th.style.boxShadow = `inset 0 0 0 1px ${T.accent}`;
               highlightEl = th;
               break;
             }
@@ -1208,7 +1233,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const tintedSectionTitle = useMemo(() => {
     const base = { ...STYLES.sectionTitle, ...(mirrored ? { flexDirection: 'row-reverse' } : {}) };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 20%, #111)`;
+      base.background = `color-mix(in srgb, ${signalColorHex} 20%, ${T.bg})`;
       base.borderBottom = `1px solid ${signalColorHex}`;
     }
     return base;
@@ -1233,10 +1258,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       {/* Scoped tint for cells */}
       {signalColorHex && (
         <style>{`
-          [data-sec="${nodeId}-${sectionId}"] td { background: color-mix(in srgb, ${signalColorHex} 3%, #141414) !important; }
-          [data-sec="${nodeId}-${sectionId}"] th { background: color-mix(in srgb, ${signalColorHex} 18%, #111) !important; }
+          [data-sec="${nodeId}-${sectionId}"] td { background: color-mix(in srgb, ${signalColorHex} 3%, ${T.card}) !important; }
+          [data-sec="${nodeId}-${sectionId}"] th { background: color-mix(in srgb, ${signalColorHex} 18%, ${T.bg}) !important; }
           [data-sec="${nodeId}-${sectionId}"] td,
-          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 60%, #333) !important; }
+          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 60%, ${T.bg}) !important; }
         `}</style>
       )}
 
@@ -1254,8 +1279,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             left: contextMenu.x,
             top: contextMenu.y,
             zIndex: 10000,
-            background: '#1f1f23',
-            border: '1px solid #333',
+            background: T.card,
+            border: `1px solid ${T.borderStrong}`,
             padding: '2px 0',
             minWidth: 140,
           }}
@@ -1281,7 +1306,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           </div>
           {hiddenCols.length > 0 && (
             <>
-              <div style={{ height: 1, background: '#333', margin: '2px 0' }} />
+              <div style={{ height: 1, background: T.border, margin: '2px 0' }} />
               <div style={STYLES.contextMenuItem} {...HOVER_BG_333} onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}>
                 Show All Columns ({hiddenCols.length} hidden)
               </div>
@@ -1659,7 +1684,8 @@ function Node313({
   }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
-  const DZ_THICKNESS = 24; // px thickness for edge drop zones
+  const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones
+  const DZ_THIN = 24; // px thickness for ABOVE/BELOW/TOP/BOTTOM zones
 
   const renderLayout = () => {
     const currentPos = dragSec ? getPosition(layoutKey, dragSec) : null;
@@ -1695,21 +1721,25 @@ function Node313({
               <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
                 placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
-            {abZones.includes('above') && (
-              <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
-                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THICKNESS}px` }} />
-            )}
-            {abZones.includes('below') && (
-              <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
-                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
-            )}
+            {abZones.includes('above') && (() => {
+              const destLeft = dragSec !== row[0];
+              const hasL = abZones.includes('left'), hasR = abZones.includes('right');
+              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+                placement={{ left: destLeft ? (hasL ? DZ_THICKNESS : 0) : '50%', right: destLeft ? '50%' : (hasR ? DZ_THICKNESS : 0), top: 0, height: `${DZ_THIN}px` }} />;
+            })()}
+            {abZones.includes('below') && (() => {
+              const destLeft = dragSec !== row[0];
+              const hasL = abZones.includes('left'), hasR = abZones.includes('right');
+              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+                placement={{ left: destLeft ? (hasL ? DZ_THICKNESS : 0) : '50%', right: destLeft ? '50%' : (hasR ? DZ_THICKNESS : 0), bottom: 0, height: `${DZ_THIN}px` }} />;
+            })()}
             {rowIndex === 0 && cZones.includes('top') && (
               <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
-                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THIN}px` }} />
             )}
             {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
               <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
-                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
+                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THIN}px` }} />
             )}
           </div>
         );
@@ -1736,22 +1766,24 @@ function Node313({
               <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
                 placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
-            {rowIndex === otherRowIndex && abZones.includes('above') && (
-              <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
-                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THICKNESS}px` }} />
-            )}
-            {rowIndex === otherRowIndex && abZones.includes('below') && (
-              <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
-                placement={{ left: abZones.includes('left') ? DZ_THICKNESS : 0, right: abZones.includes('right') ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
-            )}
+            {rowIndex === otherRowIndex && abZones.includes('above') && (() => {
+              const hasL = abZones.includes('left'), hasR = abZones.includes('right');
+              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+                placement={{ left: hasL ? DZ_THICKNESS : 0, right: hasR ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THIN}px` }} />;
+            })()}
+            {rowIndex === otherRowIndex && abZones.includes('below') && (() => {
+              const hasL = abZones.includes('left'), hasR = abZones.includes('right');
+              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+                placement={{ left: hasL ? DZ_THICKNESS : 0, right: hasR ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THIN}px` }} />;
+            })()}
             {/* C zones on first/last rows */}
             {rowIndex === 0 && cZones.includes('top') && (
               <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
-                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THICKNESS}px` }} />
+                placement={{ left: 0, right: 0, top: 0, height: `${DZ_THIN}px` }} />
             )}
             {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
               <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
-                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THICKNESS}px` }} />
+                placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THIN}px` }} />
             )}
           </div>
         );
@@ -1771,12 +1803,12 @@ function Node313({
       top: `${node.position.y}px`,
       transform: `scale(${totalScale})`,
       transformOrigin: 'top left',
-      outline: isSelected ? '2px solid #3b82f6' : 'none',
+      outline: isSelected ? `2px solid ${T.accent}` : 'none',
       outlineOffset: '1px',
       zIndex: settingsOpen || colorPickerOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
     };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 25%, #0a0a0a)`;
+      base.background = `color-mix(in srgb, ${signalColorHex} 25%, ${T.bg})`;
       base.borderColor = signalColorHex;
     }
     return base;
@@ -1786,7 +1818,7 @@ function Node313({
   const titleBarStyle = useMemo(() => {
     const base = { ...STYLES.nodeTitle };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 35%, #111)`;
+      base.background = `color-mix(in srgb, ${signalColorHex} 35%, ${T.bg})`;
       base.borderBottom = `1px solid ${signalColorHex}`;
     }
     return base;
@@ -1799,26 +1831,35 @@ function Node313({
       onClick={handleNodeClick}
       data-node-id={node.id}
     >
+      {/* Top accent line */}
+      <div style={{ height: '2px', background: `linear-gradient(90deg, transparent, ${T.accentDim} 30%, ${T.accent} 50%, ${T.accentDim} 70%, transparent)`, opacity: 0.5 }} />
+
       {/* Title bar — click empty area to drag */}
       <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
         {/* Top row: name + tag + buttons */}
         <div style={STYLES.titleTopRow}>
-          <input
-            style={{ ...STYLES.input, ...STYLES.titleInput, width: `${Math.max((node.title || '').length, 4) + 1}ch` }}
-            value={node.title}
-            onChange={(e) => onUpdate({ title: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            placeholder="Name"
-          />
-          <input
-            style={{ ...STYLES.input, ...STYLES.tagInput, width: `${Math.max((node.tag || '').length, 3) + 2}ch` }}
-            value={node.tag || ''}
-            onChange={(e) => onUpdate({ tag: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            placeholder="Tag"
-          />
+          <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '18px' }}>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '14px', letterSpacing: '2px', padding: '0 2px' }}>{node.title || 'Name'}</span>
+            <input
+              style={{ ...STYLES.input, ...STYLES.titleInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+              value={node.title}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              placeholder="Name"
+            />
+          </div>
+          <div style={{ position: 'relative', display: 'inline-block', minWidth: '30px', height: '18px', borderLeft: `2px solid ${T.borderStrong}`, marginLeft: '6px', background: T.accentGlow }}>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '14px', letterSpacing: '1px', padding: '0 6px', textTransform: 'uppercase' }}>{node.tag || 'Tag'}</span>
+            <input
+              style={{ ...STYLES.input, color: T.accent, fontFamily: T.mono, letterSpacing: '1px', fontSize: '14px', textAlign: 'center', textTransform: 'uppercase', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+              value={node.tag || ''}
+              onChange={(e) => onUpdate({ tag: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              placeholder="Tag"
+            />
+          </div>
           {/* Color picker + Settings buttons */}
           <div style={STYLES.titleRight}>
           {/* Color swatch — matches the node body color */}
@@ -1826,7 +1867,7 @@ function Node313({
             ref={colorBtnRef}
             style={{
               ...STYLES.colorSwatch,
-              backgroundColor: signalColorHex || '#333',
+              backgroundColor: signalColorHex || T.textMuted,
               boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
             }}
             title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
@@ -1843,7 +1884,7 @@ function Node313({
             ref={settingsBtnRef}
             style={{
               ...STYLES.gearBtn,
-              color: settingsOpen ? '#ccc' : '#666',
+              color: settingsOpen ? T.accentLight : T.textMuted,
             }}
             title="Settings"
             onClick={(e) => {
@@ -1852,8 +1893,8 @@ function Node313({
               setColorPickerOpen(false);
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#ccc'; }}
-            onMouseLeave={(e) => { if (!settingsOpen) e.currentTarget.style.color = '#666'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = T.accentLight; }}
+            onMouseLeave={(e) => { if (!settingsOpen) e.currentTarget.style.color = T.textMuted; }}
           >
             ⚙
           </button>
@@ -1861,23 +1902,31 @@ function Node313({
         </div>
 
         {/* Manufacturer */}
-        <input
-          style={{ ...STYLES.input, ...STYLES.subInput, width: `${Math.max((node.manufacturer || '').length, 12) + 1}ch` }}
-          value={node.manufacturer || ''}
-          onChange={(e) => onUpdate({ manufacturer: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Manufacturer"
-        />
+        <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '12px' }}>
+          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 1px' }}>{node.manufacturer || 'Manufacturer'}</span>
+          <input
+            style={{ ...STYLES.input, ...STYLES.subInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+            value={node.manufacturer || ''}
+            maxLength={25}
+            onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="Manufacturer"
+          />
+        </div>
         {/* Model */}
-        <input
-          style={{ ...STYLES.input, ...STYLES.subInput, width: `${Math.max((node.model || '').length, 5) + 1}ch` }}
-          value={node.model || ''}
-          onChange={(e) => onUpdate({ model: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Model"
-        />
+        <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '12px' }}>
+          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 1px' }}>{node.model || 'Model'}</span>
+          <input
+            style={{ ...STYLES.input, ...STYLES.subInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+            value={node.model || ''}
+            maxLength={25}
+            onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="Model"
+          />
+        </div>
 
         {/* Color picker grid (portaled) */}
         {colorPickerOpen && createPortal(
@@ -1894,7 +1943,7 @@ function Node313({
                     style={{
                       ...STYLES.colorGridItem,
                       backgroundColor: c.hex,
-                      borderColor: node.signalColor === c.id ? '#fff' : '#444',
+                      borderColor: node.signalColor === c.id ? T.white : T.textMuted,
                       boxShadow: node.signalColor === c.id ? `0 0 4px ${c.hex}` : 'none',
                     }}
                     title={c.label}
@@ -1903,8 +1952,8 @@ function Node313({
                       onUpdate({ signalColor: c.id });
                       setColorPickerOpen(false);
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#aaa'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = node.signalColor === c.id ? '#fff' : '#444'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.accentLight; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = node.signalColor === c.id ? T.white : T.textMuted; }}
                   />
                 ))}
                 <div
@@ -1937,7 +1986,7 @@ function Node313({
                     <button key={dt} style={STYLES.settingsItem} {...HOVER_BG_2A}
                       onMouseDown={(e) => { e.stopPropagation(); onUpdate({ deviceTypes: isActive ? types.filter(t => t !== dt) : [...types, dt] }); }}>
                       <span>{dt}</span>
-                      <span style={{ color: isActive ? '#4ade80' : '#555' }}>{isActive ? '✓' : '○'}</span>
+                      <span style={{ color: isActive ? T.green : T.textMuted }}>{isActive ? '✓' : '○'}</span>
                     </button>
                   );
                 })}
@@ -1953,7 +2002,7 @@ function Node313({
                     <button key={sec.id} style={STYLES.settingsItem} {...HOVER_BG_2A}
                       onMouseDown={(e) => { e.stopPropagation(); toggleSectionVisibility(sec.id); }}>
                       <span>{sec.label}</span>
-                      <span style={{ color: isVisible ? '#4ade80' : '#555' }}>{isVisible ? '✓' : '○'}</span>
+                      <span style={{ color: isVisible ? T.green : T.textMuted }}>{isVisible ? '✓' : '○'}</span>
                     </button>
                   );
                 })}
@@ -1981,9 +2030,9 @@ function Node313({
         }}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}>
-          <line x1="10" y1="2" x2="2" y2="10" stroke="#555" strokeWidth="1" />
-          <line x1="10" y1="5" x2="5" y2="10" stroke="#555" strokeWidth="1" />
-          <line x1="10" y1="8" x2="8" y2="10" stroke="#555" strokeWidth="1" />
+          <line x1="10" y1="2" x2="2" y2="10" stroke={T.textMuted} strokeWidth="1" />
+          <line x1="10" y1="5" x2="5" y2="10" stroke={T.textMuted} strokeWidth="1" />
+          <line x1="10" y1="8" x2="8" y2="10" stroke={T.textMuted} strokeWidth="1" />
         </svg>
       </div>
 
@@ -1995,8 +2044,8 @@ function Node313({
             bottom: -16,
             left: 0,
             fontSize: '10px',
-            fontFamily: "'Courier New', monospace",
-            color: '#777',
+            fontFamily: T.mono,
+            color: T.textSec,
             transform: `scale(${1 / totalScale})`,
             transformOrigin: 'top left',
             whiteSpace: 'nowrap',

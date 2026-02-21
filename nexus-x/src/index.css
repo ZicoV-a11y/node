@@ -42,19 +42,24 @@
   visibility: hidden;
   white-space: pre;
   grid-area: 1/1;
-  font-family: 'Courier New', monospace !important;
+  font-family: 'IBM Plex Mono', monospace !important;
   padding: 0 1px;
   line-height: 1;
   font-size: 16px;
-  font-weight: 700 !important;
+  font-weight: 500 !important;
   height: 20px;
 }
 .n313-sz[data-h]::after {
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  height: 13px;
+  font-size: 9px !important;
+  font-weight: 400 !important;
+  letter-spacing: 2px !important;
+  height: 16px;
 }
 .n313-sz input {
-  font-family: 'Courier New', monospace !important;
-  font-weight: 700 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-weight: 500 !important;
+}
+.n313-sz [data-h] input,
+.n313-sz input[style*="uppercase"] {
+  font-weight: 400 !important;
 }
