@@ -152,14 +152,10 @@ const STYLES = {
     background: T.card,
     borderBottom: `2px solid ${T.border}`,
     display: 'flex',
-    flexDirection: 'column',
-    cursor: 'grab',
-    padding: '6px 8px',
-    gap: '2px',
-  },
-  titleTopRow: {
-    display: 'flex',
     alignItems: 'center',
+    cursor: 'grab',
+    padding: '8px 10px',
+    gap: '4px',
   },
   grip: {
     color: T.textMuted,
@@ -182,33 +178,41 @@ const STYLES = {
     color: T.white,
   },
   tagInput: {
-    fontSize: '14px',
+    fontSize: '10px',
     color: T.accent,
-    textAlign: 'right',
-    lineHeight: '30px',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    lineHeight: '20px',
     minWidth: '20px',
-    borderLeft: `2px solid ${T.borderStrong}`,
+    border: `1px solid ${T.borderStrong}`,
+    padding: '0 8px',
     marginLeft: '6px',
-    paddingLeft: '6px',
     fontFamily: T.mono,
     letterSpacing: '1px',
     background: T.accentGlow,
   },
-  subInput: {
+  mfgModel: {
+    display: 'flex',
+    flexDirection: 'column',
     fontSize: '10px',
-    color: T.textMuted,
-    textAlign: 'left',
-    height: '12px',
     letterSpacing: '1px',
     textTransform: 'uppercase',
+    marginLeft: '10px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    flexShrink: 1,
+    minWidth: 0,
+    gap: '1px',
   },
   sectionTitle: {
     background: T.bg,
-    borderBottom: `2px solid ${T.border}`,
+    borderBottom: `1px solid ${T.border}`,
     display: 'flex',
     alignItems: 'center',
     userSelect: 'none',
     whiteSpace: 'nowrap',
+    padding: '6px 8px',
+    gap: '4px',
   },
   sectionTitleInput: {
     fontSize: '10px',
@@ -216,10 +220,11 @@ const STYLES = {
     fontFamily: T.hFont,
     letterSpacing: '4px',
     textTransform: 'uppercase',
-    width: '100%',
     height: '14px',
     lineHeight: '14px',
     color: T.accentDim,
+    width: 'auto',
+    flexShrink: 0,
   },
   input: {
     background: 'transparent',
@@ -228,7 +233,7 @@ const STYLES = {
     fontFamily: T.mono,
     outline: 'none',
     margin: 0,
-    padding: '0 1px',
+    padding: '0 8px',
     lineHeight: 1,
     display: 'block',
   },
@@ -239,7 +244,7 @@ const STYLES = {
   cell: {
     borderBottom: `1px solid ${T.borderSubtle}`,
     borderRight: `1px solid ${T.divider}`,
-    padding: '0 2px',
+    padding: '4px 2px',
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
     lineHeight: 1,
@@ -247,7 +252,8 @@ const STYLES = {
   },
   headerCell: {
     background: T.bg,
-    borderBottom: `2px solid ${T.border}`,
+    borderBottom: `1px solid ${T.border}`,
+    padding: '2px 2px',
   },
   xc: {
     width: '12px',
@@ -464,7 +470,7 @@ function getPresetsForColumn(colName) {
 // ============================================
 const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
 const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px', cursor: 'grab' };
-const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 500, height: '20px', lineHeight: '20px', transform: 'translateY(1px)', color: T.white };
+const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 500, height: '28px', lineHeight: '28px', color: T.white };
 const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '9px', fontWeight: 400, textTransform: 'uppercase', color: T.textMuted, height: '16px', lineHeight: '16px', cursor: 'grab', letterSpacing: '2px' };
 const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
 const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
@@ -1250,8 +1256,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           onChange={(e) => updateTitle(e.target.value)}
           onClick={(e) => e.stopPropagation()}
         />
+        {/* Extending gold gradient line */}
+        <div style={{ flex: 1, height: '1px', background: `linear-gradient(90deg, ${T.accent}44, ${T.accent}66 30%, ${T.accent}44 95%, ${T.accent}11)`, margin: '0 2px' }} />
         {onSpacingDown && (
-          <span style={{ ...STYLES.spHandle, marginLeft: 'auto', width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>⋮</span>
+          <span style={{ ...STYLES.spHandle, width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>⋮</span>
         )}
       </div>
 
@@ -1352,6 +1360,7 @@ function Node313({
 
   // Hidden sections
   const hiddenSections = node.hiddenSections || [];
+  const hiddenTitleFields = node.hiddenTitleFields || [];
 
   // Mirrored (flipped) sections
   const mirroredSections = node.mirroredSections || [];
@@ -1363,6 +1372,12 @@ function Node313({
     const next = isHidden ? current.filter(s => s !== sectionId) : [...current, sectionId];
     onUpdate({ hiddenSections: next });
   }, [node.hiddenSections, onUpdate]);
+
+  const toggleTitleField = useCallback((field) => {
+    const current = node.hiddenTitleFields || [];
+    const next = current.includes(field) ? current.filter(f => f !== field) : [...current, field];
+    onUpdate({ hiddenTitleFields: next });
+  }, [node.hiddenTitleFields, onUpdate]);
 
   // Toggle section anchor side (flip)
   const toggleSectionMirrored = useCallback((sectionId) => {
@@ -1629,24 +1644,19 @@ function Node313({
     }
   }, [node.id, onSelect]);
 
-  // ---- Sync ALL column widths between A and B via longest string per column ----
+  // ---- Sync ALL column widths across all sections via longest string per column ----
   const colSizerValues = useMemo(() => {
-    const secA = node.sections.a;
-    const secB = node.sections.b;
-    if (!secA || !secB) return null;
-    const count = Math.max(secA.cols.length, secB.cols.length);
+    const allSecs = Object.values(node.sections).filter(Boolean);
+    if (allSecs.length < 2) return null;
+    const count = Math.max(...allSecs.map(s => s.cols.length));
     const sizers = [];
     for (let ci = 0; ci < count; ci++) {
       let longest = '';
-      // Headers
-      if (secA.cols[ci] && secA.cols[ci].length > longest.length) longest = secA.cols[ci];
-      if (secB.cols[ci] && secB.cols[ci].length > longest.length) longest = secB.cols[ci];
-      // Row values
-      for (const row of secA.rows) {
-        if (row[ci] && row[ci].length > longest.length) longest = row[ci];
-      }
-      for (const row of secB.rows) {
-        if (row[ci] && row[ci].length > longest.length) longest = row[ci];
+      for (const sec of allSecs) {
+        if (sec.cols[ci] && sec.cols[ci].length > longest.length) longest = sec.cols[ci];
+        for (const row of sec.rows) {
+          if (row[ci] && row[ci].length > longest.length) longest = row[ci];
+        }
       }
       sizers.push(longest || null);
     }
@@ -1663,8 +1673,8 @@ function Node313({
     const flipped = mirroredSections.includes(sectionId);
     const mirrored = fullWidth ? flipped : layoutMirrored;
 
-    // Sync all column widths between A and B (not C)
-    const sizers = (sectionId === 'a' || sectionId === 'b') ? colSizerValues : null;
+    // Sync all column widths across all sections
+    const sizers = colSizerValues;
 
     return (
       <Section313
@@ -1834,14 +1844,14 @@ function Node313({
       {/* Top accent line */}
       <div style={{ height: '2px', background: `linear-gradient(90deg, transparent, ${T.accentDim} 30%, ${T.accent} 50%, ${T.accentDim} 70%, transparent)`, opacity: 0.5 }} />
 
-      {/* Title bar — click empty area to drag */}
+      {/* Title bar — single row: Name | TAG | Manufacturer · Model | buttons */}
       <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
-        {/* Top row: name + tag + buttons */}
-        <div style={STYLES.titleTopRow}>
-          <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '18px' }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '14px', letterSpacing: '2px', padding: '0 2px' }}>{node.title || 'Name'}</span>
+          {/* Name */}
+          {!hiddenTitleFields.includes('name') && (
+          <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '22px' }}>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 2px' }}>{node.title || 'Name'}</span>
             <input
-              style={{ ...STYLES.input, ...STYLES.titleInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+              style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: '16px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               onClick={(e) => e.stopPropagation()}
@@ -1849,10 +1859,13 @@ function Node313({
               placeholder="Name"
             />
           </div>
-          <div style={{ position: 'relative', display: 'inline-block', minWidth: '30px', height: '18px', borderLeft: `2px solid ${T.borderStrong}`, marginLeft: '6px', background: T.accentGlow }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '14px', letterSpacing: '1px', padding: '0 6px', textTransform: 'uppercase' }}>{node.tag || 'Tag'}</span>
+          )}
+          {/* Tag pill */}
+          {!hiddenTitleFields.includes('tag') && (
+          <div style={{ position: 'relative', display: 'inline-block', minWidth: '24px', height: '20px', ...STYLES.tagInput }}>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', padding: '0 8px', textTransform: 'uppercase' }}>{node.tag || 'Tag'}</span>
             <input
-              style={{ ...STYLES.input, color: T.accent, fontFamily: T.mono, letterSpacing: '1px', fontSize: '14px', textAlign: 'center', textTransform: 'uppercase', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+              style={{ ...STYLES.input, color: T.accent, fontFamily: T.mono, letterSpacing: '1px', fontSize: '10px', textAlign: 'center', textTransform: 'uppercase', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.tag || ''}
               onChange={(e) => onUpdate({ tag: e.target.value })}
               onClick={(e) => e.stopPropagation()}
@@ -1860,73 +1873,71 @@ function Node313({
               placeholder="Tag"
             />
           </div>
+          )}
+          {/* Manufacturer / Model stacked */}
+          {(!hiddenTitleFields.includes('manufacturer') || !hiddenTitleFields.includes('model')) && (
+          <div style={STYLES.mfgModel}>
+            {!hiddenTitleFields.includes('manufacturer') && (
+            <input
+              style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px' }}
+              value={node.manufacturer || ''}
+              maxLength={25}
+              onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              placeholder="MANUFACTURER"
+            />
+            )}
+            {!hiddenTitleFields.includes('model') && (
+            <input
+              style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px' }}
+              value={node.model || ''}
+              maxLength={25}
+              onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              placeholder="MODEL"
+            />
+            )}
+          </div>
+          )}
           {/* Color picker + Settings buttons */}
           <div style={STYLES.titleRight}>
-          {/* Color swatch — matches the node body color */}
-          <div
-            ref={colorBtnRef}
-            style={{
-              ...STYLES.colorSwatch,
-              backgroundColor: signalColorHex || T.textMuted,
-              boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
-            }}
-            title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
-            onClick={(e) => {
-              e.stopPropagation();
-              setColorPickerOpen(prev => !prev);
-              setSettingsOpen(false);
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-
-          {/* Settings gear */}
-          <button
-            ref={settingsBtnRef}
-            style={{
-              ...STYLES.gearBtn,
-              color: settingsOpen ? T.accentLight : T.textMuted,
-            }}
-            title="Settings"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSettingsOpen(prev => !prev);
-              setColorPickerOpen(false);
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.color = T.accentLight; }}
-            onMouseLeave={(e) => { if (!settingsOpen) e.currentTarget.style.color = T.textMuted; }}
-          >
-            ⚙
-          </button>
-        </div>
-        </div>
-
-        {/* Manufacturer */}
-        <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '12px' }}>
-          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 1px' }}>{node.manufacturer || 'Manufacturer'}</span>
-          <input
-            style={{ ...STYLES.input, ...STYLES.subInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-            value={node.manufacturer || ''}
-            maxLength={25}
-            onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            placeholder="Manufacturer"
-          />
-        </div>
-        {/* Model */}
-        <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '12px' }}>
-          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 1px' }}>{node.model || 'Model'}</span>
-          <input
-            style={{ ...STYLES.input, ...STYLES.subInput, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-            value={node.model || ''}
-            maxLength={25}
-            onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            placeholder="Model"
-          />
-        </div>
+            <div
+              ref={colorBtnRef}
+              style={{
+                ...STYLES.colorSwatch,
+                backgroundColor: signalColorHex || T.textMuted,
+                boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
+              }}
+              title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setColorPickerOpen(prev => !prev);
+                setSettingsOpen(false);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <button
+              ref={settingsBtnRef}
+              style={{
+                ...STYLES.gearBtn,
+                color: settingsOpen ? T.accentLight : T.textMuted,
+              }}
+              title="Settings"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSettingsOpen(prev => !prev);
+                setColorPickerOpen(false);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseEnter={(e) => { e.currentTarget.style.color = T.accentLight; }}
+              onMouseLeave={(e) => { if (!settingsOpen) e.currentTarget.style.color = T.textMuted; }}
+            >
+              ⚙
+            </button>
+          </div>
+      </div>
 
         {/* Color picker grid (portaled) */}
         {colorPickerOpen && createPortal(
@@ -2006,12 +2017,28 @@ function Node313({
                     </button>
                   );
                 })}
+                <div style={STYLES.settingsDivider} />
+                <div style={STYLES.settingsLabel}>Title Bar</div>
+                {[
+                  { id: 'name', label: 'Name' },
+                  { id: 'tag', label: 'Tag' },
+                  { id: 'manufacturer', label: 'Manufacturer' },
+                  { id: 'model', label: 'Model' },
+                ].map((field) => {
+                  const isVisible = !hiddenTitleFields.includes(field.id);
+                  return (
+                    <button key={field.id} style={STYLES.settingsItem} {...HOVER_BG_2A}
+                      onMouseDown={(e) => { e.stopPropagation(); toggleTitleField(field.id); }}>
+                      <span>{field.label}</span>
+                      <span style={{ color: isVisible ? T.green : T.textMuted }}>{isVisible ? '✓' : '○'}</span>
+                    </button>
+                  );
+                })}
               </div>
             );
           })(),
           document.body
         )}
-      </div>
 
       {/* Sections */}
       {renderLayout()}

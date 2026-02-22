@@ -27,6 +27,11 @@
   border-radius: 0 !important;
 }
 
+/* NODE 313 — Rounded top corners */
+[data-node-id] {
+  border-radius: 6px 6px 0 0 !important;
+}
+
 /* ============================================ */
 /* NODE 313 — Auto-sizing input cells           */
 /* ============================================ */
@@ -43,11 +48,11 @@
   white-space: pre;
   grid-area: 1/1;
   font-family: 'IBM Plex Mono', monospace !important;
-  padding: 0 1px;
+  padding: 0 8px;
   line-height: 1;
   font-size: 16px;
   font-weight: 500 !important;
-  height: 20px;
+  height: 28px;
 }
 .n313-sz[data-h]::after {
   font-size: 9px !important;
