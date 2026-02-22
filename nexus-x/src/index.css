@@ -32,6 +32,12 @@
   border-radius: 6px 6px 0 0 !important;
 }
 
+/* NODE 313 — Prevent text selection on unfocused inputs (stops drag-select) */
+[data-node-id] input:not(:focus) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* ============================================ */
 /* NODE 313 — Auto-sizing input cells           */
 /* ============================================ */

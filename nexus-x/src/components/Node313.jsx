@@ -125,13 +125,13 @@ function applyDrop(currentKey, droppedId, position) {
 
 // Noir theme palette
 const T = {
-  bg: '#08090b', card: '#0e1014', rowHover: '#151820',
-  border: 'rgba(255,215,140,0.09)', borderStrong: 'rgba(255,215,140,0.13)',
-  borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,215,140,0.09)',
-  accent: '#c9a96e', accentLight: '#dfc599', accentDim: '#8a7550',
-  accentGlow: 'rgba(201,169,110,0.08)',
-  text: '#d4d0c8', textSec: '#7d7a72', textMuted: '#4a483f',
-  white: '#eae7df', green: '#7db88a',
+  bg: '#0a0a0a', card: '#111111', rowHover: '#1a1a1a',
+  border: 'rgba(255,255,255,0.10)', borderStrong: 'rgba(255,255,255,0.15)',
+  borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,255,255,0.08)',
+  accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
+  accentGlow: 'rgba(255,255,255,0.04)',
+  text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
+  white: '#e0e0e0', green: '#999999',
   hFont: "'Cormorant Garamond', serif", mono: "'IBM Plex Mono', monospace",
 };
 
@@ -154,8 +154,8 @@ const STYLES = {
     display: 'flex',
     alignItems: 'center',
     cursor: 'grab',
-    padding: '8px 10px',
-    gap: '4px',
+    padding: '6px 4px',
+    gap: '2px',
   },
   grip: {
     color: T.textMuted,
@@ -186,7 +186,7 @@ const STYLES = {
     minWidth: '20px',
     border: `1px solid ${T.borderStrong}`,
     padding: '0 8px',
-    marginLeft: '6px',
+    marginLeft: '2px',
     fontFamily: T.mono,
     letterSpacing: '1px',
     background: T.accentGlow,
@@ -194,10 +194,11 @@ const STYLES = {
   mfgModel: {
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'center',
     fontSize: '10px',
     letterSpacing: '1px',
     textTransform: 'uppercase',
-    marginLeft: '10px',
+    marginLeft: '4px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     flexShrink: 1,
@@ -206,7 +207,7 @@ const STYLES = {
   },
   sectionTitle: {
     background: T.bg,
-    borderBottom: `1px solid ${T.border}`,
+    borderBottom: `2px solid ${T.border}`,
     display: 'flex',
     alignItems: 'center',
     userSelect: 'none',
@@ -252,7 +253,7 @@ const STYLES = {
   },
   headerCell: {
     background: T.bg,
-    borderBottom: `1px solid ${T.border}`,
+    borderBottom: `2px solid ${T.border}`,
     padding: '2px 2px',
   },
   xc: {
@@ -506,6 +507,8 @@ const HOVER_333_888 = hover('color', T.textMuted, T.textSec);
 const HOVER_888_CCC = hover('color', T.textSec, T.accentLight);
 const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
 const HOVER_BG_2A = hover('background', 'none', T.rowHover);
+const HOVER_BG_CELL = { onMouseEnter: (e) => { e.currentTarget.style.background = T.rowHover; e.currentTarget.style.cursor = 'pointer'; }, onMouseLeave: (e) => { e.currentTarget.style.background = ''; e.currentTarget.style.cursor = ''; } };
+const HOVER_BG_CELL_DRAG = { onMouseEnter: (e) => { e.currentTarget.style.background = T.rowHover; e.currentTarget.style.cursor = 'ns-resize'; }, onMouseLeave: (e) => { e.currentTarget.style.background = ''; e.currentTarget.style.cursor = ''; } };
 
 // ============================================
 // SUB-COMPONENTS
@@ -630,19 +633,16 @@ const AC_HEAD_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell, back
 // X button cell (delete column, delete row, add column, or empty spacer)
 const XCell = memo(({ isHeader, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
+  const interactive = !!label && !!onClick;
   return (
-    <Tag style={isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE}>
+    <Tag
+      style={isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE}
+      onClick={interactive ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onMouseDown={interactive ? (e) => e.stopPropagation() : undefined}
+      {...(interactive ? HOVER_BG_CELL : {})}
+    >
       <div style={CELL_CENTER}>
-        {label && (
-          <span
-            style={STYLES.xcSpan}
-            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-            onMouseDown={(e) => e.stopPropagation()}
-            {...HOVER_444_999}
-          >
-            {label}
-          </span>
-        )}
+        {label && <span style={STYLES.xcSpan}>{label}</span>}
       </div>
     </Tag>
   );
@@ -652,19 +652,16 @@ XCell.displayName = 'XCell';
 // Anchor dot cell — visible dot + row number, interaction handled by SVG layer
 const AnchorCell = memo(({ isHeader, anchorId, label, onClick }) => {
   const Tag = isHeader ? 'th' : 'td';
+  const interactive = isHeader && !!label && !!onClick;
   return (
-    <Tag style={isHeader ? AC_HEAD_STYLE : AC_BODY_STYLE}>
+    <Tag
+      style={isHeader ? AC_HEAD_STYLE : AC_BODY_STYLE}
+      onClick={interactive ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onMouseDown={interactive ? (e) => e.stopPropagation() : undefined}
+      {...(interactive ? HOVER_BG_CELL : {})}
+    >
       <div style={CELL_CENTER}>
-        {isHeader && label && (
-          <span
-            style={STYLES.xcSpan}
-            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-            onMouseDown={(e) => e.stopPropagation()}
-            {...HOVER_444_999}
-          >
-            {label}
-          </span>
-        )}
+        {isHeader && label && <span style={STYLES.xcSpan}>{label}</span>}
         {!isHeader && <div data-anchor-id={anchorId} style={ANCHOR_DOT_STYLE} />}
       </div>
     </Tag>
@@ -675,15 +672,17 @@ AnchorCell.displayName = 'AnchorCell';
 // Spacing drag handle cell — drag vertically to add space above a row
 const SpacingCell = memo(({ isHeader, onMouseDown, headerLabel, onHeaderClick }) => {
   const Tag = isHeader ? 'th' : 'td';
+  const interactive = isHeader ? !!headerLabel : !!onMouseDown;
   return (
-    <Tag style={isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE}>
+    <Tag
+      style={isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE}
+      onClick={isHeader && headerLabel ? (e) => { e.stopPropagation(); onHeaderClick?.(); } : undefined}
+      onMouseDown={!isHeader && onMouseDown ? onMouseDown : isHeader ? (e) => e.stopPropagation() : undefined}
+      {...(interactive ? (isHeader ? HOVER_BG_CELL : HOVER_BG_CELL_DRAG) : {})}
+    >
       <div style={CELL_CENTER}>
-        {isHeader && headerLabel && (
-          <span style={STYLES.xcSpan} onClick={(e) => { e.stopPropagation(); onHeaderClick?.(); }} onMouseDown={(e) => e.stopPropagation()} {...HOVER_444_999} title="Flip anchor side">{headerLabel}</span>
-        )}
-        {!isHeader && (
-          <span style={STYLES.spHandle} onMouseDown={onMouseDown} {...HOVER_333_888}>⋮</span>
-        )}
+        {isHeader && headerLabel && <span style={STYLES.xcSpan} title="Flip anchor side">{headerLabel}</span>}
+        {!isHeader && <span style={STYLES.spHandle}>⋮</span>}
       </div>
     </Tag>
   );
@@ -772,7 +771,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, sectionIndex }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1161,19 +1160,19 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     };
     if (mirrored) {
       cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
-      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
+      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addColumn} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
+      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addRow} />);
     } else {
-      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addColumn} />);
+      cells.push(<AnchorCell key="anchor-h" isHeader label="+" onClick={addRow} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addRow} />);
+      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addColumn} />);
       cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
     }
     return <tr>{cells}</tr>;
@@ -1189,7 +1188,12 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     if (spacing > 0) {
       result.push(
         <tr key={`sp-${ri}`}>
-          <td colSpan={totalColspan} style={{ ...SPACER_TD_STYLE, height: `${spacing}px` }} />
+          <td colSpan={totalColspan} style={{
+            ...SPACER_TD_STYLE,
+            height: `${spacing}px`,
+            borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+            borderBottom: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+          }} />
         </tr>
       );
     }
@@ -1239,8 +1243,9 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const tintedSectionTitle = useMemo(() => {
     const base = { ...STYLES.sectionTitle, ...(mirrored ? { flexDirection: 'row-reverse' } : {}) };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 20%, ${T.bg})`;
-      base.borderBottom = `1px solid ${signalColorHex}`;
+      base.borderTop = `2px solid ${signalColorHex}44`;
+      base.borderBottom = `2px solid ${signalColorHex}44`;
+      base.background = `linear-gradient(${mirrored ? '270deg' : '90deg'}, ${signalColorHex}18, transparent 60%)`;
     }
     return base;
   }, [mirrored, signalColorHex]);
@@ -1250,26 +1255,29 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       {/* Section title bar */}
       <div style={tintedSectionTitle}>
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
-        <input
-          style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}) }}
-          value={section.title}
-          onChange={(e) => updateTitle(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-        />
-        {/* Extending gold gradient line */}
-        <div style={{ flex: 1, height: '1px', background: `linear-gradient(90deg, ${T.accent}44, ${T.accent}66 30%, ${T.accent}44 95%, ${T.accent}11)`, margin: '0 2px' }} />
+        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 8px' }}>{section.title || 'SECTION'}</span>
+          <input
+            style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}), position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+            value={section.title}
+            onChange={(e) => updateTitle(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        {/* Extending gradient line */}
+        <div style={{ flex: 1, height: '1px', background: mirrored
+          ? `linear-gradient(270deg, ${signalColorHex || T.accent}88, ${signalColorHex || T.accent}66 40%, ${signalColorHex || T.accent}22 95%, ${signalColorHex || T.accent}00)`
+          : `linear-gradient(90deg, ${signalColorHex || T.accent}88, ${signalColorHex || T.accent}66 40%, ${signalColorHex || T.accent}22 95%, ${signalColorHex || T.accent}00)` }} />
         {onSpacingDown && (
           <span style={{ ...STYLES.spHandle, width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>⋮</span>
         )}
       </div>
 
-      {/* Scoped tint for cells */}
+      {/* Scoped color for cells */}
       {signalColorHex && (
         <style>{`
-          [data-sec="${nodeId}-${sectionId}"] td { background: color-mix(in srgb, ${signalColorHex} 3%, ${T.card}) !important; }
-          [data-sec="${nodeId}-${sectionId}"] th { background: color-mix(in srgb, ${signalColorHex} 18%, ${T.bg}) !important; }
-          [data-sec="${nodeId}-${sectionId}"] td,
-          [data-sec="${nodeId}-${sectionId}"] th { border-color: color-mix(in srgb, ${signalColorHex} 60%, ${T.bg}) !important; }
+          [data-sec="${nodeId}-${sectionId}"] th { background: ${signalColorHex}0a !important; border-bottom: 2px solid ${signalColorHex}44 !important; }
+          [data-sec="${nodeId}-${sectionId}"] td { border-color: ${signalColorHex}22 !important; }
         `}</style>
       )}
 
@@ -1689,6 +1697,7 @@ function Node313({
         colSizerValues={sizers}
         onGripDown={(e) => handleSectionGripDown(e, sectionId)}
         onSpacingDown={fullWidth ? (e) => handleSectionSpacingDown(e, sectionId) : null}
+        sectionIndex={sectionId === 'a' ? 0 : sectionId === 'b' ? 1 : 2}
       />
     );
   }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown]);
@@ -1757,7 +1766,11 @@ function Node313({
         // Single-section row
         const secSpacing = node.sectionSpacing?.[row[0]] || 0;
         if (secSpacing > 0) {
-          elements.push(<div key={`sec-sp-${rowIndex}`} style={{ height: `${secSpacing}px` }} />);
+          elements.push(<div key={`sec-sp-${rowIndex}`} style={{
+            height: `${secSpacing}px`,
+            borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+            borderBottom: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+          }} />);
         }
         elements.push(
           <div
@@ -1818,7 +1831,6 @@ function Node313({
       zIndex: settingsOpen || colorPickerOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
     };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 25%, ${T.bg})`;
       base.borderColor = signalColorHex;
     }
     return base;
@@ -1828,8 +1840,8 @@ function Node313({
   const titleBarStyle = useMemo(() => {
     const base = { ...STYLES.nodeTitle };
     if (signalColorHex) {
-      base.background = `color-mix(in srgb, ${signalColorHex} 35%, ${T.bg})`;
-      base.borderBottom = `1px solid ${signalColorHex}`;
+      base.borderBottom = `2px solid ${signalColorHex}`;
+      base.background = `linear-gradient(180deg, ${signalColorHex}15, transparent)`;
     }
     return base;
   }, [signalColorHex]);
@@ -1848,15 +1860,15 @@ function Node313({
       <div style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
           {/* Name */}
           {!hiddenTitleFields.includes('name') && (
-          <div style={{ position: 'relative', display: 'inline-block', minWidth: '40px', height: '22px' }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 2px' }}>{node.title || 'Name'}</span>
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: '22px' }}>
+            {!node.title && <span style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>NAME</span>}
+            {node.title && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 8px' }}>{node.title}</span>}
             <input
               style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: '16px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              placeholder="Name"
             />
           </div>
           )}
@@ -1878,26 +1890,52 @@ function Node313({
           {(!hiddenTitleFields.includes('manufacturer') || !hiddenTitleFields.includes('model')) && (
           <div style={STYLES.mfgModel}>
             {!hiddenTitleFields.includes('manufacturer') && (
-            <input
-              style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px' }}
-              value={node.manufacturer || ''}
-              maxLength={25}
-              onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              placeholder="MANUFACTURER"
-            />
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
+              {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MANUFACTURER</span>}
+              {node.manufacturer && <>
+                <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.manufacturer}</span>
+                <input
+                  style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                  value={node.manufacturer}
+                  maxLength={25}
+                  onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </>}
+              {!node.manufacturer && <input
+                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', background: 'transparent' }}
+                value=""
+                maxLength={25}
+                onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />}
+            </div>
             )}
             {!hiddenTitleFields.includes('model') && (
-            <input
-              style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px' }}
-              value={node.model || ''}
-              maxLength={25}
-              onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              placeholder="MODEL"
-            />
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
+              {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MODEL</span>}
+              {node.model && <>
+                <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.model}</span>
+                <input
+                  style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                  value={node.model}
+                  maxLength={25}
+                  onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </>}
+              {!node.model && <input
+                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', background: 'transparent' }}
+                value=""
+                maxLength={25}
+                onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />}
+            </div>
             )}
           </div>
           )}

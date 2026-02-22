@@ -1505,6 +1505,7 @@ export default function App() {
     }
     // Left mouse button (button === 0) - start selection on canvas only
     else if (event.button === 0 && event.target.getAttribute('data-canvas') === 'true') {
+      event.preventDefault(); // Prevent browser native text selection during drag
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
       if (containerRef.current) containerRef.current.style.cursor = 'crosshair';
       setIsSelecting(true);
@@ -3072,9 +3073,9 @@ export default function App() {
             </div>
           )}
 
-          {/* SVG Layer for Wires - z-index below nodes so dropdowns can appear above */}
+          {/* SVG Layer for Wires - above selected nodes (z-100) but below menus (z-10000) */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-[50]"
+            className="absolute inset-0 w-full h-full pointer-events-none z-[500]"
             style={{ overflow: 'visible' }}
           >
             {/* SVG Anchor Points - memoized for performance */}
