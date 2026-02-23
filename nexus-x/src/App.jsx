@@ -226,7 +226,7 @@ const AnchorPoint = memo(({ anchorId, pos, isActive, isConnected, themeColor, on
         stroke={isActive ? '#67e8f9' : anchorStroke}
         strokeWidth={1}
         opacity={anchorOpacity}
-        style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+        style={{ cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='5' fill='white'/%3E%3C/svg%3E") 8 8, pointer`, pointerEvents: 'auto' }}
         onClick={(e) => {
           e.stopPropagation();
           onAnchorClick(anchorId, pos.type);
@@ -395,7 +395,7 @@ const createNode313 = (id) => ({
   sections: {
     a: { title: 'INPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['IN 1','4096x2160','23.98','HDMI 2.0','',''], ['IN 2','3840x2160','24','3G SDI','','']] },
     b: { title: 'OUTPUT', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['OUT 1','2560x1440','59.94','12G SDI','',''], ['OUT 2','1280x720','60','DP 1.2','','']] },
-    c: { title: 'SYSTEM', cols: ['PORT', 'RESOLUTION', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['NETWORK','','','','',''], ['MULTIVIEW','','','','','']] },
+    c: { title: 'SYSTEM', cols: ['PORT', 'RATE', 'CONNECTOR', 'SOURCE', 'DESTINATION'], rows: [['NETWORK','','','',''], ['MULTIVIEW','','','','']] },
   }
 });
 
@@ -2998,6 +2998,7 @@ export default function App() {
         <main
           ref={containerRef}
           className="flex-1 overflow-hidden bg-zinc-950 relative"
+          style={{ userSelect: 'none' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -3255,6 +3256,7 @@ export default function App() {
             {activeWire && wireMousePos && (() => {
               const fromPos = computedAnchorPositions[activeWire.from];
               if (!fromPos) return null;
+              const wireColor = anchorThemeColors.get(activeWire.from) || '#22d3ee';
 
               const waypoints = activeWire.waypoints || [];
               const cornerRadius = 8;
@@ -3305,7 +3307,7 @@ export default function App() {
                   <path
                     d={previewPath}
                     fill="none"
-                    stroke="#22d3ee"
+                    stroke={wireColor}
                     strokeWidth={2}
                     strokeOpacity={0.6}
                     strokeDasharray="8 4"
@@ -3318,7 +3320,7 @@ export default function App() {
                         cx={wp.x}
                         cy={wp.y}
                         r={6}
-                        fill="#22d3ee"
+                        fill={wireColor}
                         stroke="#fff"
                         strokeWidth={2}
                       />

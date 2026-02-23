@@ -29,7 +29,17 @@
 
 /* NODE 313 — Rounded top corners */
 [data-node-id] {
-  border-radius: 6px 6px 0 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+
+/* NODE 313 — Rounded title bar bottom corners */
+.n313-title-bar {
+  border-radius: 0 0 8px 8px !important;
+}
+
+/* NODE 313 — Rounded section title bars */
+.n313-sec-title {
+  border-radius: 8px 8px 0 0 !important;
 }
 
 /* NODE 313 — Prevent text selection on unfocused inputs (stops drag-select) */
