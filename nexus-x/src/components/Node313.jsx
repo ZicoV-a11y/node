@@ -266,34 +266,32 @@ const STYLES = {
     height: '22px',
     boxSizing: 'border-box',
   },
-  xc: {
-    width: '12px',
-    minWidth: '12px',
-    maxWidth: '12px',
+  actionCell: {
+    width: '14px',
+    minWidth: '14px',
+    maxWidth: '14px',
     textAlign: 'center',
     verticalAlign: 'middle',
     lineHeight: 1,
+    border: 'none',
+    padding: '2px',
+    background: 'transparent',
   },
-  xcSpan: {
+  actionCellLabel: {
     color: T.textMuted,
     cursor: 'pointer',
     fontSize: '10px',
     userSelect: 'none',
   },
-  sp: {
-    width: '12px',
-    minWidth: '12px',
-    maxWidth: '12px',
-    textAlign: 'center',
-    verticalAlign: 'middle',
-    lineHeight: 1,
-    padding: 0,
-  },
-  spHandle: {
-    color: T.textMuted,
-    cursor: 'ns-resize',
-    fontSize: '10px',
+  actionBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+    borderRadius: '999px',
     userSelect: 'none',
+    boxSizing: 'border-box',
   },
   ac: {
     width: '18px',
@@ -353,29 +351,28 @@ const STYLES = {
     color: T.text,
     cursor: 'pointer',
   },
-  // Settings & color picker
+  // Settings & color picker — icon-only
   titleRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '3px',
     marginLeft: 'auto',
     flexShrink: 0,
   },
   colorSwatch: {
-    width: '12px',
-    height: '12px',
-    borderRadius: '2px',
-    border: `1px solid ${T.textMuted}`,
+    width: '7px',
+    height: '7px',
+    borderRadius: '50%',
     cursor: 'pointer',
     flexShrink: 0,
   },
   gearBtn: {
     background: 'none',
     border: 'none',
-    color: T.textSec,
-    fontSize: '13px',
+    color: T.textMuted,
+    fontSize: '10px',
     cursor: 'pointer',
-    padding: '0 2px',
+    padding: 0,
     fontFamily: 'sans-serif',
     lineHeight: 1,
     flexShrink: 0,
@@ -483,10 +480,8 @@ const SZ_CELL_STYLE = { ...STYLES.cell, width: '1px' };
 const SZ_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, width: '1px', cursor: 'grab' };
 const SZ_INPUT_BODY = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '16px', fontWeight: 500, height: '28px', lineHeight: '28px', color: T.white };
 const SZ_INPUT_HEADER = { ...STYLES.input, gridArea: '1/1', width: '100%', minWidth: 0, textAlign: 'center', fontSize: '9px', fontWeight: 400, textTransform: 'uppercase', color: T.textMuted, height: '16px', lineHeight: '16px', cursor: 'grab', letterSpacing: '2px' };
-const XC_CELL_STYLE = { ...STYLES.xc, ...STYLES.cell };
-const XC_CELL_HEADER_STYLE = { ...STYLES.xc, ...STYLES.cell, ...STYLES.headerCell };
-const SP_CELL_STYLE = { ...STYLES.sp, ...STYLES.cell };
-const SP_CELL_HEADER_STYLE = { ...STYLES.sp, ...STYLES.cell, ...STYLES.headerCell };
+const ACTION_CELL_STYLE = { ...STYLES.cell, ...STYLES.actionCell };
+const ACTION_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, ...STYLES.actionCell };
 
 // Port selection highlight
 const PORT_CELL_SELECTED = { color: T.accent, background: T.accentGlow };
@@ -512,14 +507,12 @@ const hover = (prop, normal, hovered) => ({
   onMouseEnter: (e) => { e.currentTarget.style[prop] = hovered; },
   onMouseLeave: (e) => { e.currentTarget.style[prop] = normal; },
 });
-const HOVER_444_999 = hover('color', T.textMuted, T.textSec);
 const HOVER_333_888 = hover('color', T.textMuted, T.textSec);
 const HOVER_888_CCC = hover('color', T.textSec, T.accentLight);
 const BLUR_ON_ENTER = { onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur(); } };
 const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
 const HOVER_BG_2A = hover('background', 'none', T.rowHover);
 const HOVER_BG_CELL = { onMouseEnter: (e) => { e.currentTarget.style.setProperty('background', '#222', 'important'); const s = e.currentTarget.querySelector('span'); if (s) s.style.color = T.white; }, onMouseLeave: (e) => { e.currentTarget.style.removeProperty('background'); const s = e.currentTarget.querySelector('span'); if (s) s.style.color = ''; } };
-const HOVER_BG_CELL_DRAG = { onMouseEnter: (e) => { e.currentTarget.style.setProperty('background', '#222', 'important'); const s = e.currentTarget.querySelector('span'); if (s) s.style.color = T.white; }, onMouseLeave: (e) => { e.currentTarget.style.removeProperty('background'); const s = e.currentTarget.querySelector('span'); if (s) s.style.color = ''; } };
 
 // ============================================
 // SUB-COMPONENTS
@@ -643,26 +636,38 @@ const ANCHOR_DOT_STYLE = {
 const AC_BODY_STYLE = { ...STYLES.ac, ...STYLES.cell, background: 'transparent', padding: 0 };
 const AC_HEAD_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent', padding: 0 };
 
-// X button cell (delete column, delete row, add column, or empty spacer)
-const XCell = memo(({ isHeader, label, onClick, title }) => {
+// SVG icons for action buttons — pixel-perfect centering, no font metric issues
+const ACTION_ICON_X = (sc) => <svg width="6" height="6" viewBox="0 0 8 8" fill="none"><line x1="1" y1="1" x2="7" y2="7" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/><line x1="7" y1="1" x2="1" y2="7" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+const ACTION_ICON_DRAG = (sc) => <svg width="6" height="10" viewBox="0 0 8 14" fill="none"><path d="M4 1L1.5 4H6.5L4 1Z" fill={sc}/><path d="M4 13L1.5 10H6.5L4 13Z" fill={sc}/><line x1="4" y1="3.5" x2="4" y2="10.5" stroke={sc} strokeWidth="1.2"/></svg>;
+
+// Unified action cell — handles delete (×), add (+), drag (↕), flip (⇄)
+const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, signalColor, cursor: cursorProp }) => {
   const Tag = isHeader ? 'th' : 'td';
-  const interactive = !!label && !!onClick;
-  const cursor = interactive ? (label === '+' ? 'cell' : X_CURSOR) : undefined;
+  const interactive = isHeader ? (!!label && !!onClick) : (!!onClick || !!onMouseDown);
+  const cursor = cursorProp || (interactive && isHeader ? 'cell' : undefined);
+  const sc = signalColor || T.accent;
   return (
     <Tag
-      style={{ ...(isHeader ? XC_CELL_HEADER_STYLE : XC_CELL_STYLE), cursor }}
-      onClick={interactive ? (e) => { e.stopPropagation(); onClick(); } : undefined}
-      onMouseDown={interactive ? (e) => e.stopPropagation() : undefined}
-      title={interactive ? title : undefined}
-      {...(interactive ? HOVER_BG_CELL : {})}
+      style={{ ...(isHeader ? ACTION_CELL_HEADER_STYLE : ACTION_CELL_STYLE), cursor }}
+      onClick={interactive && onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onMouseDown={onMouseDown || (interactive ? (e) => e.stopPropagation() : undefined)}
+      title={title}
+      {...(interactive && isHeader ? HOVER_BG_CELL : {})}
     >
-      <div style={CELL_CENTER}>
-        {label && <span style={{ ...STYLES.xcSpan, cursor }}>{label}</span>}
-      </div>
+      {isHeader ? (
+        <div style={CELL_CENTER}>
+          {label && <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span>}
+        </div>
+      ) : icon ? (
+        <div className="n313-action-btn" style={{ ...STYLES.actionBtn, cursor, border: `1px solid ${sc}33`, background: `${sc}11`, height: '30px' }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${sc}66`; e.currentTarget.style.background = `${sc}22`; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${sc}33`; e.currentTarget.style.background = `${sc}11`; }}
+        >{icon(sc)}</div>
+      ) : null}
     </Tag>
   );
 });
-XCell.displayName = 'XCell';
+ActionCell.displayName = 'ActionCell';
 
 // Anchor dot cell — visible dot + row number, interaction handled by SVG layer
 const AnchorCell = memo(({ isHeader, anchorId, label, onClick, title, onAnchorClick, anchorType }) => {
@@ -678,7 +683,7 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick, title, onAnchorCl
       {...(interactive ? HOVER_BG_CELL : {})}
     >
       <div style={CELL_CENTER}>
-        {isHeader && label && <span style={{ ...STYLES.xcSpan, cursor }}>{label}</span>}
+        {isHeader && label && <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span>}
         {!isHeader && <div data-anchor-id={anchorId} style={{ ...ANCHOR_DOT_STYLE, cursor }} />}
       </div>
     </Tag>
@@ -686,27 +691,6 @@ const AnchorCell = memo(({ isHeader, anchorId, label, onClick, title, onAnchorCl
 });
 AnchorCell.displayName = 'AnchorCell';
 
-// Spacing drag handle cell — drag vertically to add space above a row
-const SpacingCell = memo(({ isHeader, onMouseDown, headerLabel, onHeaderClick }) => {
-  const Tag = isHeader ? 'th' : 'td';
-  const interactive = isHeader ? !!headerLabel : !!onMouseDown;
-  const cursor = interactive ? (isHeader ? 'ew-resize' : 'ns-resize') : undefined;
-  return (
-    <Tag
-      style={{ ...(isHeader ? SP_CELL_HEADER_STYLE : SP_CELL_STYLE), cursor }}
-      onClick={isHeader && headerLabel ? (e) => { e.stopPropagation(); onHeaderClick?.(); } : undefined}
-      onMouseDown={!isHeader && onMouseDown ? onMouseDown : isHeader ? (e) => e.stopPropagation() : undefined}
-      title={!isHeader && onMouseDown ? 'Drag to space rows' : undefined}
-      {...(interactive ? (isHeader ? HOVER_BG_CELL : HOVER_BG_CELL_DRAG) : {})}
-    >
-      <div style={CELL_CENTER}>
-        {isHeader && headerLabel && <span style={{ ...STYLES.xcSpan, cursor: 'ew-resize' }} title="Flip anchor side">{headerLabel}</span>}
-        {!isHeader && <span style={STYLES.spHandle}>↕</span>}
-      </div>
-    </Tag>
-  );
-});
-SpacingCell.displayName = 'SpacingCell';
 
 
 // Port cell — left-click toggles selection, right-click edits label
@@ -1179,8 +1163,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       return <SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={sizer} onMouseDown={(e) => handleColDragStart(e, ci)} colIndex={ci} />;
     };
     if (mirrored) {
-      cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
-      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
+      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" />);
+      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
@@ -1192,8 +1176,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<XCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
-      cells.push(<SpacingCell key="sp-h" isHeader headerLabel={onFlip ? '⇄' : undefined} onHeaderClick={onFlip} />);
+      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
+      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" />);
     }
     return <tr>{cells}</tr>;
   };
@@ -1231,22 +1215,24 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
 
+    const deleteIcon = section.rows.length > 1 ? ACTION_ICON_X : null;
+    const anchorType = sectionId === 'a' ? 'in' : sectionId === 'b' ? 'out' : 'both';
     if (mirrored) {
-      cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
-      cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} title="Delete row" />);
+      cells.push(<ActionCell key="sp" icon={ACTION_ICON_DRAG} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
+      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={signalColorHex} cursor={X_CURSOR} title="Delete row" />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(<AnchorCell key="anchor" anchorId={anchorId} onAnchorClick={onAnchorClick} anchorType={sectionId === 'a' ? 'in' : sectionId === 'b' ? 'out' : 'both'} />);
+      cells.push(<AnchorCell key="anchor" anchorId={anchorId} onAnchorClick={onAnchorClick} anchorType={anchorType} />);
     } else {
-      cells.push(<AnchorCell key="anchor" anchorId={anchorId} onAnchorClick={onAnchorClick} anchorType={sectionId === 'a' ? 'in' : sectionId === 'b' ? 'out' : 'both'} />);
+      cells.push(<AnchorCell key="anchor" anchorId={anchorId} onAnchorClick={onAnchorClick} anchorType={anchorType} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(<XCell key="rowx" label={section.rows.length > 1 ? '×' : null} onClick={() => deleteRow(ri)} title="Delete row" />);
-      cells.push(<SpacingCell key="sp" onMouseDown={(e) => handleSpacingMouseDown(e, ri)} />);
+      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={signalColorHex} cursor={X_CURSOR} title="Delete row" />);
+      cells.push(<ActionCell key="sp" icon={ACTION_ICON_DRAG} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
     }
     const rowSelected = selectedRows.has(ri);
     result.push(
@@ -1296,11 +1282,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             : 'polygon(0% 50%, 100% 0%, 100% 100%)' }} />
         {collapsible && (
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 10px' }}>{section.ip || '0.0.0.0'}</span>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 10px' }}>{section.ip || 'IP: 0.0.0.0'}</span>
             <input
               style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, textAlign: 'right', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={section.ip || ''}
-              placeholder="0.0.0.0"
+              placeholder="IP: 0.0.0.0"
               onChange={(e) => updateSection({ ip: e.target.value })}
               onClick={(e) => e.stopPropagation()}
               {...BLUR_ON_ENTER}
@@ -1309,13 +1295,13 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         )}
         {collapsible && (
           <span
-            style={{ ...STYLES.xcSpan, fontSize: '10px', cursor: 'pointer', width: '12px', minWidth: '12px', textAlign: 'center' }}
+            style={{ ...STYLES.actionCellLabel, fontSize: '10px', cursor: 'pointer', width: '12px', minWidth: '12px', textAlign: 'center' }}
             onClick={(e) => { e.stopPropagation(); updateSection({ collapsed: !section.collapsed }); }}
             {...HOVER_333_888}
           >{section.collapsed ? '▸' : '▾'}</span>
         )}
         {onSpacingDown && (
-          <span style={{ ...STYLES.spHandle, width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>↕</span>
+          <span style={{ ...STYLES.actionCellLabel, cursor: 'ns-resize', width: '12px', minWidth: '12px', textAlign: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>↕</span>
         )}
       </div>
 
@@ -1402,11 +1388,9 @@ function Node313({
   const scaleStartRef = useRef(null);
   const lastPositionRef = useRef(null);
 
-  // Settings dropdown & color picker state
+  // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const settingsBtnRef = useRef(null);
-  const colorBtnRef = useRef(null);
 
   // Signal color
   const signalColorHex = useMemo(() => {
@@ -1444,18 +1428,16 @@ function Node313({
     onUpdate({ mirroredSections: next });
   }, [node.mirroredSections, onUpdate]);
 
-  // Dismiss settings/color picker on outside click
+  // Dismiss settings on outside click
   useEffect(() => {
-    if (!settingsOpen && !colorPickerOpen) return;
+    if (!settingsOpen) return;
     const dismiss = (e) => {
       if (settingsBtnRef.current && settingsBtnRef.current.contains(e.target)) return;
-      if (colorBtnRef.current && colorBtnRef.current.contains(e.target)) return;
       setSettingsOpen(false);
-      setColorPickerOpen(false);
     };
     window.addEventListener('mousedown', dismiss);
     return () => window.removeEventListener('mousedown', dismiss);
-  }, [settingsOpen, colorPickerOpen]);
+  }, [settingsOpen]);
 
   // Get dropdown position relative to a ref
   const getPortalPos = useCallback((ref, align) => {
@@ -1718,7 +1700,23 @@ function Node313({
       }
       abSizers.push(longest || null);
     }
-    return { a: abSizers, b: abSizers, c: null };
+    // C uses A+B sizers as baseline, extended/trimmed to C's column count
+    const cSec = secs.c;
+    let cSizers = null;
+    if (cSec) {
+      const cCount = cSec.cols.length;
+      cSizers = [];
+      for (let ci = 0; ci < cCount; ci++) {
+        const abVal = abSizers[ci] || '';
+        let longest = abVal;
+        if (cSec.cols[ci] && cSec.cols[ci].length > longest.length) longest = cSec.cols[ci];
+        for (const row of cSec.rows) {
+          if (row[ci] && row[ci].length > longest.length) longest = row[ci];
+        }
+        cSizers.push(longest || null);
+      }
+    }
+    return { a: abSizers, b: abSizers, c: cSizers };
   }, [node.sections]);
 
   // ---- Render sections ----
@@ -1880,13 +1878,13 @@ function Node313({
       transformOrigin: 'top left',
       outline: isSelected ? `2px solid ${signalColorHex || T.accent}` : 'none',
       outlineOffset: '1px',
-      zIndex: settingsOpen || colorPickerOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
+      zIndex: settingsOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
     };
     if (signalColorHex) {
       base.borderColor = signalColorHex;
     }
     return base;
-  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, colorPickerOpen, signalColorHex]);
+  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex]);
 
   // Tinted title bar
   const titleBarStyle = useMemo(() => {
@@ -1997,23 +1995,8 @@ function Node313({
             )}
           </div>
           )}
-          {/* Color picker + Settings buttons */}
+          {/* Settings button */}
           <div style={STYLES.titleRight}>
-            <div
-              ref={colorBtnRef}
-              style={{
-                ...STYLES.colorSwatch,
-                backgroundColor: signalColorHex || T.textMuted,
-                boxShadow: signalColorHex ? `0 0 4px ${signalColorHex}66` : 'none',
-              }}
-              title={signalColorHex ? `Color: ${node.signalColor}` : 'Set color'}
-              onClick={(e) => {
-                e.stopPropagation();
-                setColorPickerOpen(prev => !prev);
-                setSettingsOpen(false);
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
             <button
               ref={settingsBtnRef}
               style={{
@@ -2024,7 +2007,6 @@ function Node313({
               onClick={(e) => {
                 e.stopPropagation();
                 setSettingsOpen(prev => !prev);
-                setColorPickerOpen(false);
               }}
               onMouseDown={(e) => e.stopPropagation()}
               onMouseEnter={(e) => { e.currentTarget.style.color = T.accentLight; }}
@@ -2036,46 +2018,6 @@ function Node313({
       </div>
 
         {/* Color picker grid (portaled) */}
-        {colorPickerOpen && createPortal(
-          (() => {
-            const pos = getPortalPos(colorBtnRef, 'left');
-            return (
-              <div
-                style={{ ...STYLES.colorGrid, left: pos.left, top: pos.top }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                {SIGNAL_COLORS.map((c) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      ...STYLES.colorGridItem,
-                      backgroundColor: c.hex,
-                      borderColor: node.signalColor === c.id ? T.white : T.textMuted,
-                      boxShadow: node.signalColor === c.id ? `0 0 4px ${c.hex}` : 'none',
-                    }}
-                    title={c.label}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      onUpdate({ signalColor: c.id });
-                      setColorPickerOpen(false);
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.accentLight; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = node.signalColor === c.id ? T.white : T.textMuted; }}
-                  />
-                ))}
-                <div
-                  style={STYLES.colorGridClear}
-                  onMouseDown={(e) => { e.stopPropagation(); onUpdate({ signalColor: null }); setColorPickerOpen(false); }}
-                  {...HOVER_888_CCC}
-                >
-                  Clear Color
-                </div>
-              </div>
-            );
-          })(),
-          document.body
-        )}
-
         {/* Settings dropdown (portaled) */}
         {settingsOpen && createPortal(
           (() => {
@@ -2130,6 +2072,35 @@ function Node313({
                     </button>
                   );
                 })}
+                <div style={STYLES.settingsDivider} />
+                <div style={STYLES.settingsLabel}>Signal Color</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '3px', padding: '4px 8px' }}>
+                  {SIGNAL_COLORS.map((c) => (
+                    <div
+                      key={c.id}
+                      style={{
+                        ...STYLES.colorGridItem,
+                        borderColor: node.signalColor === c.id ? T.white : T.textMuted,
+                        backgroundColor: c.hex,
+                        boxShadow: node.signalColor === c.id ? `0 0 4px ${c.hex}` : 'none',
+                      }}
+                      title={c.label}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ signalColor: c.id });
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.accentLight; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = node.signalColor === c.id ? T.white : T.textMuted; }}
+                    />
+                  ))}
+                </div>
+                <div
+                  style={STYLES.colorGridClear}
+                  onMouseDown={(e) => { e.stopPropagation(); onUpdate({ signalColor: null }); }}
+                  {...HOVER_888_CCC}
+                >
+                  Clear Color
+                </div>
               </div>
             );
           })(),
