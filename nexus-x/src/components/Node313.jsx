@@ -1252,7 +1252,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     if (signalColorHex) {
       base.borderTop = `2px solid ${signalColorHex}`;
       base.borderBottom = `2px solid ${signalColorHex}`;
-      if (isFirstRow) base.marginTop = '-2px';
+      if (isFirstRow) base.marginTop = '-1px';
       base.background = `linear-gradient(${mirrored ? '270deg' : '90deg'}, ${signalColorHex}30, ${signalColorHex}10 60%)`;
     }
     return base;
