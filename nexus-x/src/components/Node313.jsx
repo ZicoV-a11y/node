@@ -128,6 +128,7 @@ const T = {
   bg: '#0a0a0a', card: '#111111', rowHover: '#1a1a1a',
   border: 'rgba(255,255,255,0.10)', borderStrong: 'rgba(255,255,255,0.15)',
   borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,255,255,0.08)',
+  colDivider: 'rgba(255,255,255,0.50)',
   accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
   accentGlow: 'rgba(255,255,255,0.04)',
   text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
@@ -249,8 +250,8 @@ const STYLES = {
     whiteSpace: 'nowrap',
   },
   cell: {
-    borderBottom: `1px solid ${T.borderSubtle}`,
-    borderRight: `1px solid ${T.divider}`,
+    borderBottom: `1px solid ${T.divider}`,
+    borderRight: `1px solid ${T.colDivider}`,
     padding: '4px 2px',
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
@@ -261,7 +262,7 @@ const STYLES = {
   },
   headerCell: {
     background: T.bg,
-    borderBottom: `2px solid ${T.border}`,
+    borderBottom: `1px solid ${T.border}`,
     padding: '2px 2px',
     height: '22px',
     boxSizing: 'border-box',
@@ -270,11 +271,10 @@ const STYLES = {
     width: '14px',
     minWidth: '14px',
     maxWidth: '14px',
+    padding: '2px 1px',
     textAlign: 'center',
     verticalAlign: 'middle',
     lineHeight: 1,
-    border: 'none',
-    padding: '2px',
     background: 'transparent',
   },
   actionCellLabel: {
@@ -287,9 +287,10 @@ const STYLES = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
-    height: '100%',
-    borderRadius: '999px',
+    width: '10px',
+    height: '28px',
+    margin: 'auto',
+    borderRadius: '4px',
     userSelect: 'none',
     boxSizing: 'border-box',
   },
@@ -300,7 +301,6 @@ const STYLES = {
     textAlign: 'center',
     verticalAlign: 'middle',
     lineHeight: 1,
-    padding: 0,
   },
   dropZone: {
     position: 'absolute',
@@ -626,19 +626,19 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
 DropdownCell.displayName = 'DropdownCell';
 
 // Flex centering wrapper for small-content cells (anchor, ×, +)
-const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' };
+const CELL_CENTER = { display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
 // Anchor dot style — visible circle that scales with the node
 const ANCHOR_DOT_STYLE = {
   width: '7px', height: '7px', borderRadius: '50%',
   background: T.accent, opacity: 0.7, boxShadow: `0 0 8px ${T.accent}44`,
 };
-const AC_BODY_STYLE = { ...STYLES.ac, ...STYLES.cell, background: 'transparent', padding: 0 };
-const AC_HEAD_STYLE = { ...STYLES.ac, ...STYLES.cell, ...STYLES.headerCell, background: 'transparent', padding: 0 };
+const AC_BODY_STYLE = { ...STYLES.cell, ...STYLES.ac, background: 'transparent' };
+const AC_HEAD_STYLE = { ...STYLES.cell, ...STYLES.headerCell, ...STYLES.ac, background: 'transparent' };
 
-// SVG icons for action buttons — pixel-perfect centering, no font metric issues
-const ACTION_ICON_X = (sc) => <svg width="6" height="6" viewBox="0 0 8 8" fill="none"><line x1="1" y1="1" x2="7" y2="7" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/><line x1="7" y1="1" x2="1" y2="7" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/></svg>;
-const ACTION_ICON_DRAG = (sc) => <svg width="6" height="10" viewBox="0 0 8 14" fill="none"><path d="M4 1L1.5 4H6.5L4 1Z" fill={sc}/><path d="M4 13L1.5 10H6.5L4 13Z" fill={sc}/><line x1="4" y1="3.5" x2="4" y2="10.5" stroke={sc} strokeWidth="1.2"/></svg>;
+// SVG icons for action buttons
+const ACTION_ICON_X = (sc) => <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><line x1="2" y1="2" x2="8" y2="8" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="2" x2="2" y2="8" stroke={sc} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+const ACTION_ICON_DRAG = (sc) => <svg width="8" height="14" viewBox="0 0 10 18" fill="none"><path d="M5 1L2 5H8L5 1Z" fill={sc}/><path d="M5 17L2 13H8L5 17Z" fill={sc}/><circle cx="5" cy="7.5" r="1" fill={sc}/><circle cx="5" cy="10.5" r="1" fill={sc}/></svg>;
 
 // Unified action cell — handles delete (×), add (+), drag (↕), flip (⇄)
 const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, signalColor, cursor: cursorProp }) => {
@@ -648,6 +648,7 @@ const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, s
   const sc = signalColor || T.accent;
   return (
     <Tag
+      className="n313-ac"
       style={{ ...(isHeader ? ACTION_CELL_HEADER_STYLE : ACTION_CELL_STYLE), cursor }}
       onClick={interactive && onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
       onMouseDown={onMouseDown || (interactive ? (e) => e.stopPropagation() : undefined)}
@@ -659,9 +660,9 @@ const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, s
           {label && <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span>}
         </div>
       ) : icon ? (
-        <div className="n313-action-btn" style={{ ...STYLES.actionBtn, cursor, border: `1px solid ${sc}33`, background: `${sc}11`, height: '30px' }}
+        <div className="n313-action-btn" style={{ ...STYLES.actionBtn, cursor, border: `1px solid ${sc}33`, background: `${sc}0d` }}
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${sc}66`; e.currentTarget.style.background = `${sc}22`; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${sc}33`; e.currentTarget.style.background = `${sc}11`; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${sc}33`; e.currentTarget.style.background = `${sc}0d`; }}
         >{icon(sc)}</div>
       ) : null}
     </Tag>
@@ -775,7 +776,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, sectionIndex, onAnchorClick, collapsible }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, sectionIndex, onAnchorClick, collapsible, isFirstRow }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1196,7 +1197,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             ...SPACER_TD_STYLE,
             height: `${spacing}px`,
             borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
-            borderBottom: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+            borderBottom: '1px solid transparent',
           }} />
         </tr>
       );
@@ -1251,11 +1252,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     if (signalColorHex) {
       base.borderTop = `2px solid ${signalColorHex}`;
       base.borderBottom = `2px solid ${signalColorHex}`;
-      base.marginTop = '-2px';
+      if (isFirstRow) base.marginTop = '-2px';
       base.background = `linear-gradient(${mirrored ? '270deg' : '90deg'}, ${signalColorHex}30, ${signalColorHex}10 60%)`;
     }
     return base;
-  }, [mirrored, signalColorHex]);
+  }, [mirrored, signalColorHex, isFirstRow]);
 
   return (
     <div style={wrapperStyle}>
@@ -1307,12 +1308,25 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
       {!section.collapsed && <>
         {/* Scoped color for cells */}
-        {signalColorHex && (
-          <style>{`
-            [data-sec="${nodeId}-${sectionId}"] th { background: ${signalColorHex}0a !important; border-bottom: 2px solid ${signalColorHex}44 !important; }
-            [data-sec="${nodeId}-${sectionId}"] td { border-color: ${signalColorHex}22 !important; }
-          `}</style>
-        )}
+        {(() => {
+          const c = signalColorHex || T.accent;
+          return (
+            <style>{`
+              [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac),
+              [data-sec="${nodeId}-${sectionId}"] td:not(.n313-ac) { border-right: 1px solid ${c}66 !important; }
+              [data-sec="${nodeId}-${sectionId}"] .n313-ac { border-right-color: transparent !important; border-left-color: transparent !important; }
+              [data-sec="${nodeId}-${sectionId}"] .n313-ac:has(+ :not(.n313-ac)) { border-right: 1px solid ${c}66 !important; }
+              [data-sec="${nodeId}-${sectionId}"] :not(.n313-ac):has(+ .n313-ac) { border-right: 1px solid ${c}66 !important; }
+              [data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }
+              ${signalColorHex ? `
+              [data-sec="${nodeId}-${sectionId}"] th { border-bottom: 1px solid ${signalColorHex}44 !important; }
+              [data-sec="${nodeId}-${sectionId}"] td { border-bottom-color: ${signalColorHex}66 !important; }
+              [data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }
+              [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac) { background: ${signalColorHex}0a !important; }
+              ` : ''}
+            `}</style>
+          );
+        })()}
 
         {/* Data table */}
         <table ref={tableRef} style={{ ...STYLES.table, width: '100%' }} data-sec={`${nodeId}-${sectionId}`}>
@@ -1727,7 +1741,7 @@ function Node313({
   }, [node.sections]);
 
   // ---- Render sections ----
-  const renderSection = useCallback((sectionId, fullWidth, layoutMirrored) => {
+  const renderSection = useCallback((sectionId, fullWidth, layoutMirrored, isFirstRow) => {
     if (hiddenSections.includes(sectionId)) return null;
     const sec = node.sections[sectionId];
     if (!sec) return null;
@@ -1755,6 +1769,7 @@ function Node313({
         sectionIndex={sectionId === 'a' ? 0 : sectionId === 'b' ? 1 : 2}
         onAnchorClick={onAnchorClick}
         collapsible={sectionId === 'c'}
+        isFirstRow={isFirstRow}
       />
     );
   }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick]);
@@ -1774,18 +1789,21 @@ function Node313({
     const elements = [];
 
     layout.forEach((row, rowIndex) => {
+      // Overlap with element above: first row (node title) or previous row's sections all collapsed
+      const overlapTop = rowIndex === 0 || (rowIndex > 0 && layout[rowIndex - 1].every(secId => node.sections[secId]?.collapsed));
+
       if (row.length === 2) {
         // Side-by-side row
         elements.push(
           <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
             <div style={STYLES.sectionWrap}>
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
-                {renderSection(row[0], false, false)}
+                {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder }}>
+            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}) }}>
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
-                {renderSection(row[1], false, true)}
+                {renderSection(row[1], false, true, overlapTop)}
               </div>
             </div>
             {/* Overlay drop zones */}
@@ -1826,7 +1844,7 @@ function Node313({
           elements.push(<div key={`sec-sp-${rowIndex}`} style={{
             height: `${secSpacing}px`,
             borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
-            borderBottom: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
+            borderBottom: '1px solid transparent',
           }} />);
         }
         elements.push(
@@ -1835,7 +1853,7 @@ function Node313({
             style={{ position: 'relative' }}
           >
             <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
-              {renderSection(row[0], true, false)}
+              {renderSection(row[0], true, false, overlapTop)}
             </div>
             {/* Overlay drop zones for the OTHER section's row */}
             {rowIndex === otherRowIndex && abZones.includes('left') && (
@@ -1951,53 +1969,31 @@ function Node313({
             {!hiddenTitleFields.includes('manufacturer') && (
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
               {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MANUFACTURER</span>}
-              {node.manufacturer && <>
-                <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.manufacturer}</span>
-                <input
-                  style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-                  value={node.manufacturer}
-                  maxLength={25}
-                  onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  {...BLUR_ON_ENTER}
-                />
-              </>}
-              {!node.manufacturer && <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', background: 'transparent' }}
-                value=""
+              {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.manufacturer}</span>}
+              <input
+                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                value={node.manufacturer || ''}
                 maxLength={25}
                 onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 {...BLUR_ON_ENTER}
-              />}
+              />
             </div>
             )}
             {!hiddenTitleFields.includes('model') && (
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
               {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MODEL</span>}
-              {node.model && <>
-                <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.model}</span>
-                <input
-                  style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-                  value={node.model}
-                  maxLength={25}
-                  onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  {...BLUR_ON_ENTER}
-                />
-              </>}
-              {!node.model && <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', background: 'transparent' }}
-                value=""
+              {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.model}</span>}
+              <input
+                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                value={node.model || ''}
                 maxLength={25}
                 onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 {...BLUR_ON_ENTER}
-              />}
+              />
             </div>
             )}
           </div>

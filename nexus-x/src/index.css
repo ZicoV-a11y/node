@@ -44,7 +44,7 @@
 
 /* NODE 313 — Rounded action buttons (×, ↕) */
 .n313-action-btn {
-  border-radius: 8px !important;
+  border-radius: 4px !important;
 }
 
 /* NODE 313 — Prevent text selection on unfocused inputs (stops drag-select) */
