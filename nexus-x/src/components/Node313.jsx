@@ -240,7 +240,7 @@ const STYLES = {
     fontFamily: T.mono,
     outline: 'none',
     margin: 0,
-    padding: '0 8px',
+    padding: '0 3px',
     lineHeight: 1,
     display: 'block',
   },
@@ -1693,23 +1693,30 @@ function Node313({
     for (let ci = 0; ci < count; ci++) {
       let longest = '';
       for (const sec of abSecs) {
-        if (sec.cols[ci] && sec.cols[ci].length > longest.length) longest = sec.cols[ci];
+        // Only body rows — headers use their own sizing via data-h (different font)
         for (const row of sec.rows) {
           if (row[ci] && row[ci].length > longest.length) longest = row[ci];
         }
       }
       abSizers.push(longest || null);
     }
-    // C uses A+B sizers as baseline, extended/trimmed to C's column count
+    // C uses A+B sizers as baseline, matched by column name
     const cSec = secs.c;
     let cSizers = null;
     if (cSec) {
-      const cCount = cSec.cols.length;
+      // Build a map of column name → longest value from A+B
+      const abColNames = abSecs[0]?.cols || [];
+      const abMap = {};
+      for (let ci = 0; ci < count; ci++) {
+        const name = (abColNames[ci] || '').toUpperCase();
+        if (name) abMap[name] = abSizers[ci] || '';
+      }
       cSizers = [];
-      for (let ci = 0; ci < cCount; ci++) {
-        const abVal = abSizers[ci] || '';
+      for (let ci = 0; ci < cSec.cols.length; ci++) {
+        const colName = (cSec.cols[ci] || '').toUpperCase();
+        const abVal = abMap[colName] || '';
         let longest = abVal;
-        if (cSec.cols[ci] && cSec.cols[ci].length > longest.length) longest = cSec.cols[ci];
+        // Only body rows — headers use their own sizing via data-h (different font)
         for (const row of cSec.rows) {
           if (row[ci] && row[ci].length > longest.length) longest = row[ci];
         }
