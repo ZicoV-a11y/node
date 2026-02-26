@@ -6,7 +6,7 @@
 
 /* Change to highly visible font */
 * {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+  font-family: 'Space Grotesk', sans-serif !important;
   font-weight: 500 !important;
 }
 
@@ -47,6 +47,16 @@
   border-radius: 2px !important;
 }
 
+/* NODE 313 — Title bar gear area (matches node top-right + title-bar bottom-right) */
+.n313-title-action {
+  border-radius: 0 6px 6px 0 !important;
+}
+
+/* NODE 313 — Section title handle area (matches section title top corners) */
+.n313-sec-action {
+  border-radius: 6px 6px 0 0 !important;
+}
+
 /* NODE 313 — Anchor dots (round) */
 .n313-anchor-dot {
   border-radius: 50% !important;
@@ -66,13 +76,19 @@
   opacity: 1 !important;
 }
 
-/* NODE 313 — Title font (Cormorant Garamond) */
+/* NODE 313 — Title font */
 .n313-title-font {
-  font-family: 'Cormorant Garamond', serif !important;
+  font-family: 'Space Grotesk', sans-serif !important;
 }
 .n313-title-font-light {
-  font-family: 'Cormorant Garamond', serif !important;
+  font-family: 'Space Grotesk', sans-serif !important;
   font-weight: 300 !important;
+}
+
+/* NODE 313 — Tag input placeholder inherits signal color */
+.n313-tag-input::placeholder {
+  color: inherit !important;
+  opacity: 0.5 !important;
 }
 
 /* NODE 313 — Prevent text selection on unfocused inputs (stops drag-select) */
@@ -96,7 +112,7 @@
   visibility: hidden;
   white-space: pre;
   grid-area: 1/1;
-  font-family: 'IBM Plex Mono', monospace !important;
+  font-family: 'JetBrains Mono', monospace !important;
   padding: 0 3px;
   line-height: 1;
   font-size: 16px;
@@ -110,7 +126,7 @@
   height: 16px;
 }
 .n313-sz input {
-  font-family: 'IBM Plex Mono', monospace !important;
+  font-family: 'JetBrains Mono', monospace !important;
   font-weight: 500 !important;
 }
 .n313-sz [data-h] input,
