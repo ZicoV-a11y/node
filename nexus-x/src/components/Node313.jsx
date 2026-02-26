@@ -1241,7 +1241,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 24, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-          <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 8px' }}>{section.title || 'SECTION'}</span>
+          <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 3px' }}>{section.title || 'SECTION'}</span>
           <input
             className="n313-title-font"
             style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}), position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
@@ -1253,7 +1253,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         </div>
         {collapsible && (
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 10px' }}>{section.ip || 'IP: 0.0.0.0'}</span>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 3px' }}>{section.ip || 'IP: 0.0.0.0'}</span>
             <input
               style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={section.ip || ''}
@@ -1925,8 +1925,8 @@ function Node313({
           {/* Name */}
           {!hiddenTitleFields.includes('name') && (
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: '22px' }}>
-            {!node.title && <span className="n313-title-font-light" style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>NAME</span>}
-            {node.title && <span className="n313-title-font-light" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 8px' }}>{node.title}</span>}
+            {!node.title && <span className="n313-title-font-light" style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>NAME</span>}
+            {node.title && <span className="n313-title-font-light" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 3px' }}>{node.title}</span>}
             <input
               className="n313-title-font-light"
               style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: '16px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
@@ -1941,7 +1941,7 @@ function Node313({
           {/* Tag pill */}
           {!hiddenTitleFields.includes('tag') && (
           <div style={{ position: 'relative', display: 'inline-block', minWidth: '24px', height: '20px', ...STYLES.tagInput, ...(signalColorHex ? { border: `1px solid ${signalColorHex}`, background: `${signalColorHex}15` } : {}) }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', padding: '0 8px', textTransform: 'uppercase' }}>{node.tag || 'Tag'}</span>
+            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', padding: '0 3px', textTransform: 'uppercase' }}>{node.tag || 'Tag'}</span>
             <input
               style={{ ...STYLES.input, color: signalColorHex || T.accent, fontFamily: T.mono, letterSpacing: '1px', fontSize: '10px', textAlign: 'center', textTransform: 'uppercase', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.tag || ''}
@@ -1958,8 +1958,8 @@ function Node313({
           <div style={STYLES.mfgModel}>
             {!hiddenTitleFields.includes('manufacturer') && (
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-              {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MANUFACTURER</span>}
-              {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.manufacturer}</span>}
+              {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MANUFACTURER</span>}
+              {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.manufacturer}</span>}
               <input
                 style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                 value={node.manufacturer || ''}
@@ -1973,8 +1973,8 @@ function Node313({
             )}
             {!hiddenTitleFields.includes('model') && (
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-              {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MODEL</span>}
-              {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.model}</span>}
+              {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MODEL</span>}
+              {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.model}</span>}
               <input
                 style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                 value={node.model || ''}
