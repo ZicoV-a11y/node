@@ -135,6 +135,7 @@ const T = {
   borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,255,255,0.08)',
   colDivider: 'rgba(255,255,255,0.50)',
   accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
+  green: '#4caf50', red: '#e05555',
   accentGlow: 'rgba(255,255,255,0.04)',
   text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
   white: '#e0e0e0',
@@ -365,7 +366,7 @@ const STYLES = {
   },
   settingsDropdown: {
     position: 'fixed',
-    background: T.card,
+    backgroundColor: T.card,
     border: `2px solid ${T.borderStrong}`,
     padding: '4px 0',
     minWidth: '150px',
@@ -1146,19 +1147,19 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     };
     if (mirrored) {
       cells.push(<ActionCell key="sp-h" isHeader icon={onFlip ? ACTION_ICON_FLIP : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" signalColor={signalColorHex} />);
-      cells.push(<ActionCell key="rowx-h" isHeader icon={ACTION_ICON_PLUS} onClick={addColumn} title="Add column" signalColor={signalColorHex} />);
+      cells.push(<ActionCell key="rowx-h" isHeader icon={ACTION_ICON_PLUS} onClick={addColumn} title="Add column" signalColor={T.green} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<AnchorCell key="anchor-h" isHeader icon={ACTION_ICON_PLUS} onClick={addRow} title="Add row" signalColor={signalColorHex} />);
+      cells.push(<AnchorCell key="anchor-h" isHeader icon={ACTION_ICON_PLUS} onClick={addRow} title="Add row" signalColor={T.green} />);
     } else {
-      cells.push(<AnchorCell key="anchor-h" isHeader icon={ACTION_ICON_PLUS} onClick={addRow} title="Add row" signalColor={signalColorHex} />);
+      cells.push(<AnchorCell key="anchor-h" isHeader icon={ACTION_ICON_PLUS} onClick={addRow} title="Add row" signalColor={T.green} />);
       for (let ci = 0; ci < nc; ci++) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<ActionCell key="rowx-h" isHeader icon={ACTION_ICON_PLUS} onClick={addColumn} title="Add column" signalColor={signalColorHex} />);
+      cells.push(<ActionCell key="rowx-h" isHeader icon={ACTION_ICON_PLUS} onClick={addColumn} title="Add column" signalColor={T.green} />);
       cells.push(<ActionCell key="sp-h" isHeader icon={onFlip ? ACTION_ICON_FLIP : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" signalColor={signalColorHex} />);
     }
     return <tr>{cells}</tr>;
@@ -1201,7 +1202,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const anchorType = sectionId === 'a' ? 'in' : sectionId === 'b' ? 'out' : 'both';
     if (mirrored) {
       cells.push(<ActionCell key="sp" icon={ACTION_ICON_SPACING} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
-      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={signalColorHex} cursor={X_CURSOR} title="Delete row" />);
+      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={T.red} cursor={X_CURSOR} title="Delete row" />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
@@ -1213,7 +1214,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderDataCell(ci));
       }
-      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={signalColorHex} cursor={X_CURSOR} title="Delete row" />);
+      cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={T.red} cursor={X_CURSOR} title="Delete row" />);
       cells.push(<ActionCell key="sp" icon={ACTION_ICON_SPACING} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
     }
     const rowSelected = selectedRows.has(ri);
@@ -1272,6 +1273,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         )}
         {/* Extending gradient line — tapers to pin near text */}
         <div style={{ flex: 1, minWidth: 0, height: '2px',
+          [mirrored ? 'marginLeft' : 'marginRight']: ACTION_AREA_W + 4,
           background: mirrored
             ? `linear-gradient(270deg, ${signalColorHex || T.accent}, ${signalColorHex || T.accent}66 50%, transparent)`
             : `linear-gradient(90deg, ${signalColorHex || T.accent}, ${signalColorHex || T.accent}66 50%, transparent)`,
@@ -1996,7 +1998,7 @@ function Node313({
           {/* Vertical divider aligned with table header divider */}
           <div style={{ position: 'absolute', right: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
           {/* Settings button */}
-          <div style={STYLES.titleRight}>
+          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_AREA_W, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div
               ref={settingsBtnRef}
               style={{
@@ -2024,12 +2026,11 @@ function Node313({
         {settingsOpen && createPortal(
           (() => {
             const btnRect = settingsBtnRef.current?.getBoundingClientRect();
-            const anchorTop = btnRect ? btnRect.top - 2 : 0;
-            const anchorRight = btnRect ? btnRect.right : 0;
+            if (!btnRect) return null;
             return (
               <div
-                ref={(el) => { if (el) { const h = el.offsetHeight; if (h > anchorTop - 4) el.style.top = '4px'; } }}
-                style={{ ...STYLES.settingsDropdown, left: anchorRight - 160, bottom: `${window.innerHeight - anchorTop}px` }}
+                className="n313-settings-dropdown"
+                style={{ ...STYLES.settingsDropdown, left: btnRect.right - 160, top: btnRect.top }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div style={STYLES.settingsLabel}>Device Type</div>

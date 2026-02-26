@@ -58,6 +58,14 @@
   border-radius: 2px !important;
 }
 
+/* NODE 313 — Settings dropdown */
+.n313-settings-dropdown {
+  background-color: #111111 !important;
+  background-image: none !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+  opacity: 1 !important;
+}
+
 /* NODE 313 — Title font (Cormorant Garamond) */
 .n313-title-font {
   font-family: 'Cormorant Garamond', serif !important;
