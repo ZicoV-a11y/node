@@ -656,9 +656,14 @@ const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, s
       {...(interactive && isHeader ? HOVER_BG_CELL : {})}
     >
       {isHeader ? (
-        <div style={CELL_CENTER}>
-          {label && <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span>}
-        </div>
+        label ? (
+          <div className="n313-action-btn" style={{ ...STYLES.actionBtn, cursor, border: `1px solid ${sc}55`, background: `${sc}15`, height: '16px' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${sc}88`; e.currentTarget.style.background = `${sc}30`; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${sc}55`; e.currentTarget.style.background = `${sc}15`; }}
+          >
+            <span style={{ ...STYLES.actionCellLabel, cursor, color: sc }}>{label}</span>
+          </div>
+        ) : null
       ) : icon ? (
         <div className="n313-action-btn" style={{ ...STYLES.actionBtn, cursor, border: `1px solid ${sc}33`, background: `${sc}0d` }}
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${sc}66`; e.currentTarget.style.background = `${sc}22`; }}
@@ -1164,8 +1169,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       return <SzCell key={`col-${ci}`} value={section.cols[ci]} isHeader onChange={(v) => updateColName(ci, v)} onContextMenu={(e) => handleColContextMenu(e, ci)} sizerValue={sizer} onMouseDown={(e) => handleColDragStart(e, ci)} colIndex={ci} />;
     };
     if (mirrored) {
-      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" />);
-      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
+      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" signalColor={signalColorHex} />);
+      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" signalColor={signalColorHex} />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
@@ -1177,8 +1182,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (hiddenCols.includes(ci)) continue;
         cells.push(renderHeaderCell(ci));
       }
-      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" />);
-      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" />);
+      cells.push(<ActionCell key="rowx-h" isHeader label="+" onClick={addColumn} title="Add column" signalColor={signalColorHex} />);
+      cells.push(<ActionCell key="sp-h" isHeader label={onFlip ? '⇄' : undefined} onClick={onFlip} title="Flip anchor side" cursor="ew-resize" signalColor={signalColorHex} />);
     }
     return <tr>{cells}</tr>;
   };
