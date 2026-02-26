@@ -59,7 +59,12 @@ const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
 // LAYOUT SYSTEM
 // ============================================
 
-const SPACING_SNAP = 18; // Snap to half-cell height (36px row / 2)
+// Cell dimension constants
+const CELL_H = 36;
+const ACTION_W = 12;
+const ANCHOR_W = 14;
+const ACTION_AREA_W = ACTION_W * 2; // 24 — two action columns side by side
+const SPACING_SNAP = CELL_H / 2; // Snap to half-cell height
 
 // All valid layout arrangements for 3 sections (a, b, c)
 // c is always alone in its row; a and b can be side-by-side or stacked
@@ -257,7 +262,7 @@ const STYLES = {
     verticalAlign: 'middle',
     lineHeight: 1,
     background: T.card,
-    height: '36px',
+    height: `${CELL_H}px`,
     boxSizing: 'border-box',
   },
   headerCell: {
@@ -268,9 +273,9 @@ const STYLES = {
     boxSizing: 'border-box',
   },
   actionCell: {
-    width: '12px',
-    minWidth: '12px',
-    maxWidth: '12px',
+    width: `${ACTION_W}px`,
+    minWidth: `${ACTION_W}px`,
+    maxWidth: `${ACTION_W}px`,
     padding: '2px 1px',
     textAlign: 'center',
     verticalAlign: 'middle',
@@ -284,9 +289,9 @@ const STYLES = {
     userSelect: 'none',
   },
   ac: {
-    width: '14px',
-    minWidth: '14px',
-    maxWidth: '14px',
+    width: `${ANCHOR_W}px`,
+    minWidth: `${ANCHOR_W}px`,
+    maxWidth: `${ANCHOR_W}px`,
     textAlign: 'center',
     verticalAlign: 'middle',
     lineHeight: 1,
@@ -1238,7 +1243,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div className="n313-sec-title" style={tintedSectionTitle}>
-        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 24, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
+        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
           <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 3px' }}>{section.title || 'SECTION'}</span>
@@ -1274,16 +1279,16 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             ? 'polygon(0% 0%, 0% 100%, 100% 50%)'
             : 'polygon(0% 50%, 100% 0%, 100% 100%)' }} />
         {(collapsible || onSpacingDown) && (
-          <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', width: 24, justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', width: ACTION_AREA_W, justifyContent: 'center' }}>
             {collapsible && (
               <span
-                style={{ ...STYLES.actionCellLabel, cursor: 'pointer', width: '12px', minWidth: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ ...STYLES.actionCellLabel, cursor: 'pointer', width: `${ACTION_W}px`, minWidth: `${ACTION_W}px`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={(e) => { e.stopPropagation(); updateSection({ collapsed: !section.collapsed }); }}
                 {...HOVER_333_888}
               >{section.collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_DOWN}</span>
             )}
             {onSpacingDown && (
-              <span style={{ ...STYLES.actionCellLabel, cursor: 'ns-resize', width: '12px', minWidth: '12px', textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>{ACTION_ICON_SPACING}</span>
+              <span style={{ ...STYLES.actionCellLabel, cursor: 'ns-resize', width: `${ACTION_W}px`, minWidth: `${ACTION_W}px`, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onMouseDown={onSpacingDown} {...HOVER_333_888}>{ACTION_ICON_SPACING}</span>
             )}
           </div>
         )}
@@ -1988,8 +1993,8 @@ function Node313({
             )}
           </div>
           )}
-          {/* Vertical divider aligned with table header divider at right:24px */}
-          <div style={{ position: 'absolute', right: 24, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
+          {/* Vertical divider aligned with table header divider */}
+          <div style={{ position: 'absolute', right: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
           {/* Settings button */}
           <div style={STYLES.titleRight}>
             <div
@@ -2153,4 +2158,4 @@ function Node313({
   );
 }
 
-export default Node313;
+export default memo(Node313);
