@@ -42,9 +42,29 @@
   border-radius: 8px 8px 0 0 !important;
 }
 
-/* NODE 313 — Rounded action buttons (×, ↕) */
+/* NODE 313 — Sharp action buttons (×, ↕) */
 .n313-action-btn {
-  border-radius: 4px !important;
+  border-radius: 2px !important;
+}
+
+/* NODE 313 — Anchor dots (round) */
+.n313-anchor-dot {
+  border-radius: 50% !important;
+  box-shadow: 0 0 8px rgba(187,187,187,0.27) !important;
+}
+
+/* NODE 313 — Color swatches in settings */
+.n313-color-swatch {
+  border-radius: 2px !important;
+}
+
+/* NODE 313 — Title font (Cormorant Garamond) */
+.n313-title-font {
+  font-family: 'Cormorant Garamond', serif !important;
+}
+.n313-title-font-light {
+  font-family: 'Cormorant Garamond', serif !important;
+  font-weight: 300 !important;
 }
 
 /* NODE 313 — Prevent text selection on unfocused inputs (stops drag-select) */

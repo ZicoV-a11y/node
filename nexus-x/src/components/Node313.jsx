@@ -132,7 +132,7 @@ const T = {
   accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
   accentGlow: 'rgba(255,255,255,0.04)',
   text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
-  white: '#e0e0e0', green: '#999999',
+  white: '#e0e0e0',
   hFont: "'Cormorant Garamond', serif", mono: "'IBM Plex Mono', monospace",
 };
 
@@ -283,17 +283,6 @@ const STYLES = {
     fontSize: '10px',
     userSelect: 'none',
   },
-  actionBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '10px',
-    height: '28px',
-    margin: 'auto',
-    borderRadius: '4px',
-    userSelect: 'none',
-    boxSizing: 'border-box',
-  },
   ac: {
     width: '14px',
     minWidth: '14px',
@@ -342,7 +331,6 @@ const STYLES = {
   sectionFull: {
     display: 'block',
     width: '100%',
-    alignSelf: 'stretch',
   },
   contextMenuItem: {
     padding: '4px 12px',
@@ -357,13 +345,6 @@ const STYLES = {
     alignItems: 'center',
     gap: '3px',
     marginLeft: 'auto',
-    flexShrink: 0,
-  },
-  colorSwatch: {
-    width: '7px',
-    height: '7px',
-    borderRadius: '50%',
-    cursor: 'pointer',
     flexShrink: 0,
   },
   gearBtn: {
@@ -412,16 +393,6 @@ const STYLES = {
     height: '1px',
     background: T.border,
     margin: '3px 0',
-  },
-  colorGrid: {
-    position: 'fixed',
-    background: T.card,
-    border: `2px solid ${T.borderStrong}`,
-    padding: '6px',
-    zIndex: 10001,
-    display: 'grid',
-    gridTemplateColumns: 'repeat(6, 1fr)',
-    gap: '3px',
   },
   colorGridItem: {
     width: '16px',
@@ -487,10 +458,10 @@ const ACTION_CELL_HEADER_STYLE = { ...STYLES.cell, ...STYLES.headerCell, ...STYL
 const PORT_CELL_SELECTED = { color: T.accent, background: T.accentGlow };
 
 // Pre-computed port header styles (avoids allocation per render)
-const PORT_HEADER_STYLE = { ...SZ_CELL_HEADER_STYLE, cursor: 'grab' };
-const PORT_HEADER_SEL_STYLE = { ...PORT_HEADER_STYLE, ...PORT_CELL_SELECTED };
-const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: T.accent };
-const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, cursor: 'grab', pointerEvents: 'none', color: T.textMuted };
+const PORT_HEADER_STYLE = SZ_CELL_HEADER_STYLE;
+const PORT_HEADER_SEL_STYLE = { ...SZ_CELL_HEADER_STYLE, ...PORT_CELL_SELECTED };
+const PORT_HDR_INPUT_SEL = { ...SZ_INPUT_HEADER, pointerEvents: 'none', color: T.accent };
+const PORT_HDR_INPUT_NORM = { ...SZ_INPUT_HEADER, pointerEvents: 'none' };
 
 // Pre-computed port display styles (PortCell read-only mode)
 const PORT_DISPLAY_SEL = { ...SZ_INPUT_BODY, cursor: 'pointer', color: T.accent };
@@ -640,7 +611,6 @@ const AC_HEAD_STYLE = { ...STYLES.cell, ...STYLES.headerCell, ...STYLES.ac, back
 const SVG_STYLE = { display: 'block' };
 const L = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: SVG_STYLE };
 const ACTION_ICON_X = <svg width="7" height="7" viewBox="0 0 24 24" {...L}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
-const ACTION_ICON_DRAG = <svg width="6" height="12" viewBox="0 0 24 24" {...L}><circle cx="9" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg>;
 const ACTION_ICON_PLUS = <svg width="7" height="7" viewBox="0 0 24 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
 const ACTION_ICON_FLIP = <svg width="8" height="5" viewBox="0 0 24 24" {...L}><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>;
 const ACTION_ICON_SPACING = <svg width="7" height="9" viewBox="0 0 24 24" {...L}><path d="M12 2v20"/><path d="m8 18 4 4 4-4"/><path d="m8 6 4-4 4 4"/></svg>;
@@ -691,7 +661,7 @@ const AnchorCell = memo(({ isHeader, anchorId, label, icon, onClick, title, onAn
     >
       <div style={CELL_CENTER}>
         {isHeader && icon ? <span style={{ color: sc, display: 'flex' }}>{icon}</span> : isHeader && label ? <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span> : null}
-        {!isHeader && <div data-anchor-id={anchorId} style={{ ...ANCHOR_DOT_STYLE, cursor }} />}
+        {!isHeader && <div className="n313-anchor-dot" data-anchor-id={anchorId} style={{ ...ANCHOR_DOT_STYLE, cursor }} />}
       </div>
     </Tag>
   );
@@ -782,7 +752,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, sectionIndex, onAnchorClick, collapsible, isFirstRow }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1268,11 +1238,12 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div className="n313-sec-title" style={tintedSectionTitle}>
-        <div style={{ position: 'absolute', right: 24, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
+        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 24, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 8px' }}>{section.title || 'SECTION'}</span>
+          <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 8px' }}>{section.title || 'SECTION'}</span>
           <input
+            className="n313-title-font"
             style={{ ...STYLES.input, ...STYLES.sectionTitleInput, ...(mirrored ? { textAlign: 'right' } : {}), position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
             value={section.title}
             onChange={(e) => updateTitle(e.target.value)}
@@ -1303,7 +1274,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             ? 'polygon(0% 0%, 0% 100%, 100% 50%)'
             : 'polygon(0% 50%, 100% 0%, 100% 100%)' }} />
         {(collapsible || onSpacingDown) && (
-          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', width: 24, justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', width: 24, justifyContent: 'center' }}>
             {collapsible && (
               <span
                 style={{ ...STYLES.actionCellLabel, cursor: 'pointer', width: '12px', minWidth: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1481,16 +1452,6 @@ function Node313({
     window.addEventListener('mousedown', dismiss);
     return () => window.removeEventListener('mousedown', dismiss);
   }, [settingsOpen]);
-
-  // Get dropdown position relative to a ref
-  const getPortalPos = useCallback((ref, align) => {
-    if (!ref.current) return { left: 0, top: 0 };
-    const rect = ref.current.getBoundingClientRect();
-    return {
-      left: align === 'right' ? rect.right : rect.left,
-      top: rect.bottom + 2,
-    };
-  }, []);
 
   const layoutKey = node.layout || 'ab_c';
   const layout = LAYOUTS[layoutKey] || LAYOUTS['ab_c'];
@@ -1795,7 +1756,6 @@ function Node313({
         colSizerValues={sizers}
         onGripDown={(e) => handleSectionGripDown(e, sectionId)}
         onSpacingDown={fullWidth ? (e) => handleSectionSpacingDown(e, sectionId) : null}
-        sectionIndex={sectionId === 'a' ? 0 : sectionId === 'b' ? 1 : 2}
         onAnchorClick={onAnchorClick}
         collapsible={sectionId === 'c'}
         isFirstRow={isFirstRow}
@@ -1965,9 +1925,10 @@ function Node313({
           {/* Name */}
           {!hiddenTitleFields.includes('name') && (
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: '22px' }}>
-            {!node.title && <span style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>NAME</span>}
-            {node.title && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 8px' }}>{node.title}</span>}
+            {!node.title && <span className="n313-title-font-light" style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>NAME</span>}
+            {node.title && <span className="n313-title-font-light" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 8px' }}>{node.title}</span>}
             <input
+              className="n313-title-font-light"
               style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: '16px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
@@ -2000,7 +1961,7 @@ function Node313({
               {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MANUFACTURER</span>}
               {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.manufacturer}</span>}
               <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                 value={node.manufacturer || ''}
                 maxLength={25}
                 onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
@@ -2015,7 +1976,7 @@ function Node313({
               {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 8px' }}>MODEL</span>}
               {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px' }}>{node.model}</span>}
               <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', height: '12px', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                 value={node.model || ''}
                 maxLength={25}
                 onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
@@ -2117,6 +2078,7 @@ function Node313({
                   {SIGNAL_COLORS.map((c) => (
                     <div
                       key={c.id}
+                      className="n313-color-swatch"
                       style={{
                         ...STYLES.colorGridItem,
                         borderColor: node.signalColor === c.id ? T.white : T.textMuted,
