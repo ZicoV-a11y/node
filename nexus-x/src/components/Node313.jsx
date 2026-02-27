@@ -329,10 +329,7 @@ const STYLES = {
   sectionWrap: {
     flex: '1 1 auto',
     minWidth: 0,
-    alignSelf: 'stretch',
-  },
-  sectionWrapBorder: {
-    borderLeft: `2px solid ${T.border}`,
+    alignSelf: 'flex-start',
   },
   sectionFull: {
     display: 'block',
@@ -1231,7 +1228,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     return result;
   };
 
-  const wrapperStyle = fullWidth ? STYLES.sectionFull : undefined;
+  const wrapperStyle = fullWidth ? STYLES.sectionFull : { borderBottom: `2px solid ${signalColorHex || T.border}` };
 
   // Tinted styles when signal color is set
   const tintedSectionTitle = useMemo(() => {
@@ -1249,7 +1246,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div className="n313-sec-title" style={tintedSectionTitle}>
-        {fullWidth && <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />}
+        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 0, borderLeft: `1px solid ${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
           <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 3px' }}>{section.title || 'SECTION'}</span>
@@ -1321,13 +1318,13 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
               [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac),
               [data-sec="${nodeId}-${sectionId}"] td:not(.n313-ac) { border-right: 1px solid ${c}66 !important; }
               [data-sec="${nodeId}-${sectionId}"] .n313-ac { border-right-color: transparent !important; border-left-color: transparent !important; }
-              [data-sec="${nodeId}-${sectionId}"] thead .n313-ac:has(+ :not(.n313-ac)) { border-right: 1px solid ${c}66 !important; }
+              [data-sec="${nodeId}-${sectionId}"] .n313-ac:has(+ :not(.n313-ac)) { border-right: 1px solid ${c}44 !important; }
               [data-sec="${nodeId}-${sectionId}"] thead :not(.n313-ac):has(+ .n313-ac) { border-right: 1px solid ${c}66 !important; }
-              [data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }
+              ${fullWidth ? `[data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }` : ''}
               ${signalColorHex ? `
               [data-sec="${nodeId}-${sectionId}"] th { border-bottom: 1px solid ${signalColorHex}44 !important; }
               [data-sec="${nodeId}-${sectionId}"] td { border-bottom-color: ${signalColorHex}66 !important; }
-              [data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }
+              ${fullWidth ? `[data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }` : ''}
               [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac) { background: ${signalColorHex}0a !important; }
               ` : ''}
             `}</style>
@@ -1740,7 +1737,7 @@ function Node313({
         onFlip={fullWidth ? () => toggleSectionMirrored(sectionId) : null}
         colSizerValues={sizers}
         onGripDown={(e) => handleSectionGripDown(e, sectionId)}
-        onSpacingDown={fullWidth ? (e) => handleSectionSpacingDown(e, sectionId) : null}
+        onSpacingDown={(e) => handleSectionSpacingDown(e, sectionId)}
         onAnchorClick={onAnchorClick}
         collapsible={sectionId === 'c'}
         isFirstRow={isFirstRow}
@@ -1775,7 +1772,7 @@ function Node313({
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ width: '2px', alignSelf: 'stretch', background: signalColorHex || T.border, flexShrink: 0 }} />
+            <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />
             <div style={STYLES.sectionWrap}>
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}

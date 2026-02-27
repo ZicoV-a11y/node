@@ -40,7 +40,6 @@
 /* NODE 313 — Rounded section title bars */
 .n313-sec-title {
   border-radius: 8px 8px 0 0 !important;
-  overflow: visible !important;
 }
 
 /* NODE 313 — Sharp action buttons (×, ↕) */
