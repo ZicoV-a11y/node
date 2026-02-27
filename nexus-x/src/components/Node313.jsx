@@ -1249,7 +1249,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div className="n313-sec-title" style={tintedSectionTitle}>
-        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: signalColorHex || T.accent, pointerEvents: 'none' }} />
+        {fullWidth && <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />}
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
           <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 3px' }}>{section.title || 'SECTION'}</span>
@@ -1775,7 +1775,8 @@ function Node313({
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}) }}>
+            <div style={{ width: '2px', alignSelf: 'stretch', background: signalColorHex || T.border, flexShrink: 0 }} />
+            <div style={STYLES.sectionWrap}>
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
               </div>
