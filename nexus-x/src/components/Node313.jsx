@@ -618,14 +618,14 @@ const SVG_STYLE = { display: 'block' };
 const L = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: SVG_STYLE };
 const ACTION_ICON_X = <svg width="9" height="9" viewBox="0 0 24 24" {...L}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const ACTION_ICON_PLUS = <svg width="9" height="9" viewBox="0 0 24 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
-const ACTION_ICON_PLUS_DOWN = <svg width="14" height="9" viewBox="0 0 34 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M28 5v14"/><polygon points="24,15 28,21 32,15" fill="currentColor" stroke="none"/></svg>;
-const ACTION_ICON_PLUS_LEFT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M19 28H5"/><polygon points="9,25 3,28 9,31" fill="currentColor" stroke="none"/></svg>;
-const ACTION_ICON_PLUS_RIGHT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M5 28h14"/><polygon points="15,25 21,28 15,31" fill="currentColor" stroke="none"/></svg>;
-const ACTION_ICON_FLIP = <svg width="10" height="7" viewBox="0 0 24 24" {...L}><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>;
-const ACTION_ICON_SPACING = <svg width="9" height="11" viewBox="0 0 24 24" {...L}><path d="M12 2v20"/><path d="m8 18 4 4 4-4"/><path d="m8 6 4-4 4 4"/></svg>;
+const ACTION_ICON_PLUS_DOWN = <svg width="14" height="9" viewBox="0 0 34 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M28 7v8"/><polygon points="24,15 28,21 32,15" fill="currentColor" stroke="none"/></svg>;
+const ACTION_ICON_PLUS_LEFT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M17 28H9"/><polygon points="9,25 3,28 9,31" fill="currentColor" stroke="none"/></svg>;
+const ACTION_ICON_PLUS_RIGHT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M7 28h8"/><polygon points="15,25 21,28 15,31" fill="currentColor" stroke="none"/></svg>;
+const ACTION_ICON_FLIP = <svg width="10" height="7" viewBox="0 0 24 24" {...L}><polygon points="2,7 8,3 8,11" fill="currentColor" stroke="none"/><path d="M8 7h8"/><polygon points="22,17 16,21 16,13" fill="currentColor" stroke="none"/><path d="M16 17H8"/></svg>;
+const ACTION_ICON_SPACING = <svg width="9" height="11" viewBox="0 0 24 24" {...L}><path d="M12 6v12"/><polygon points="8,18 12,23 16,18" fill="currentColor" stroke="none"/><polygon points="8,6 12,1 16,6" fill="currentColor" stroke="none"/></svg>;
 const SETTINGS_ICON = <svg width="13" height="13" viewBox="0 0 24 24" {...L}><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>;
-const ICON_CHEVRON_RIGHT = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><path d="m9 18 6-6-6-6"/></svg>;
-const ICON_CHEVRON_DOWN = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><path d="m6 9 6 6 6-6"/></svg>;
+const ICON_CHEVRON_RIGHT = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><polygon points="9,6 15,12 9,18" fill="currentColor" stroke="none"/></svg>;
+const ICON_CHEVRON_DOWN = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><polygon points="6,9 12,15 18,9" fill="currentColor" stroke="none"/></svg>;
 const ICON_CHECK = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><path d="M20 6 9 17l-5-5"/></svg>;
 const ICON_CIRCLE = <svg width="10" height="10" viewBox="0 0 24 24" {...L}><circle cx="12" cy="12" r="10"/></svg>;
 
@@ -1249,7 +1249,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     <div style={wrapperStyle}>
       {/* Section title bar */}
       <div className="n313-sec-title" style={tintedSectionTitle}>
-        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
+        <div style={{ position: 'absolute', [mirrored ? 'left' : 'right']: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: signalColorHex || T.accent, pointerEvents: 'none' }} />
         <span style={STYLES.grip} onMouseDown={onGripDown}>⠿</span>
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
           <span className="n313-title-font" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.hFont, letterSpacing: '4px', textTransform: 'uppercase', padding: '0 3px' }}>{section.title || 'SECTION'}</span>
@@ -1775,9 +1775,7 @@ function Node313({
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}), position: 'relative' }}>
-              {/* Divider overlay — sits above cell backgrounds */}
-              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px', marginLeft: '-2px', background: signalColorHex || T.border, pointerEvents: 'none', zIndex: 2 }} />
+            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}) }}>
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
               </div>
@@ -1977,7 +1975,7 @@ function Node313({
           </div>
           )}
           {/* Vertical divider aligned with table header divider */}
-          <div style={{ position: 'absolute', right: ACTION_AREA_W, top: '25%', bottom: '25%', width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none', borderRadius: 1 }} />
+          <div style={{ position: 'absolute', right: ACTION_AREA_W, top: 6, bottom: 6, width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />
           {/* Settings button */}
           <div
             ref={settingsBtnRef}
