@@ -135,7 +135,7 @@ const T = {
   borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,255,255,0.08)',
   colDivider: 'rgba(255,255,255,0.50)',
   accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
-  green: '#4caf50', red: '#e05555',
+  green: '#66bb6a', red: '#ef5350',
   accentGlow: 'rgba(255,255,255,0.04)',
   text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
   white: '#e0e0e0',
@@ -327,7 +327,7 @@ const STYLES = {
     width: '100%',
   },
   sectionWrap: {
-    flex: 1,
+    flex: '1 1 auto',
     minWidth: 0,
     alignSelf: 'stretch',
   },
@@ -618,9 +618,9 @@ const SVG_STYLE = { display: 'block' };
 const L = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: SVG_STYLE };
 const ACTION_ICON_X = <svg width="9" height="9" viewBox="0 0 24 24" {...L}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
 const ACTION_ICON_PLUS = <svg width="9" height="9" viewBox="0 0 24 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
-const ACTION_ICON_PLUS_DOWN = <svg width="14" height="9" viewBox="0 0 34 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M28 5v14"/><path d="m25 15 3 4 3-4"/></svg>;
-const ACTION_ICON_PLUS_LEFT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M19 28H5"/><path d="m9 25-4 3 4 3"/></svg>;
-const ACTION_ICON_PLUS_RIGHT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M5 28h14"/><path d="m15 25 4 3-4 3"/></svg>;
+const ACTION_ICON_PLUS_DOWN = <svg width="14" height="9" viewBox="0 0 34 24" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M28 5v14"/><polygon points="24,15 28,21 32,15" fill="currentColor" stroke="none"/></svg>;
+const ACTION_ICON_PLUS_LEFT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M19 28H5"/><polygon points="9,25 3,28 9,31" fill="currentColor" stroke="none"/></svg>;
+const ACTION_ICON_PLUS_RIGHT = <svg width="9" height="14" viewBox="0 0 24 34" {...L}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M5 28h14"/><polygon points="15,25 21,28 15,31" fill="currentColor" stroke="none"/></svg>;
 const ACTION_ICON_FLIP = <svg width="10" height="7" viewBox="0 0 24 24" {...L}><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>;
 const ACTION_ICON_SPACING = <svg width="9" height="11" viewBox="0 0 24 24" {...L}><path d="M12 2v20"/><path d="m8 18 4 4 4-4"/><path d="m8 6 4-4 4 4"/></svg>;
 const SETTINGS_ICON = <svg width="13" height="13" viewBox="0 0 24 24" {...L}><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>;
@@ -643,11 +643,11 @@ const ActionCell = memo(({ isHeader, label, icon, onClick, onMouseDown, title, s
       onClick={interactive && onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
       onMouseDown={onMouseDown || (interactive ? (e) => e.stopPropagation() : undefined)}
       title={title}
-      onMouseEnter={interactive ? (e) => { e.currentTarget.style.setProperty('background', `${sc}18`, 'important'); } : undefined}
+      onMouseEnter={interactive ? (e) => { e.currentTarget.style.setProperty('background', `${sc}30`, 'important'); } : undefined}
       onMouseLeave={interactive ? (e) => { e.currentTarget.style.removeProperty('background'); } : undefined}
     >
       <div style={CELL_CENTER}>
-        {icon ? <span style={{ color: sc, display: 'flex' }}>{icon}</span> : (label ? <span style={{ ...STYLES.actionCellLabel, cursor, color: sc }}>{label}</span> : null)}
+        {icon ? <span className="n313-icon-btn" style={{ color: sc }}>{icon}</span> : (label ? <span style={{ ...STYLES.actionCellLabel, cursor, color: sc }}>{label}</span> : null)}
       </div>
     </Tag>
   );
@@ -667,11 +667,11 @@ const AnchorCell = memo(({ isHeader, anchorId, label, icon, onClick, title, onAn
       onClick={interactive ? (e) => { e.stopPropagation(); isHeader ? onClick() : onAnchorClick && onAnchorClick(anchorId, anchorType || 'both'); } : undefined}
       onMouseDown={interactive ? (e) => e.stopPropagation() : undefined}
       title={isHeader ? (interactive ? title : undefined) : 'Click to connect wire'}
-      onMouseEnter={interactive ? (e) => { e.currentTarget.style.setProperty('background', `${sc}18`, 'important'); } : undefined}
+      onMouseEnter={interactive ? (e) => { e.currentTarget.style.setProperty('background', `${sc}30`, 'important'); } : undefined}
       onMouseLeave={interactive ? (e) => { e.currentTarget.style.removeProperty('background'); } : undefined}
     >
       <div style={CELL_CENTER}>
-        {isHeader && icon ? <span style={{ color: sc, display: 'flex' }}>{icon}</span> : isHeader && label ? <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span> : null}
+        {isHeader && icon ? <span className="n313-icon-btn" style={{ color: sc }}>{icon}</span> : isHeader && label ? <span style={{ ...STYLES.actionCellLabel, cursor }}>{label}</span> : null}
         {!isHeader && <div className="n313-anchor-dot" data-anchor-id={anchorId} style={{ ...ANCHOR_DOT_STYLE, cursor }} />}
       </div>
     </Tag>
@@ -1263,17 +1263,20 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           />
         </div>
         {collapsible && (
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-            <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 3px' }}>{section.ip || 'IP: 0.0.0.0'}</span>
-            <input
-              style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-              value={section.ip || ''}
-              placeholder="IP: 0.0.0.0"
-              onChange={(e) => updateSection({ ip: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              {...BLUR_ON_ENTER}
-            />
+          <div style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, border: `1px solid ${signalColorHex || T.borderStrong}`, background: `${signalColorHex || T.accent}08`, height: '18px' }}>
+            <span style={{ fontSize: '8px', fontFamily: T.mono, color: signalColorHex || T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 4px', borderRight: `1px solid ${signalColorHex || T.borderStrong}`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0 }}>IP</span>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+              <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 4px' }}>{section.ip || '0.0.0.0'}</span>
+              <input
+                style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', padding: '0 4px' }}
+                value={section.ip || ''}
+                placeholder="0.0.0.0"
+                onChange={(e) => updateSection({ ip: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                {...BLUR_ON_ENTER}
+              />
+            </div>
           </div>
         )}
         {/* Extending gradient line — tapers to pin near text */}
@@ -1285,23 +1288,28 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           clipPath: mirrored
             ? 'polygon(0% 0%, 0% 100%, 100% 50%)'
             : 'polygon(0% 50%, 100% 0%, 100% 100%)' }} />
-        {(collapsible || onSpacingDown) && (
-          <div
-            className="n313-sec-action"
-            style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', width: ACTION_AREA_W, justifyContent: 'center', cursor: onSpacingDown ? 'ns-resize' : 'pointer' }}
-            onClick={collapsible ? (e) => { e.stopPropagation(); updateSection({ collapsed: !section.collapsed }); } : undefined}
-            onMouseDown={onSpacingDown || undefined}
-            onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-          >
-            {collapsible && (
-              <span style={{ ...STYLES.actionCellLabel, color: signalColorHex || T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>{section.collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_DOWN}</span>
-            )}
-            {onSpacingDown && (
-              <span style={{ ...STYLES.actionCellLabel, color: signalColorHex || T.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>{ACTION_ICON_SPACING}</span>
-            )}
-          </div>
-        )}
+        <div className="n313-sec-action" style={{ position: 'absolute', [mirrored ? 'left' : 'right']: 0, top: 0, bottom: 0, display: 'flex', flexDirection: 'column', width: ACTION_AREA_W }}>
+          {collapsible && (
+            <div
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              onClick={(e) => { e.stopPropagation(); updateSection({ collapsed: !section.collapsed }); }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+            >
+              <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent, pointerEvents: 'none' }}>{section.collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_DOWN}</span>
+            </div>
+          )}
+          {onSpacingDown && (
+            <div
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'ns-resize' }}
+              onMouseDown={onSpacingDown}
+              onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+            >
+              <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent, pointerEvents: 'none' }}>{ACTION_ICON_SPACING}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {!section.collapsed && <>
@@ -1704,45 +1712,7 @@ function Node313({
 
   // ---- Sync column widths: A+B sync together, C sizes independently ----
   const colSizerValues = useMemo(() => {
-    const secs = node.sections;
-    const abSecs = [secs.a, secs.b].filter(Boolean);
-    if (abSecs.length < 2) return { a: null, b: null, c: null };
-    const count = Math.max(...abSecs.map(s => s.cols.length));
-    const abSizers = [];
-    for (let ci = 0; ci < count; ci++) {
-      let longest = '';
-      for (const sec of abSecs) {
-        // Only body rows — headers use their own sizing via data-h (different font)
-        for (const row of sec.rows) {
-          if (row[ci] && row[ci].length > longest.length) longest = row[ci];
-        }
-      }
-      abSizers.push(longest || null);
-    }
-    // C uses A+B sizers as baseline, matched by column name
-    const cSec = secs.c;
-    let cSizers = null;
-    if (cSec) {
-      // Build a map of column name → longest value from A+B
-      const abColNames = abSecs[0]?.cols || [];
-      const abMap = {};
-      for (let ci = 0; ci < count; ci++) {
-        const name = (abColNames[ci] || '').toUpperCase();
-        if (name) abMap[name] = abSizers[ci] || '';
-      }
-      cSizers = [];
-      for (let ci = 0; ci < cSec.cols.length; ci++) {
-        const colName = (cSec.cols[ci] || '').toUpperCase();
-        const abVal = abMap[colName] || '';
-        let longest = abVal;
-        // Only body rows — headers use their own sizing via data-h (different font)
-        for (const row of cSec.rows) {
-          if (row[ci] && row[ci].length > longest.length) longest = row[ci];
-        }
-        cSizers.push(longest || null);
-      }
-    }
-    return { a: abSizers, b: abSizers, c: cSizers };
+    return { a: null, b: null, c: null };
   }, [node.sections]);
 
   // ---- Render sections ----
@@ -1805,7 +1775,9 @@ function Node313({
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}) }}>
+            <div style={{ ...STYLES.sectionWrap, ...STYLES.sectionWrapBorder, ...(signalColorHex ? { borderLeftColor: signalColorHex } : {}), position: 'relative' }}>
+              {/* Divider overlay — sits above cell backgrounds */}
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '2px', marginLeft: '-2px', background: signalColorHex || T.border, pointerEvents: 'none', zIndex: 2 }} />
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
               </div>
@@ -2017,10 +1989,10 @@ function Node313({
               setSettingsOpen(prev => !prev);
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; e.currentTarget.style.color = T.accentLight; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; if (!settingsOpen) e.currentTarget.style.color = signalColorHex || T.accent; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; e.currentTarget.style.color = signalColorHex || T.accent; e.currentTarget.style.opacity = '1'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = signalColorHex || T.accent; e.currentTarget.style.opacity = ''; }}
           >
-            {SETTINGS_ICON}
+            <span className="n313-icon-btn">{SETTINGS_ICON}</span>
           </div>
       </div>
 
@@ -2044,7 +2016,7 @@ function Node313({
                     <button key={dt} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                       onMouseDown={(e) => { e.stopPropagation(); onUpdate({ deviceTypes: isActive ? types.filter(t => t !== dt) : [...types, dt] }); }}>
                       <span>{dt}</span>
-                      <span style={{ color: isActive ? T.accentLight : T.textMuted, display: 'flex' }}>{isActive ? ICON_CHECK : ICON_CIRCLE}</span>
+                      <span className="n313-icon-btn" style={{ color: isActive ? T.accentLight : T.textMuted }}>{isActive ? ICON_CHECK : ICON_CIRCLE}</span>
                     </button>
                   );
                 })}
@@ -2060,7 +2032,7 @@ function Node313({
                     <button key={sec.id} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                       onMouseDown={(e) => { e.stopPropagation(); toggleSectionVisibility(sec.id); }}>
                       <span>{sec.label}</span>
-                      <span style={{ color: isVisible ? T.accentLight : T.textMuted, display: 'flex' }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
+                      <span className="n313-icon-btn" style={{ color: isVisible ? T.accentLight : T.textMuted }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
                     </button>
                   );
                 })}
@@ -2077,7 +2049,7 @@ function Node313({
                     <button key={field.id} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                       onMouseDown={(e) => { e.stopPropagation(); toggleTitleField(field.id); }}>
                       <span>{field.label}</span>
-                      <span style={{ color: isVisible ? T.accentLight : T.textMuted, display: 'flex' }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
+                      <span className="n313-icon-btn" style={{ color: isVisible ? T.accentLight : T.textMuted }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
                     </button>
                   );
                 })}

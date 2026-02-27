@@ -3,7 +3,7 @@ import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import Node313 from './components/Node313';
 import SidePanel from './components/SidePanel';
-import CanvasControls from './components/canvas/CanvasControls';
+import CanvasRulers from './components/canvas/CanvasRulers';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
 import TitleBlockOverlay from './components/canvas/TitleBlockOverlay';
 import CablePrompt from './components/CablePrompt';
@@ -465,6 +465,20 @@ export default function App() {
     });
   }, []);
 
+  // Ruler visibility state
+  const [showRulers, setShowRulers] = useState(() => {
+    const saved = localStorage.getItem('nx-showRulers');
+    return saved !== null ? saved === 'true' : false;
+  });
+
+  const toggleRulers = useCallback(() => {
+    setShowRulers(prev => {
+      const next = !prev;
+      localStorage.setItem('nx-showRulers', next.toString());
+      return next;
+    });
+  }, []);
+
   // Title block toggle handlers
   const toggleTitleBlock = useCallback(() => {
     setShowTitleBlock(prev => {
@@ -651,8 +665,12 @@ export default function App() {
       transformRef.current.style.transform =
         `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
     }
+    if (rulerRef.current?.draw) {
+      rulerRef.current.draw(panRef.current, zoomRef.current);
+    }
   }, []);
 
+  const rulerRef = useRef(null);
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -2841,6 +2859,47 @@ export default function App() {
                 <option key={z} value={z}>{Math.round(z * 100)}%</option>
               ))}
             </select>
+            <div className="h-4 border-l border-zinc-700" />
+            <button
+              onClick={resetView}
+              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              title="Reset view"
+            >
+              ⟲ Reset
+            </button>
+            <button
+              onClick={toggleSnapToGrid}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                snapToGrid
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title={snapToGrid ? 'Snap to grid: ON' : 'Snap to grid: OFF'}
+            >
+              # Snap
+            </button>
+            <button
+              onClick={toggleTitleBlock}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showTitleBlock
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title={showTitleBlock ? 'Title Block: ON' : 'Title Block: OFF'}
+            >
+              TB
+            </button>
+            <button
+              onClick={toggleRulers}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showRulers
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title={showRulers ? 'Rulers: ON' : 'Rulers: OFF'}
+            >
+              ⌐ Rulers
+            </button>
           </div>
 
           {/* Add Node */}
@@ -3485,22 +3544,7 @@ export default function App() {
           )}
         </div>
         </div>
-        <CanvasControls
-          zoom={zoom}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onFitView={() => fitView(0.1)}
-          onReset={resetView}
-          snapToGrid={snapToGrid}
-          onToggleSnap={toggleSnapToGrid}
-          showTitleBlock={showTitleBlock}
-          onToggleTitleBlock={toggleTitleBlock}
-          showTitleBlockGrid={showTitleBlockGrid}
-          onToggleTitleBlockGrid={toggleTitleBlockGrid}
-          onFitToDrawingArea={fitNodesToDrawingArea}
-          canvasBackground={canvasBackground}
-          onToggleBackground={toggleCanvasBackground}
-        />
+        <CanvasRulers ref={rulerRef} containerRef={containerRef} visible={showRulers} />
         <input ref={fileInputRef} type="file" accept=".vsf,.json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
       </main>
       </div>

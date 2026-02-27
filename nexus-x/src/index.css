@@ -47,6 +47,13 @@
   border-radius: 2px !important;
 }
 
+/* NODE 313 — Icon button outline */
+.n313-icon-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 /* NODE 313 — Title bar gear area (matches node top-right + title-bar bottom-right) */
 .n313-title-action {
   border-radius: 0 6px 6px 0 !important;
