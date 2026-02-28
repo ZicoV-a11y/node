@@ -47,25 +47,17 @@ const WIRE_COLORS = [
 
 const CABLE_TYPES = [
   'HDMI 2.0',
-  'HDMI 2.1',
+  '12G-SDI',
+  '3G-SDI',
   'DisplayPort 1.4',
   'DisplayPort 2.0',
   'USB-C (Thunderbolt 3)',
-  'USB-C (Thunderbolt 4)',
   'CAT5e',
-  'CAT6',
   'CAT6a',
   'CAT7',
   'Fiber Optic (Single Mode)',
   'Fiber Optic (Multi Mode)',
-  'SDI',
-  '3G-SDI',
-  '6G-SDI',
-  '12G-SDI',
-  'AES/EBU (XLR)',
-  'RCA Audio',
-  'XLR Audio',
-  'TRS Audio',
+  'SMPTE Fiber',
   'Custom...'
 ];
 

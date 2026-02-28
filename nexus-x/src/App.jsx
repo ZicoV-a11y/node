@@ -15,6 +15,7 @@ import { getSubcategories } from './config/nodePresets';
 import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
 import ChangelogPopup from './components/ChangelogPopup';
 import { APP_VERSION } from './config/version';
+import repoPresets from './config/userPresets.json';
 
 const ZOOM_LEVELS = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
 const ZOOM_BOUNDS = { MIN: 0.05, MAX: 8 };
@@ -598,7 +599,10 @@ export default function App() {
   }, [future, nodes, connections]);
 
   // User-created presets (saved by dragging nodes to library)
-  const [userPresets, setUserPresets] = useState({});
+  // Initialized from repo-level presets (Git-tracked), merged with project presets on load
+  const [userPresets, setUserPresets] = useState(() => {
+    try { return JSON.parse(JSON.stringify(repoPresets)); } catch (e) { return {}; }
+  });
 
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
@@ -725,7 +729,24 @@ export default function App() {
     if (typeof typeOrConfig === 'object') {
       const { type, preset } = typeOrConfig;
 
-      if (type === 'supernode') {
+      // Node313 preset — apply saved config directly
+      if (preset?.version === 3) {
+        newNode = createNode313(nodeId);
+        if (preset.title) newNode.title = preset.title;
+        if (preset.manufacturer) newNode.manufacturer = preset.manufacturer;
+        if (preset.model) newNode.model = preset.model;
+        if (preset.tag) newNode.tag = preset.tag;
+        if (preset.signalColor) newNode.signalColor = preset.signalColor;
+        if (preset.deviceTypes) newNode.deviceTypes = preset.deviceTypes;
+        if (preset.layout) newNode.layout = preset.layout;
+        if (preset.sectionSpacing) newNode.sectionSpacing = preset.sectionSpacing;
+        if (preset.sections) newNode.sections = JSON.parse(JSON.stringify(preset.sections));
+        if (preset.hiddenSections) newNode.hiddenSections = preset.hiddenSections;
+        if (preset.hiddenTitleFields) newNode.hiddenTitleFields = preset.hiddenTitleFields;
+        if (preset.hiddenSystemFields) newNode.hiddenSystemFields = preset.hiddenSystemFields;
+        if (preset.mirroredSections) newNode.mirroredSections = preset.mirroredSections;
+        newNode.presetId = preset.id;
+      } else if (type === 'supernode') {
         newNode = createSuperNode(nodeId);
 
         // Apply preset overrides if provided
@@ -852,6 +873,52 @@ export default function App() {
       ...prev,
       [key]: (prev[key] || []).map(p => p.id === presetId ? updatedPreset : p)
     }));
+  };
+
+  // Save a Node313 as a preset (from settings dropdown)
+  // Defined as plain function (not useCallback) to avoid dependency ordering issues
+  const saveNode313Preset = (node, mode) => {
+    const presetData = {
+      id: mode === 'overwrite' && node.presetId ? node.presetId : `preset-${Date.now()}`,
+      label: node.title || 'Untitled',
+      title: node.title,
+      manufacturer: node.manufacturer || '',
+      model: node.model || '',
+      tag: node.tag || '',
+      signalColor: node.signalColor,
+      deviceTypes: node.deviceTypes || [],
+      layout: node.layout,
+      sectionSpacing: node.sectionSpacing,
+      sections: JSON.parse(JSON.stringify(node.sections || {})),
+      hiddenSections: node.hiddenSections || [],
+      hiddenTitleFields: node.hiddenTitleFields || [],
+      hiddenSystemFields: node.hiddenSystemFields || [],
+      mirroredSections: node.mirroredSections || [],
+      version: 3,
+    };
+
+    const key = 'node313/saved';
+
+    if (mode === 'overwrite' && node.presetId) {
+      setUserPresets(prev => {
+        const list = prev[key] || [];
+        const exists = list.some(p => p.id === node.presetId);
+        if (exists) {
+          return { ...prev, [key]: list.map(p => p.id === node.presetId ? presetData : p) };
+        }
+        return { ...prev, [key]: [...list, presetData] };
+      });
+    } else {
+      setUserPresets(prev => ({
+        ...prev,
+        [key]: [...(prev[key] || []), presetData]
+      }));
+      // Tag the node with presetId so it can overwrite later
+      setNodes(prev => ({
+        ...prev,
+        [node.id]: { ...prev[node.id], presetId: presetData.id }
+      }));
+    }
   };
 
   // Add a new subcategory to a category
@@ -2209,7 +2276,17 @@ export default function App() {
     }
     setNodes(project.nodes || {});
     setConnections(project.connections || []);
-    setUserPresets(project.userPresets || {});
+    // Merge repo presets (Git-tracked) with project presets (project wins on conflict)
+    const merged = { ...repoPresets };
+    const projPresets = project.userPresets || {};
+    for (const key of Object.keys(projPresets)) {
+      merged[key] = [...(merged[key] || [])];
+      for (const p of projPresets[key]) {
+        const idx = merged[key].findIndex(e => e.id === p.id);
+        if (idx >= 0) merged[key][idx] = p; else merged[key].push(p);
+      }
+    }
+    setUserPresets(merged);
     setProjectName(project.name || 'Untitled Project');
     setProjectId(project.id);
     setSelectedNodes(new Set());
@@ -2370,6 +2447,17 @@ export default function App() {
     fallbackDownload(output, 'user-presets-export.js', 'text/javascript');
 
     alert(`Exported ${Object.keys(userPresets).length} preset categories!\n\nCheck your downloads for: user-presets-export.js\n\nCopy the code and paste into nodePresets.js, then commit to Git.`);
+  }, [userPresets]);
+
+  // Export presets as JSON file (for Git tracking — download userPresets.json)
+  const handleExportPresetsJSON = useCallback(() => {
+    if (!userPresets || Object.keys(userPresets).length === 0) {
+      alert('No presets to export.');
+      return;
+    }
+    const json = JSON.stringify(userPresets, null, 2);
+    fallbackDownload(json, 'userPresets.json', 'application/json');
+    alert(`Exported presets as userPresets.json\n\nReplace nexus-x/src/config/userPresets.json with this file and commit to Git.`);
   }, [userPresets]);
 
   // Background pre-render PNG export blob when browser is idle (single page only)
@@ -2724,9 +2812,9 @@ export default function App() {
                   ? 'border-cyan-500 text-cyan-400'
                   : 'border-zinc-700 text-zinc-500'
               }`}
-              title={paperEnabled ? 'Paper: ON' : 'Paper: OFF'}
+              title={paperEnabled ? 'Canvas: ON' : 'Canvas: OFF'}
             >
-              Paper
+              Canvas
             </button>
             <select
               value={paperSize}
@@ -2996,6 +3084,7 @@ export default function App() {
           onMoveSubcategory={moveSubcategory}
           onReorderPresets={reorderPresets}
           onReorderSubcategories={reorderSubcategories}
+          onExportPresetsJSON={handleExportPresetsJSON}
         />
 
         {/* Canvas Area */}
@@ -3449,7 +3538,7 @@ export default function App() {
                 connections={connections}
                 connectionColorMap={connectionColorMap}
                 globalSourceNamesWithColors={globalSourceNamesWithColors}
-                onSavePreset={(categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
+                onSavePreset={node.version === 3 ? saveNode313Preset : (categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}
                 onMoveSelectedNodes={moveSelectedNodes}
@@ -3505,7 +3594,7 @@ export default function App() {
               Canvas: {canvasDimensions.width} × {canvasDimensions.height}px
             </span>
             <span className="text-zinc-500">
-              Paper: {paperEnabled ? `${PAPER_SIZES[paperSize].label} (${pages.length} page${pages.length !== 1 ? 's' : ''})` : 'Off'}
+              Canvas: {paperEnabled ? `${PAPER_SIZES[paperSize].label} (${pages.length} page${pages.length !== 1 ? 's' : ''})` : 'Off'}
             </span>
             <span className="text-zinc-500">
               Zoom: {Math.round(zoom * 100)}%

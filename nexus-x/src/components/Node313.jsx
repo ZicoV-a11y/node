@@ -1455,7 +1455,7 @@ function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes,
-  onAnchorClick,
+  onAnchorClick, onSavePreset,
 }) {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -2189,6 +2189,38 @@ function Node313({
                 >
                   Clear Color
                 </div>
+                </>}
+                {/* Save as Preset */}
+                {onSavePreset && <>
+                  <div style={STYLES.settingsDivider} />
+                  <button
+                    style={{ ...STYLES.settingsItem, color: T.accentLight }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      onSavePreset(node, 'new');
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <span>Save as Preset</span>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>+</span>
+                  </button>
+                  {node.presetId && (
+                    <button
+                      style={{ ...STYLES.settingsItem, color: T.accentDim }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onSavePreset(node, 'overwrite');
+                        setSettingsOpen(false);
+                      }}
+                    >
+                      <span>Overwrite Preset</span>
+                      <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>↻</span>
+                    </button>
+                  )}
                 </>}
               </div>
             );

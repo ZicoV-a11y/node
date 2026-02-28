@@ -382,7 +382,7 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
   );
 };
 
-export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, userSubcategories = {}, subcategoryOrder = {}, nodes, onSavePreset, onDeletePreset, onUpdatePreset, onAddSubcategory, onDeleteSubcategory, onMoveSubcategory, onReorderPresets, onReorderSubcategories }) {
+export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}, userSubcategories = {}, subcategoryOrder = {}, nodes, onSavePreset, onDeletePreset, onUpdatePreset, onAddSubcategory, onDeleteSubcategory, onMoveSubcategory, onReorderPresets, onReorderSubcategories, onExportPresetsJSON }) {
   // Track which categories/subcategories are expanded
   const [expandedCategories, setExpandedCategories] = useState({ sources: true });
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
@@ -593,6 +593,67 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
             + Node 313
           </button>
         </div>
+
+        {/* Saved Node313 Presets */}
+        {(() => {
+          const savedPresets = userPresets?.['node313/saved'] || [];
+          if (savedPresets.length === 0) return null;
+          return (
+            <>
+              <div className="border-t border-zinc-800 my-2" />
+              <div className="px-3 py-1">
+                <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
+                  Saved Presets
+                </span>
+              </div>
+              <div className="px-3 py-1 flex flex-col gap-1">
+                {savedPresets.map((preset) => (
+                  <div key={preset.id} className="flex items-center gap-1">
+                    <button
+                      onClick={() => onAddNode({ type: 'node313', preset })}
+                      className="flex-1 px-2 py-1.5 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50 rounded text-[11px] font-mono text-zinc-300 text-left transition-colors truncate"
+                      title={`Add ${preset.label}${preset.manufacturer ? ` (${preset.manufacturer})` : ''}`}
+                    >
+                      <span className="truncate">{preset.label}</span>
+                      {preset.manufacturer && (
+                        <span className="text-zinc-500 ml-1 text-[9px]">{preset.manufacturer}</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const key = 'node313/saved';
+                        const updated = (userPresets[key] || []).filter(p => p.id !== preset.id);
+                        // This needs onDeletePreset prop — for now use the existing pattern
+                        if (typeof onDeletePreset === 'function') {
+                          onDeletePreset('node313', 'saved', preset.id);
+                        }
+                      }}
+                      className="text-zinc-600 hover:text-red-400 text-[10px] px-1"
+                      title="Delete preset"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Export Presets */}
+        {Object.keys(userPresets).length > 0 && onExportPresetsJSON && (
+          <>
+            <div className="border-t border-zinc-800 my-2" />
+            <div className="px-3 py-1">
+              <button
+                onClick={onExportPresetsJSON}
+                className="w-full px-2 py-1.5 bg-zinc-800/30 hover:bg-zinc-700/50 border border-zinc-700/50 rounded text-[10px] font-mono text-zinc-500 hover:text-zinc-300 text-left transition-colors"
+              >
+                Export Presets to JSON
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Resize Handle */}

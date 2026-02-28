@@ -76,13 +76,13 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, onSave, fon
                 height: '100%',
                 fontSize,
                 fontWeight,
-                fontFamily: 'ui-monospace, monospace',
+                fontFamily: "'Space Grotesk', sans-serif",
                 padding: 4,
-                border: '1px solid #06b6d4',
+                border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: 2,
                 outline: 'none',
-                backgroundColor: '#18181b',
-                color: '#fff',
+                backgroundColor: '#111111',
+                color: '#e0e0e0',
                 boxSizing: 'border-box',
                 resize: 'none',
               }}
@@ -102,13 +102,13 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, onSave, fon
                 height: '100%',
                 fontSize,
                 fontWeight,
-                fontFamily: 'ui-monospace, monospace',
+                fontFamily: "'Space Grotesk', sans-serif",
                 padding: '0 4px',
-                border: '1px solid #06b6d4',
+                border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: 2,
                 outline: 'none',
-                backgroundColor: '#18181b',
-                color: '#fff',
+                backgroundColor: '#111111',
+                color: '#e0e0e0',
                 boxSizing: 'border-box',
                 textAlign,
               }}
@@ -127,10 +127,10 @@ const EditableField = memo(({ x, y, width, height, value, fieldName, onSave, fon
               justifyContent: textAlign === 'center' ? 'center' : 'flex-start',
               fontSize,
               fontWeight,
-              fontFamily: 'ui-monospace, monospace',
+              fontFamily: "'Space Grotesk', sans-serif",
               cursor: 'text',
               padding: multiline ? 4 : '0 4px',
-              color: value ? color : '#52525b',
+              color: value ? color : '#444444',
               userSelect: 'none',
               overflow: 'hidden',
               textOverflow: multiline ? 'clip' : 'ellipsis',
@@ -189,9 +189,9 @@ const LogoUpload = memo(({ x, y, width, height, logoUrl, onLogoChange }) => {
           justifyContent: 'center',
           cursor: 'pointer',
           pointerEvents: 'auto',
-          backgroundColor: hasLogo ? 'transparent' : '#27272a',
-          borderRadius: hasLogo ? 0 : 4,
-          border: hasLogo ? 'none' : '1px dashed #3f3f46',
+          backgroundColor: hasLogo ? 'transparent' : '#0a0a0a',
+          borderRadius: hasLogo ? 0 : 0,
+          border: hasLogo ? 'none' : '1px dashed rgba(255,255,255,0.10)',
           overflow: 'hidden',
         }}
         title="Click to upload logo"
@@ -214,7 +214,7 @@ const LogoUpload = memo(({ x, y, width, height, logoUrl, onLogoChange }) => {
             }}
           />
         ) : (
-          <span style={{ color: '#52525b', fontSize: 9, fontFamily: 'ui-monospace, monospace', textAlign: 'center' }}>
+          <span style={{ color: '#444444', fontSize: 9, fontFamily: "'Space Grotesk', sans-serif", textAlign: 'center', letterSpacing: '1px' }}>
             Click to<br />upload logo
           </span>
         )}
@@ -244,11 +244,11 @@ function TitleBlockOverlayInner({
 
   const panelHeight = titleBlockData?.panelHeight || TITLE_BLOCK_CONFIG.panelHeight;
 
-  // Colors
-  const borderColor = '#3f3f46';
-  const textColor = '#a1a1aa';
-  const panelBg = '#18181b';
-  const sectionBg = '#1f1f23';
+  // Colors — matched to Node313 theme
+  const borderColor = 'rgba(255,255,255,0.10)';
+  const textColor = '#666666';
+  const panelBg = '#111111';
+  const sectionBg = '#0a0a0a';
 
 
   const handleFieldSave = useCallback((fieldName, value) => {
@@ -273,25 +273,24 @@ function TitleBlockOverlayInner({
   const panelY = bounds.height - panelHeight;
   const panelW = bounds.width;
 
-  // Section widths (percentages of panel width)
-  const logoW = 240;
-  const projectW = panelW * 0.25;
-  const versionW = panelW * 0.15;
-  const dateW = 80;
-  const notesW = panelW - logoW - projectW - versionW - dateW - 10; // Remaining space
+  // Section widths — edge-to-edge, no gaps
+  const logoW = Math.round(panelW * 0.14);
+  const projectW = Math.round(panelW * 0.30);
+  const versionW = Math.round(panelW * 0.14);
+  const dateW = Math.round(panelW * 0.10);
+  const notesW = panelW - logoW - projectW - versionW - dateW;
 
   // Font sizes
   const labelFont = 8;
   const valueFont = 10;
   const titleFont = 14;
 
-  // Section X positions
-  let sectionX = 0;
-  const logoX = sectionX; sectionX += logoW + 2;
-  const projectX = sectionX; sectionX += projectW + 2;
-  const versionX = sectionX; sectionX += versionW + 2;
-  const dateX = sectionX; sectionX += dateW + 2;
-  const notesX = sectionX;
+  // Section X positions — flush, shared borders
+  const logoX = 0;
+  const projectX = logoW;
+  const versionX = logoW + projectW;
+  const dateX = logoW + projectW + versionW;
+  const notesX = logoW + projectW + versionW + dateW;
 
   const sectionPadding = 4;
   const labelHeight = 12;
@@ -319,7 +318,7 @@ function TitleBlockOverlayInner({
         height={bounds.height - panelHeight}
         fill="none"
         stroke={borderColor}
-        strokeWidth={2}
+        strokeWidth={1}
       />
 
       {/* Grid lines */}
@@ -360,7 +359,7 @@ function TitleBlockOverlayInner({
         height={panelHeight}
         fill={panelBg}
         stroke={borderColor}
-        strokeWidth={2}
+        strokeWidth={1}
       />
 
       {/* LOGO SECTION - transparent when logo is present */}
@@ -376,7 +375,7 @@ function TitleBlockOverlayInner({
 
       {/* PROJECT NAME SECTION */}
       <rect x={projectX} y={panelY} width={projectW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
-      <text x={projectX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="ui-monospace, monospace">PROJECT</text>
+      <text x={projectX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="'Space Grotesk', sans-serif" letterSpacing="2" fontWeight="500">PROJECT</text>
       <EditableField
         x={projectX + sectionPadding}
         y={contentY}
@@ -386,14 +385,14 @@ function TitleBlockOverlayInner({
         fieldName="projectName"
         onSave={handleFieldSave}
         fontSize={titleFont}
-        fontWeight="bold"
+        fontWeight="500"
         placeholder="Project Name"
-        color="#fff"
+        color="#e0e0e0"
       />
 
       {/* VERSION SECTION */}
       <rect x={versionX} y={panelY} width={versionW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
-      <text x={versionX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="ui-monospace, monospace">VERSION</text>
+      <text x={versionX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="'Space Grotesk', sans-serif" letterSpacing="2" fontWeight="500">VERSION</text>
       <EditableField
         x={versionX + sectionPadding}
         y={contentY}
@@ -404,13 +403,13 @@ function TitleBlockOverlayInner({
         onSave={handleFieldSave}
         fontSize={valueFont}
         placeholder="v1.0"
-        color="#06b6d4"
+        color="#bbbbbb"
         multiline
       />
 
       {/* DATE SECTION */}
       <rect x={dateX} y={panelY} width={dateW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
-      <text x={dateX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="ui-monospace, monospace">DATE</text>
+      <text x={dateX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="'Space Grotesk', sans-serif" letterSpacing="2" fontWeight="500">DATE</text>
       <EditableField
         x={dateX + sectionPadding}
         y={contentY}
@@ -421,12 +420,12 @@ function TitleBlockOverlayInner({
         onSave={handleFieldSave}
         fontSize={valueFont}
         placeholder={new Date().toLocaleDateString()}
-        color="#fff"
+        color="#e0e0e0"
       />
 
       {/* NOTES SECTION */}
       <rect x={notesX} y={panelY} width={notesW} height={panelHeight} fill={sectionBg} stroke={borderColor} strokeWidth={1} />
-      <text x={notesX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="ui-monospace, monospace">NOTES</text>
+      <text x={notesX + sectionPadding} y={panelY + labelFont + 2} fill={textColor} fontSize={labelFont} fontFamily="'Space Grotesk', sans-serif" letterSpacing="2" fontWeight="500">NOTES</text>
       <EditableField
         x={notesX + sectionPadding}
         y={contentY}
@@ -437,7 +436,7 @@ function TitleBlockOverlayInner({
         onSave={handleFieldSave}
         fontSize={8}
         placeholder="Add notes..."
-        color="#a1a1aa"
+        color="#999999"
         multiline
       />
 
