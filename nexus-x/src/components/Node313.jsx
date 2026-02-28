@@ -224,7 +224,7 @@ const STYLES = {
     userSelect: 'none',
     whiteSpace: 'nowrap',
     padding: '6px 8px',
-    gap: '4px',
+    gap: '8px',
     height: '30px',
     boxSizing: 'border-box',
   },
@@ -760,7 +760,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1259,7 +1259,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             {...BLUR_ON_ENTER}
           />
         </div>
-        {collapsible && (
+        {collapsible && (<>
+          {!(hiddenSystemFields || []).includes('ip') && (
           <div style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, border: `1px solid ${signalColorHex || T.borderStrong}`, background: `${signalColorHex || T.accent}08`, height: '18px' }}>
             <span style={{ fontSize: '8px', fontFamily: T.mono, color: signalColorHex || T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 4px', borderRight: `1px solid ${signalColorHex || T.borderStrong}`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0 }}>IP</span>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
@@ -1275,7 +1276,42 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
               />
             </div>
           </div>
-        )}
+          )}
+          {!(hiddenSystemFields || []).includes('firmware') && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, border: `1px solid ${signalColorHex || T.borderStrong}`, background: `${signalColorHex || T.accent}08`, height: '18px' }}>
+            <span style={{ fontSize: '8px', fontFamily: T.mono, color: signalColorHex || T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 4px', borderRight: `1px solid ${signalColorHex || T.borderStrong}`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0 }}>FW</span>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+              <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 4px' }}>{section.firmware || '0.0.0'}</span>
+              <input
+                style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', padding: '0 4px' }}
+                value={section.firmware || ''}
+                placeholder="0.0.0"
+                onChange={(e) => updateSection({ firmware: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                {...BLUR_ON_ENTER}
+              />
+            </div>
+          </div>
+          )}
+          {!(hiddenSystemFields || []).includes('software') && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, border: `1px solid ${signalColorHex || T.borderStrong}`, background: `${signalColorHex || T.accent}08`, height: '18px' }}>
+            <span style={{ fontSize: '8px', fontFamily: T.mono, color: signalColorHex || T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 4px', borderRight: `1px solid ${signalColorHex || T.borderStrong}`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0 }}>SW</span>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+              <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', fontFamily: T.mono, padding: '0 4px' }}>{section.software || '0.0.0'}</span>
+              <input
+                style={{ ...STYLES.input, fontSize: '10px', fontFamily: T.mono, color: T.textSec, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', padding: '0 4px' }}
+                value={section.software || ''}
+                placeholder="0.0.0"
+                onChange={(e) => updateSection({ software: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                {...BLUR_ON_ENTER}
+              />
+            </div>
+          </div>
+          )}
+        </>)}
         {/* Extending gradient line — tapers to pin near text */}
         <div style={{ flex: 1, minWidth: 0, height: '2px',
           [mirrored ? 'marginLeft' : 'marginRight']: ACTION_AREA_W + 4,
@@ -1453,6 +1489,13 @@ function Node313({
     const next = current.includes(field) ? current.filter(f => f !== field) : [...current, field];
     onUpdate({ hiddenTitleFields: next });
   }, [node.hiddenTitleFields, onUpdate]);
+
+  const hiddenSystemFields = node.hiddenSystemFields || [];
+  const toggleSystemField = useCallback((field) => {
+    const current = node.hiddenSystemFields || [];
+    const next = current.includes(field) ? current.filter(f => f !== field) : [...current, field];
+    onUpdate({ hiddenSystemFields: next });
+  }, [node.hiddenSystemFields, onUpdate]);
 
   // Toggle section anchor side (flip)
   const toggleSectionMirrored = useCallback((sectionId) => {
@@ -1741,6 +1784,7 @@ function Node313({
         onAnchorClick={onAnchorClick}
         collapsible={sectionId === 'c'}
         isFirstRow={isFirstRow}
+        hiddenSystemFields={hiddenSystemFields}
       />
     );
   }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick]);
@@ -1765,15 +1809,19 @@ function Node313({
 
       if (row.length === 2) {
         // Side-by-side row
+        const sp0 = node.sectionSpacing?.[row[0]] || 0;
+        const sp1 = node.sectionSpacing?.[row[1]] || 0;
         elements.push(
           <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
             <div style={STYLES.sectionWrap}>
+              {sp0 > 0 && <div style={{ height: `${sp0}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
             <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />
             <div style={STYLES.sectionWrap}>
+              {sp1 > 0 && <div style={{ height: `${sp1}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
               </div>
@@ -2001,6 +2049,7 @@ function Node313({
             return (
               <div
                 className="n313-settings-dropdown"
+                ref={(el) => { if (el) { const rect = el.getBoundingClientRect(); if (rect.bottom > window.innerHeight - 10) el.style.top = `${window.innerHeight - rect.height - 10}px`; } }}
                 style={{ ...STYLES.settingsDropdown, left: btnRect.right - 160, top: btnRect.top }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
@@ -2044,6 +2093,22 @@ function Node313({
                   return (
                     <button key={field.id} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                       onMouseDown={(e) => { e.stopPropagation(); toggleTitleField(field.id); }}>
+                      <span>{field.label}</span>
+                      <span className="n313-icon-btn" style={{ color: isVisible ? T.accentLight : T.textMuted }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
+                    </button>
+                  );
+                })}
+                <div style={STYLES.settingsDivider} />
+                <div style={STYLES.settingsLabel}>System Bar</div>
+                {[
+                  { id: 'ip', label: 'IP Address' },
+                  { id: 'firmware', label: 'Firmware' },
+                  { id: 'software', label: 'Software' },
+                ].map((field) => {
+                  const isVisible = !hiddenSystemFields.includes(field.id);
+                  return (
+                    <button key={field.id} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                      onMouseDown={(e) => { e.stopPropagation(); toggleSystemField(field.id); }}>
                       <span>{field.label}</span>
                       <span className="n313-icon-btn" style={{ color: isVisible ? T.accentLight : T.textMuted }}>{isVisible ? ICON_CHECK : ICON_CIRCLE}</span>
                     </button>
