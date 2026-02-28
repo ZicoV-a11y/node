@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 
 const GRID_SPACING = 50; // 50px grid lines
 
-function PageGridOverlayInner({ pages, zoom, showRatioOverlay }) {
+function PageGridOverlayInner({ pages, zoom }) {
   const borderWidth = 1 / zoom;
   const fontSize = 14 / zoom;
   const gridLineWidth = 0.5 / zoom;
@@ -17,44 +17,6 @@ function PageGridOverlayInner({ pages, zoom, showRatioOverlay }) {
     const maxY = Math.max(...pages.map(p => p.y + p.height));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }, [pages]);
-
-  // Calculate ratio overlay that maintains paper aspect ratio across all pages
-  const ratioOverlay = useMemo(() => {
-    if (!showRatioOverlay || pages.length === 0) return null;
-
-    const minX = Math.min(...pages.map(p => p.x));
-    const minY = Math.min(...pages.map(p => p.y));
-    const maxX = Math.max(...pages.map(p => p.x + p.width));
-    const maxY = Math.max(...pages.map(p => p.y + p.height));
-
-    const totalWidth = maxX - minX;
-    const totalHeight = maxY - minY;
-
-    const pageWidth = pages[0].width;
-    const pageHeight = pages[0].height;
-    const paperAspect = pageWidth / pageHeight;
-
-    let overlayWidth, overlayHeight;
-    const totalAspect = totalWidth / totalHeight;
-
-    if (totalAspect > paperAspect) {
-      overlayWidth = totalWidth;
-      overlayHeight = totalWidth / paperAspect;
-    } else {
-      overlayHeight = totalHeight;
-      overlayWidth = totalHeight * paperAspect;
-    }
-
-    const centerX = minX + totalWidth / 2;
-    const centerY = minY + totalHeight / 2;
-
-    return {
-      x: centerX - overlayWidth / 2,
-      y: centerY - overlayHeight / 2,
-      width: overlayWidth,
-      height: overlayHeight,
-    };
-  }, [showRatioOverlay, pages]);
 
   if (pages.length === 0) return null;
 
@@ -122,19 +84,6 @@ function PageGridOverlayInner({ pages, zoom, showRatioOverlay }) {
         </g>
       ))}
 
-      {/* Ratio overlay — blue dashed outline maintaining paper aspect ratio */}
-      {ratioOverlay && (
-        <rect
-          x={ratioOverlay.x - bounds.x}
-          y={ratioOverlay.y - bounds.y}
-          width={ratioOverlay.width}
-          height={ratioOverlay.height}
-          fill="none"
-          stroke="#00bfff"
-          strokeWidth={3 / zoom}
-          strokeDasharray={`${10 / zoom} ${5 / zoom}`}
-        />
-      )}
     </svg>
   );
 }

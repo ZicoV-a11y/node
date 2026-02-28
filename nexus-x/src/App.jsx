@@ -403,9 +403,9 @@ export default function App() {
   // Paper and canvas settings (persisted to localStorage)
   const {
     paperSize, orientation, paperEnabled, setPaperEnabled,
-    customWidth, customHeight, snapToGrid, showRatioOverlay, gridSize,
+    customWidth, customHeight, snapToGrid, gridSize,
     canvasDimensions, handlePaperSizeChange, handleOrientationChange, toggleOrientation,
-    handleCustomSizeChange, toggleSnapToGrid, toggleRatioOverlay, centerPage: centerPageFn,
+    handleCustomSizeChange, toggleSnapToGrid, centerPage: centerPageFn,
   } = useCanvasSettings();
 
   const [zoom, setZoom] = useState(0.75);
@@ -2565,8 +2565,9 @@ export default function App() {
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
       {/* Header Toolbar */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-3 relative">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-2 relative">
+        {/* Row 1: File & Actions */}
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded border-2 border-cyan-500 flex items-center justify-center font-mono font-bold text-sm text-cyan-400">
@@ -2582,28 +2583,25 @@ export default function App() {
             </div>
           </div>
 
-          {/* Library Toggle & File Operations */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSidePanelOpen(prev => !prev)}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                sidePanelOpen
-                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="Toggle library panel"
-            >
-              ☰ Library
-            </button>
-            <button
-              onClick={handleNewProject}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="Reset — clear everything and start fresh"
-            >
-              ↻
-            </button>
-            <div className="h-4 border-l border-zinc-700" />
-            {/* Undo/Redo */}
+          <div className="h-4 border-l border-zinc-700" />
+
+          {/* Library */}
+          <button
+            onClick={() => setSidePanelOpen(prev => !prev)}
+            className={`px-2 py-1 border rounded text-xs font-mono ${
+              sidePanelOpen
+                ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+            }`}
+            title="Toggle library panel"
+          >
+            ☰ Library
+          </button>
+
+          <div className="h-4 border-l border-zinc-700" />
+
+          {/* Undo/Redo */}
+          <div className="flex items-center gap-1">
             <button
               onClick={() => { undo(); }}
               disabled={history.length === 0}
@@ -2628,7 +2626,12 @@ export default function App() {
             >
               ↷
             </button>
-            <div className="h-4 border-l border-zinc-700" />
+          </div>
+
+          <div className="h-4 border-l border-zinc-700" />
+
+          {/* File Operations */}
+          <div className="flex items-center gap-1">
             <button
               onClick={handleNewProject}
               className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
@@ -2650,60 +2653,6 @@ export default function App() {
             >
               Save As
             </button>
-            <button
-              onClick={() => setPrintFriendly(p => !p)}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                printFriendly
-                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="Print-friendly export (white background, darker lines)"
-            >
-              Print
-            </button>
-            <select
-              value={exportScale}
-              onChange={(e) => setExportScale(Number(e.target.value))}
-              className="px-1 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 bg-zinc-900 hover:border-zinc-500"
-              title="Export resolution"
-            >
-              {EXPORT_PRESETS.map(p => (
-                <option key={p.scale} value={p.scale}>{p.label} — {p.desc}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleExportPNG}
-              disabled={exportProgress !== null}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                exportProgress !== null
-                  ? 'border-cyan-500 text-cyan-400 cursor-wait'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={
-                paperEnabled && pages.length > 1
-                  ? `Export ${pages.length} pages as ZIP`
-                  : 'Export canvas as PNG image'
-              }
-            >
-              {exportProgress !== null
-                ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
-                : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
-              }
-            </button>
-            {showTitleBlock && (
-              <button
-                onClick={handleExportWithTitleBlock}
-                disabled={exportProgress !== null}
-                className={`px-2 py-1 border rounded text-xs font-mono ${
-                  exportProgress !== null
-                    ? 'border-cyan-500 text-cyan-400 cursor-wait'
-                    : 'border-emerald-700 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500'
-                }`}
-                title="Export PNG with title block included"
-              >
-                Export + TB
-              </button>
-            )}
             <div className="relative">
               <button
                 onClick={() => setShowRecents(prev => !prev)}
@@ -2731,18 +2680,43 @@ export default function App() {
                 </div>
               )}
             </div>
-            <div className="h-4 border-l border-zinc-700" />
-            <button
-              onClick={handleExportPresets}
-              className="px-2 py-1 border border-cyan-700 rounded text-xs font-mono text-cyan-400 hover:text-cyan-300 hover:border-cyan-500"
-              title="Export user presets for Git commit (ready to paste into nodePresets.js)"
-            >
-              Export Presets →
-            </button>
           </div>
 
-          {/* Paper Size & Orientation */}
-          <div className="flex items-center gap-2">
+          <div className="flex-1" />
+
+          {/* Add Node */}
+          <button
+            onClick={() => addNode('node313')}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-mono text-white"
+            title="Add Node 313"
+          >
+            + Node 313
+          </button>
+
+          {/* Version */}
+          <div className="relative">
+            <button
+              onClick={() => setShowChangelog(prev => !prev)}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                showChangelog
+                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title="View changelog"
+            >
+              v{APP_VERSION}
+            </button>
+            <ChangelogPopup
+              isOpen={showChangelog}
+              onClose={() => setShowChangelog(false)}
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Canvas & Export */}
+        <div className="flex items-center gap-3 flex-wrap mt-2 pt-2 border-t border-zinc-800/50">
+          {/* Paper */}
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setPaperEnabled(p => !p)}
               className={`px-2 py-1 border rounded text-xs font-mono ${
@@ -2750,7 +2724,7 @@ export default function App() {
                   ? 'border-cyan-500 text-cyan-400'
                   : 'border-zinc-700 text-zinc-500'
               }`}
-              title={paperEnabled ? 'Paper: ON — export clips to paper' : 'Paper: OFF — export captures all nodes'}
+              title={paperEnabled ? 'Paper: ON' : 'Paper: OFF'}
             >
               Paper
             </button>
@@ -2795,42 +2769,22 @@ export default function App() {
               {orientation === 'portrait' ? '↕ Portrait' : '↔ Landscape'}
             </button>
             <button
-              onClick={toggleSnapToGrid}
+              onClick={toggleTitleBlock}
               className={`px-2 py-1 border rounded text-xs font-mono ${
-                snapToGrid
+                showTitleBlock
                   ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-500'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
               }`}
-              title={snapToGrid ? `Snap to grid: ON (${gridSize}px)` : 'Snap to grid: OFF'}
+              title={showTitleBlock ? 'Title Block: ON' : 'Title Block: OFF'}
             >
-              Snap{snapToGrid ? ` ${gridSize}` : ''}
-            </button>
-            <button
-              onClick={toggleGrid}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showGrid
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-500'
-              }`}
-              title={showGrid ? 'Grid: ON' : 'Grid: OFF'}
-            >
-              Grid
-            </button>
-            <button
-              onClick={toggleRatioOverlay}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showRatioOverlay
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-500'
-              }`}
-              title={showRatioOverlay ? 'Paper ratio overlay: ON' : 'Paper ratio overlay: OFF'}
-            >
-              Ratio
+              TB
             </button>
           </div>
 
-          {/* Zoom */}
-          <div className="flex items-center gap-2">
+          <div className="h-4 border-l border-zinc-700" />
+
+          {/* View */}
+          <div className="flex items-center gap-1">
             <span className="text-xs font-mono text-zinc-500">Zoom:</span>
             <select
               value={zoom}
@@ -2859,7 +2813,6 @@ export default function App() {
                 <option key={z} value={z}>{Math.round(z * 100)}%</option>
               ))}
             </select>
-            <div className="h-4 border-l border-zinc-700" />
             <button
               onClick={resetView}
               className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
@@ -2879,15 +2832,15 @@ export default function App() {
               # Snap
             </button>
             <button
-              onClick={toggleTitleBlock}
+              onClick={toggleGrid}
               className={`px-2 py-1 border rounded text-xs font-mono ${
-                showTitleBlock
+                showGrid
                   ? 'border-cyan-500 text-cyan-400'
                   : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
               }`}
-              title={showTitleBlock ? 'Title Block: ON' : 'Title Block: OFF'}
+              title={showGrid ? 'Grid: ON' : 'Grid: OFF'}
             >
-              TB
+              Grid
             </button>
             <button
               onClick={toggleRulers}
@@ -2902,72 +2855,64 @@ export default function App() {
             </button>
           </div>
 
-          {/* Add Node */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => addNode('supernode')}
-              className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded text-xs font-mono text-white"
-              title="Add SuperNode with drag-based column layout"
-            >
-              + SuperNode
-            </button>
-            <button
-              onClick={() => addNode({
-                type: 'supernode',
-                preset: {
-                  title: 'ALIGNED SYSTEM',
-                  signalColor: 'zinc',
-                  system: {
-                    manufacturer: null,
-                    model: null,
-                  },
-                  inputSection: {
-                    ports: [
-                      { source: 'LAPTOP 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-                      { source: 'MACBOOKPRO 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-                      { source: '', connector: 'HDMI', resolution: '', refreshRate: '' },
-                    ]
-                  },
-                  outputSection: {
-                    ports: [
-                      { destination: 'BROMPTOM SX40', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-                      { destination: 'PROJECTOR 1', connector: 'HDMI', resolution: '3840x2160', refreshRate: '60' },
-                      { destination: '', connector: 'HDMI', resolution: '', refreshRate: '' },
-                    ]
-                  }
-                }
-              })}
-              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-mono text-white"
-              title="Add Aligned System node for testing"
-            >
-              + Aligned
-            </button>
-            <button
-              onClick={() => addNode('node313')}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-mono text-white"
-              title="Add Node 313 with generic table sections"
-            >
-              + Node 313
-            </button>
-          </div>
+          <div className="h-4 border-l border-zinc-700" />
 
-          {/* Version & Changelog */}
-          <div className="relative flex items-center gap-2">
+          {/* Export */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setShowChangelog(prev => !prev)}
+              onClick={() => setPrintFriendly(p => !p)}
               className={`px-2 py-1 border rounded text-xs font-mono ${
-                showChangelog
-                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                printFriendly
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
                   : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
               }`}
-              title="View changelog"
+              title="Print-friendly export (white background)"
             >
-              v{APP_VERSION}
+              Print
             </button>
-            <ChangelogPopup
-              isOpen={showChangelog}
-              onClose={() => setShowChangelog(false)}
-            />
+            <select
+              value={exportScale}
+              onChange={(e) => setExportScale(Number(e.target.value))}
+              className="px-1 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 bg-zinc-900 hover:border-zinc-500"
+              title="Export resolution"
+            >
+              {EXPORT_PRESETS.map(p => (
+                <option key={p.scale} value={p.scale}>{p.label} — {p.desc}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleExportPNG}
+              disabled={exportProgress !== null}
+              className={`px-2 py-1 border rounded text-xs font-mono ${
+                exportProgress !== null
+                  ? 'border-cyan-500 text-cyan-400 cursor-wait'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+              title={
+                paperEnabled && pages.length > 1
+                  ? `Export ${pages.length} pages as ZIP`
+                  : 'Export canvas as PNG image'
+              }
+            >
+              {exportProgress !== null
+                ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
+                : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
+              }
+            </button>
+            {showTitleBlock && (
+              <button
+                onClick={handleExportWithTitleBlock}
+                disabled={exportProgress !== null}
+                className={`px-2 py-1 border rounded text-xs font-mono ${
+                  exportProgress !== null
+                    ? 'border-cyan-500 text-cyan-400 cursor-wait'
+                    : 'border-emerald-700 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500'
+                }`}
+                title="Export PNG with title block"
+              >
+                Export + TB
+              </button>
+            )}
           </div>
         </div>
 
@@ -3114,7 +3059,7 @@ export default function App() {
           {/* Page grid overlay with per-page boundaries and margin guides */}
           {paperEnabled && showGrid && (
             <div data-export-ignore="true">
-              <PageGridOverlay pages={pages} zoom={zoom} showRatioOverlay={showRatioOverlay} />
+              <PageGridOverlay pages={pages} zoom={zoom} />
             </div>
           )}
 

@@ -741,16 +741,23 @@ const PortCell = memo(({ value, isSelected, onToggle, onChange, sizerValue }) =>
 PortCell.displayName = 'PortCell';
 
 // Drop zone for section rearranging — absolutely positioned overlay
-const DropZone = memo(({ label, onDrop, placement }) => {
+const DropZone = memo(({ label, onDrop, placement, signalColor }) => {
   const [hover, setHover] = useState(false);
+  const sc = signalColor || T.accent;
   return (
     <div
-      style={{ ...STYLES.dropZone, ...placement, ...(hover ? STYLES.dropZoneHover : {}) }}
+      style={{
+        ...STYLES.dropZone,
+        ...placement,
+        border: `2px dashed ${T.white}`,
+        background: hover ? `${sc}50` : `${sc}30`,
+        color: T.white,
+      }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onMouseUp={() => onDrop()}
     >
-      <span style={{ background: '#1a1408', padding: '1px 6px', color: T.accentLight, fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>{label}</span>
+      <span style={{ background: `${sc}88`, padding: '1px 6px', color: T.white, fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>{label}</span>
     </div>
   );
 });
@@ -1460,6 +1467,8 @@ function Node313({
 
   // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openMenus, setOpenMenus] = useState({});
+  const toggleMenu = useCallback((key) => setOpenMenus(prev => ({ ...prev, [key]: !prev[key] })), []);
   const settingsBtnRef = useRef(null);
 
   // Signal color
@@ -1828,31 +1837,31 @@ function Node313({
             </div>
             {/* Overlay drop zones */}
             {abZones.includes('left') && (
-              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')}
+              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} signalColor={signalColorHex}
                 placement={{ left: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
             {abZones.includes('right') && (
-              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
+              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} signalColor={signalColorHex}
                 placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
             {abZones.includes('above') && (() => {
               const destLeft = dragSec !== row[0];
               const hasL = abZones.includes('left'), hasR = abZones.includes('right');
-              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')} signalColor={signalColorHex}
                 placement={{ left: destLeft ? (hasL ? DZ_THICKNESS : 0) : '50%', right: destLeft ? '50%' : (hasR ? DZ_THICKNESS : 0), top: 0, height: `${DZ_THIN}px` }} />;
             })()}
             {abZones.includes('below') && (() => {
               const destLeft = dragSec !== row[0];
               const hasL = abZones.includes('left'), hasR = abZones.includes('right');
-              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')} signalColor={signalColorHex}
                 placement={{ left: destLeft ? (hasL ? DZ_THICKNESS : 0) : '50%', right: destLeft ? '50%' : (hasR ? DZ_THICKNESS : 0), bottom: 0, height: `${DZ_THIN}px` }} />;
             })()}
             {rowIndex === 0 && cZones.includes('top') && (
-              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
+              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')} signalColor={signalColorHex}
                 placement={{ left: 0, right: 0, top: 0, height: `${DZ_THIN}px` }} />
             )}
             {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
-              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
+              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')} signalColor={signalColorHex}
                 placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THIN}px` }} />
             )}
           </div>
@@ -1877,30 +1886,30 @@ function Node313({
             </div>
             {/* Overlay drop zones for the OTHER section's row */}
             {rowIndex === otherRowIndex && abZones.includes('left') && (
-              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')}
+              <DropZone key="dz-left" label="LEFT" onDrop={() => handleDrop('left')} signalColor={signalColorHex}
                 placement={{ left: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
             {rowIndex === otherRowIndex && abZones.includes('right') && (
-              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')}
+              <DropZone key="dz-right" label="RIGHT" onDrop={() => handleDrop('right')} signalColor={signalColorHex}
                 placement={{ right: 0, top: 0, bottom: 0, width: `${DZ_THICKNESS}px` }} />
             )}
             {rowIndex === otherRowIndex && abZones.includes('above') && (() => {
               const hasL = abZones.includes('left'), hasR = abZones.includes('right');
-              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')}
+              return <DropZone key="dz-above" label="ABOVE" onDrop={() => handleDrop('above')} signalColor={signalColorHex}
                 placement={{ left: hasL ? DZ_THICKNESS : 0, right: hasR ? DZ_THICKNESS : 0, top: 0, height: `${DZ_THIN}px` }} />;
             })()}
             {rowIndex === otherRowIndex && abZones.includes('below') && (() => {
               const hasL = abZones.includes('left'), hasR = abZones.includes('right');
-              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')}
+              return <DropZone key="dz-below" label="BELOW" onDrop={() => handleDrop('below')} signalColor={signalColorHex}
                 placement={{ left: hasL ? DZ_THICKNESS : 0, right: hasR ? DZ_THICKNESS : 0, bottom: 0, height: `${DZ_THIN}px` }} />;
             })()}
             {/* C zones on first/last rows */}
             {rowIndex === 0 && cZones.includes('top') && (
-              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')}
+              <DropZone key="dz-top" label="TOP" onDrop={() => handleDrop('top')} signalColor={signalColorHex}
                 placement={{ left: 0, right: 0, top: 0, height: `${DZ_THIN}px` }} />
             )}
             {rowIndex === layout.length - 1 && cZones.includes('bottom') && (
-              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')}
+              <DropZone key="dz-bottom" label="BOTTOM" onDrop={() => handleDrop('bottom')} signalColor={signalColorHex}
                 placement={{ left: 0, right: 0, bottom: 0, height: `${DZ_THIN}px` }} />
             )}
           </div>
@@ -2053,8 +2062,15 @@ function Node313({
                 style={{ ...STYLES.settingsDropdown, left: btnRect.right - 160, top: btnRect.top }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <div style={STYLES.settingsLabel}>Device Type</div>
-                {['Router', 'Switcher', 'Source', 'Destination', 'Converter'].map((dt) => {
+                {/* Device Type */}
+                <div style={STYLES.settingsLabel} onMouseDown={(e) => { e.stopPropagation(); toggleMenu('deviceType'); }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}10`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>{openMenus.deviceType ? ICON_CHEVRON_DOWN : ICON_CHEVRON_RIGHT}</span>
+                    Device Type
+                  </span>
+                </div>
+                {openMenus.deviceType && ['Router', 'Switcher', 'Source', 'Destination', 'Converter'].map((dt) => {
                   const types = node.deviceTypes || [];
                   const isActive = types.includes(dt);
                   return (
@@ -2066,8 +2082,15 @@ function Node313({
                   );
                 })}
                 <div style={STYLES.settingsDivider} />
-                <div style={STYLES.settingsLabel}>Sections</div>
-                {[
+                {/* Sections */}
+                <div style={STYLES.settingsLabel} onMouseDown={(e) => { e.stopPropagation(); toggleMenu('sections'); }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}10`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>{openMenus.sections ? ICON_CHEVRON_DOWN : ICON_CHEVRON_RIGHT}</span>
+                    Sections
+                  </span>
+                </div>
+                {openMenus.sections && [
                   { id: 'a', label: 'Input (A)' },
                   { id: 'b', label: 'Output (B)' },
                   { id: 'c', label: 'System (C)' },
@@ -2082,8 +2105,15 @@ function Node313({
                   );
                 })}
                 <div style={STYLES.settingsDivider} />
-                <div style={STYLES.settingsLabel}>Title Bar</div>
-                {[
+                {/* Title Bar */}
+                <div style={STYLES.settingsLabel} onMouseDown={(e) => { e.stopPropagation(); toggleMenu('titleBar'); }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}10`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>{openMenus.titleBar ? ICON_CHEVRON_DOWN : ICON_CHEVRON_RIGHT}</span>
+                    Title Bar
+                  </span>
+                </div>
+                {openMenus.titleBar && [
                   { id: 'name', label: 'Name' },
                   { id: 'tag', label: 'Tag' },
                   { id: 'manufacturer', label: 'Manufacturer' },
@@ -2099,8 +2129,15 @@ function Node313({
                   );
                 })}
                 <div style={STYLES.settingsDivider} />
-                <div style={STYLES.settingsLabel}>System Bar</div>
-                {[
+                {/* System Bar */}
+                <div style={STYLES.settingsLabel} onMouseDown={(e) => { e.stopPropagation(); toggleMenu('systemBar'); }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}10`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>{openMenus.systemBar ? ICON_CHEVRON_DOWN : ICON_CHEVRON_RIGHT}</span>
+                    System Bar
+                  </span>
+                </div>
+                {openMenus.systemBar && [
                   { id: 'ip', label: 'IP Address' },
                   { id: 'firmware', label: 'Firmware' },
                   { id: 'software', label: 'Software' },
@@ -2115,7 +2152,15 @@ function Node313({
                   );
                 })}
                 <div style={STYLES.settingsDivider} />
-                <div style={STYLES.settingsLabel}>Signal Color</div>
+                {/* Signal Color */}
+                <div style={STYLES.settingsLabel} onMouseDown={(e) => { e.stopPropagation(); toggleMenu('signalColor'); }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}10`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>{openMenus.signalColor ? ICON_CHEVRON_DOWN : ICON_CHEVRON_RIGHT}</span>
+                    Signal Color
+                  </span>
+                </div>
+                {openMenus.signalColor && <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '3px', padding: '4px 8px' }}>
                   {SIGNAL_COLORS.map((c) => (
                     <div
@@ -2144,6 +2189,7 @@ function Node313({
                 >
                   Clear Color
                 </div>
+                </>}
               </div>
             );
           })(),

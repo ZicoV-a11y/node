@@ -585,80 +585,7 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
       {/* Panel Content */}
       <div className="flex-1 overflow-y-auto py-2">
-        {/* Categories from nodePresets */}
-        {Object.entries(NODE_PRESET_CATEGORIES).map(([catId, category]) => {
-          const baseSubcategories = getSubcategories(catId);
-          // Merge base subcategories with user-created ones (only top-level, parentId === null or undefined)
-          const userSubs = userSubcategories[catId] || {};
-          const userSubList = Object.entries(userSubs)
-            .filter(([_, sub]) => !sub.parentId) // Only top-level
-            .map(([id, sub]) => ({
-              id,
-              label: sub.label,
-              description: sub.description,
-              parentId: sub.parentId
-            }));
-
-          // Combine and apply custom ordering
-          let subcategories = [...baseSubcategories, ...userSubList];
-          const order = subcategoryOrder[catId] || [];
-
-          // Sort user subcategories according to order array
-          if (order.length > 0) {
-            subcategories = subcategories.sort((a, b) => {
-              const indexA = order.indexOf(a.id);
-              const indexB = order.indexOf(b.id);
-
-              // If both are in order array, sort by their position
-              if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-              // If only A is in order, it comes after base subcategories
-              if (indexA !== -1) return 1;
-              // If only B is in order, it comes after base subcategories
-              if (indexB !== -1) return -1;
-              // Neither in order (both are base), maintain original order
-              return 0;
-            });
-          }
-
-          const isCatExpanded = expandedCategories[catId];
-
-          return (
-            <PanelItem
-              key={catId}
-              catId={catId}
-              label={category.label}
-              description={category.description}
-              isExpanded={isCatExpanded}
-              onToggle={() => toggleCategory(catId)}
-              onAddSubcategory={() => setAddingSubcategory({ categoryId: catId, categoryLabel: category.label })}
-              draggedItem={draggedItem}
-              onMoveSubcategory={onMoveSubcategory}
-            >
-              {subcategories.map(sub => {
-                // Check if this is a user-created subcategory (convert to boolean)
-                const isUserCreated = !!(userSubcategories[catId] && userSubcategories[catId][sub.id]);
-                console.log('Rendering subcategory:', sub.id, 'isUserCreated:', isUserCreated);
-                return renderSubcategory(catId, sub, null, 1, isUserCreated);
-              })}
-            </PanelItem>
-          );
-        })}
-
-        {/* Add Node buttons */}
-        <div className="border-t border-zinc-800 my-2" />
-
-        <div className="px-3 py-1">
-          <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
-            Add Node
-          </span>
-        </div>
         <div className="px-3 py-1 flex flex-col gap-1">
-          <button
-            onClick={() => onAddNode('supernode')}
-            className="w-full px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 rounded text-[11px] font-mono text-violet-300 text-left transition-colors"
-          >
-            + SuperNode
-          </button>
           <button
             onClick={() => onAddNode('node313')}
             className="w-full px-2 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 rounded text-[11px] font-mono text-emerald-300 text-left transition-colors"
@@ -666,52 +593,6 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
             + Node 313
           </button>
         </div>
-
-        {/* Placeholder for future manufacturer categories */}
-        <div className="border-t border-zinc-800 my-2" />
-
-        <div className="px-3 py-2">
-          <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
-            Manufacturers
-          </span>
-        </div>
-
-        {/* Barco (placeholder) */}
-        <PanelItem
-          label="Barco"
-          description="Coming soon"
-          icon="◇"
-          depth={0}
-        >
-          {[]}
-        </PanelItem>
-
-        {/* Blackmagic (placeholder) */}
-        <PanelItem
-          label="Blackmagic"
-          description="Coming soon"
-          icon="◇"
-          depth={0}
-        >
-          {[]}
-        </PanelItem>
-
-        {/* Analog Way (placeholder) */}
-        <PanelItem
-          label="Analog Way"
-          description="Coming soon"
-          icon="◇"
-          depth={0}
-        >
-          {[]}
-        </PanelItem>
-      </div>
-
-      {/* Panel Footer */}
-      <div className="border-t border-zinc-800 px-3 py-2">
-        <p className="text-[10px] font-mono text-zinc-600">
-          Drag node to folder to save preset
-        </p>
       </div>
 
       {/* Resize Handle */}

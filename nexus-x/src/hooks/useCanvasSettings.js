@@ -49,10 +49,6 @@ export function useCanvasSettings() {
     return localStorage.getItem('nx-snapToGrid') === 'true';
   });
 
-  const [showRatioOverlay, setShowRatioOverlayRaw] = useState(() => {
-    return localStorage.getItem('nx-showRatioOverlay') === 'true';
-  });
-
   const [gridSize] = useState(() => {
     const saved = localStorage.getItem('nx-gridSize');
     return saved ? parseInt(saved) : 10;
@@ -97,14 +93,6 @@ export function useCanvasSettings() {
     setSnapToGridRaw(prev => {
       const next = !prev;
       localStorage.setItem('nx-snapToGrid', next.toString());
-      return next;
-    });
-  }, []);
-
-  const toggleRatioOverlay = useCallback(() => {
-    setShowRatioOverlayRaw(prev => {
-      const next = !prev;
-      localStorage.setItem('nx-showRatioOverlay', next.toString());
       return next;
     });
   }, []);
@@ -163,7 +151,6 @@ export function useCanvasSettings() {
     customWidth,
     customHeight,
     snapToGrid,
-    showRatioOverlay,
     gridSize,
     canvasDimensions,
     handlePaperSizeChange,
@@ -172,7 +159,6 @@ export function useCanvasSettings() {
     setPaperEnabled,
     handleCustomSizeChange,
     toggleSnapToGrid,
-    toggleRatioOverlay,
     centerPage,
     PAPER_SIZES,
   };
