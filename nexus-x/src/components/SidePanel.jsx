@@ -585,57 +585,121 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
       {/* Panel Content */}
       <div className="flex-1 overflow-y-auto py-2">
+        {/* Add Blank Node */}
         <div className="px-3 py-1 flex flex-col gap-1">
           <button
             onClick={() => onAddNode('node313')}
             className="w-full px-2 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 rounded text-[11px] font-mono text-emerald-300 text-left transition-colors"
           >
-            + Node 313
+            + Blank Node
           </button>
         </div>
 
-        {/* Saved Node313 Presets */}
+        {/* Equipment Catalog — organized by manufacturer > device type */}
         {(() => {
           const savedPresets = userPresets?.['node313/saved'] || [];
           if (savedPresets.length === 0) return null;
+
+          // Group by manufacturer, then by deviceType within each manufacturer
+          const catalog = {};
+          savedPresets.forEach(preset => {
+            const mfg = preset.manufacturer?.trim() || 'Uncategorized';
+            if (!catalog[mfg]) catalog[mfg] = {};
+            const types = preset.deviceTypes?.length > 0 ? preset.deviceTypes : ['General'];
+            types.forEach(t => {
+              if (!catalog[mfg][t]) catalog[mfg][t] = [];
+              catalog[mfg][t].push(preset);
+            });
+          });
+
+          const mfgKeys = Object.keys(catalog).sort((a, b) => {
+            if (a === 'Uncategorized') return 1;
+            if (b === 'Uncategorized') return -1;
+            return a.localeCompare(b);
+          });
+
           return (
             <>
               <div className="border-t border-zinc-800 my-2" />
               <div className="px-3 py-1">
-                <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
-                  Saved Presets
+                <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
+                  Equipment
                 </span>
               </div>
-              <div className="px-3 py-1 flex flex-col gap-1">
-                {savedPresets.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-1">
+
+              {mfgKeys.map(mfg => {
+                const isExpanded = expandedCategories[`mfg-${mfg}`] !== false; // default open
+                const typeGroups = catalog[mfg];
+                const typeKeys = Object.keys(typeGroups).sort();
+
+                return (
+                  <div key={mfg}>
+                    {/* Manufacturer header */}
                     <button
-                      onClick={() => onAddNode({ type: 'node313', preset })}
-                      className="flex-1 px-2 py-1.5 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50 rounded text-[11px] font-mono text-zinc-300 text-left transition-colors truncate"
-                      title={`Add ${preset.label}${preset.manufacturer ? ` (${preset.manufacturer})` : ''}`}
+                      className="w-full flex items-center gap-1.5 px-3 py-1 text-left hover:bg-zinc-800/50 transition-colors"
+                      onClick={() => toggleCategory(`mfg-${mfg}`)}
                     >
-                      <span className="truncate">{preset.label}</span>
-                      {preset.manufacturer && (
-                        <span className="text-zinc-500 ml-1 text-[9px]">{preset.manufacturer}</span>
-                      )}
+                      <span className="text-[9px] font-mono text-zinc-500">{isExpanded ? '▾' : '▸'}</span>
+                      <span className="text-[11px] font-mono text-zinc-300 font-medium tracking-wide uppercase">{mfg}</span>
+                      <span className="text-[9px] font-mono text-zinc-600 ml-auto">
+                        {Object.values(typeGroups).reduce((a, b) => a + b.length, 0)}
+                      </span>
                     </button>
-                    <button
-                      onClick={() => {
-                        const key = 'node313/saved';
-                        const updated = (userPresets[key] || []).filter(p => p.id !== preset.id);
-                        // This needs onDeletePreset prop — for now use the existing pattern
-                        if (typeof onDeletePreset === 'function') {
-                          onDeletePreset('node313', 'saved', preset.id);
-                        }
-                      }}
-                      className="text-zinc-600 hover:text-red-400 text-[10px] px-1"
-                      title="Delete preset"
-                    >
-                      ×
-                    </button>
+
+                    {isExpanded && typeKeys.map(type => (
+                      <div key={type} className="ml-3">
+                        {/* Device type sub-header (only show if more than one type) */}
+                        {typeKeys.length > 1 && (
+                          <div className="px-3 py-0.5">
+                            <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-widest">{type}</span>
+                          </div>
+                        )}
+
+                        {/* Preset items */}
+                        <div className="flex flex-col gap-0.5 px-2 pb-1">
+                          {typeGroups[type].map(preset => {
+                            // Build display name: model (tag) — skip manufacturer since it's the group header
+                            const parts = [preset.model, preset.tag ? `(${preset.tag})` : ''].filter(Boolean).join(' ');
+                            const displayName = parts || preset.title || preset.label;
+
+                            return (
+                              <div key={preset.id} className="flex items-center gap-0.5 group">
+                                <div
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'node313-preset', preset }));
+                                    e.dataTransfer.effectAllowed = 'copy';
+                                  }}
+                                  onClick={() => onAddNode({ type: 'node313', preset })}
+                                  className="flex-1 px-2 py-1 hover:bg-zinc-800/70 rounded cursor-grab active:cursor-grabbing text-[11px] font-mono text-zinc-400 hover:text-zinc-200 truncate transition-colors"
+                                  title={`Drag to canvas or click to add — ${preset.label}`}
+                                >
+                                  {preset.signalColor && (
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: `var(--signal-${preset.signalColor}, #666)` }} />
+                                  )}
+                                  {displayName}
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (typeof onDeletePreset === 'function') {
+                                      onDeletePreset('node313', 'saved', preset.id);
+                                    }
+                                  }}
+                                  className="text-zinc-700 hover:text-red-400 text-[10px] px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Delete preset"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </>
           );
         })()}

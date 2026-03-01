@@ -1670,46 +1670,56 @@ function Node313({
   }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y]);
 
   // ---- Scale by dragging bottom-right handle ----
-  const handleScaleMouseDown = useCallback((e) => {
+  // Scale via Pointer Events — uses setPointerCapture for reliable Ctrl+drag
+  const scaleHandleRef = useRef(null);
+
+  const STEP_PX = 10;
+  const SCALE_STEP = 0.02;
+
+  const onScalePointerDown = useCallback((e) => {
     e.stopPropagation();
     e.preventDefault();
     const nodeEl = nodeRef.current;
-    if (!nodeEl) return;
+    const handle = scaleHandleRef.current;
+    if (!nodeEl || !handle) return;
+    handle.setPointerCapture(e.pointerId);
     const rect = nodeEl.getBoundingClientRect();
     scaleStartRef.current = {
       startX: e.clientX,
-      startY: e.clientY,
       startScale: node.scale || 1,
       nodeWidth: rect.width,
-      nodeHeight: rect.height,
+      pointerId: e.pointerId,
     };
     setIsScaling(true);
   }, [node.scale]);
 
-  useEffect(() => {
-    if (!isScaling) return;
-    const handleMove = (e) => {
-      const s = scaleStartRef.current;
-      if (!s) return;
-      // Use diagonal distance for smooth scaling
-      const dx = e.clientX - s.startX;
-      const dy = e.clientY - s.startY;
-      const diagonal = Math.sqrt(s.nodeWidth * s.nodeWidth + s.nodeHeight * s.nodeHeight);
-      const delta = (dx + dy) / diagonal;
-      const newScale = Math.max(0.1, Math.min(3, s.startScale + delta * s.startScale));
-      onUpdate({ scale: Math.round(newScale * 100) / 100 });
-    };
-    const handleUp = () => {
-      setIsScaling(false);
-      scaleStartRef.current = null;
-    };
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-  }, [isScaling, onUpdate]);
+  const onScalePointerMove = useCallback((e) => {
+    const s = scaleStartRef.current;
+    const nodeEl = nodeRef.current;
+    if (!s || !nodeEl || !isScaling) return;
+    const dx = e.clientX - s.startX;
+    // Always smooth — exponential scaling, drag right = bigger, left = smaller
+    const newScale = Math.max(0.05, Math.min(4, s.startScale * Math.pow(2, dx / 300)));
+    s.currentScale = newScale;
+    nodeEl.style.transform = `scale(${newScale})`;
+  }, [isScaling]);
+
+  const onScalePointerUp = useCallback((e) => {
+    e.stopPropagation();
+    const handle = scaleHandleRef.current;
+    if (handle) {
+      try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    const s = scaleStartRef.current;
+    if (s && s.currentScale != null) {
+      // Reset DOM transform so React takes over cleanly
+      const nodeEl = nodeRef.current;
+      if (nodeEl) nodeEl.style.transform = '';
+      onUpdate({ scale: s.currentScale });
+    }
+    setIsScaling(false);
+    scaleStartRef.current = null;
+  }, [onUpdate]);
 
   // ---- Anchor registration ----
   useLayoutEffect(() => {
@@ -2231,9 +2241,15 @@ function Node313({
       {/* Sections */}
       {renderLayout()}
 
-      {/* Scale handle — bottom-right corner */}
+      {/* Scale handle — bottom-right corner (pointer events for reliable Ctrl+drag) */}
       <div
-        onMouseDown={handleScaleMouseDown}
+        ref={scaleHandleRef}
+        onPointerDown={onScalePointerDown}
+        onPointerMove={onScalePointerMove}
+        onPointerUp={onScalePointerUp}
+        onPointerCancel={onScalePointerUp}
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           position: 'absolute',
           right: 0,
@@ -2242,6 +2258,7 @@ function Node313({
           height: 12,
           cursor: 'nwse-resize',
           zIndex: 10,
+          touchAction: 'none',
         }}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}>

@@ -598,11 +598,34 @@ export default function App() {
     setTimeout(() => { isUndoingRef.current = false; }, 50);
   }, [future, nodes, connections]);
 
-  // User-created presets (saved by dragging nodes to library)
-  // Initialized from repo-level presets (Git-tracked), merged with project presets on load
-  const [userPresets, setUserPresets] = useState(() => {
-    try { return JSON.parse(JSON.stringify(repoPresets)); } catch (e) { return {}; }
+  // User-created presets — persisted to localStorage, merged with repo presets
+  const [userPresets, setUserPresetsRaw] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nx-userPresets');
+      const local = saved ? JSON.parse(saved) : {};
+      const merged = { ...repoPresets };
+      for (const key of Object.keys(local)) {
+        merged[key] = [...(merged[key] || [])];
+        for (const p of local[key]) {
+          const idx = merged[key].findIndex(e => e.id === p.id);
+          if (idx >= 0) merged[key][idx] = p; else merged[key].push(p);
+        }
+      }
+      return merged;
+    } catch (e) { return {}; }
   });
+  // Wrapper that persists to localStorage on every change — never overwrites with empty
+  const setUserPresets = useCallback((updater) => {
+    setUserPresetsRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      // Safety: never write empty presets over existing ones
+      const hasPresets = Object.values(next).some(arr => Array.isArray(arr) && arr.length > 0);
+      const hadPresets = localStorage.getItem('nx-userPresets');
+      if (!hasPresets && hadPresets) return next; // don't overwrite localStorage
+      try { localStorage.setItem('nx-userPresets', JSON.stringify(next)); } catch (e) { /* quota */ }
+      return next;
+    });
+  }, []);
 
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
@@ -878,9 +901,17 @@ export default function App() {
   // Save a Node313 as a preset (from settings dropdown)
   // Defined as plain function (not useCallback) to avoid dependency ordering issues
   const saveNode313Preset = (node, mode) => {
+    // Build a readable label from whatever the user filled in on the node
+    const nameParts = [
+      node.manufacturer,
+      node.model,
+      node.tag ? `(${node.tag})` : '',
+    ].filter(Boolean).join(' ');
+    const presetLabel = nameParts || node.title || 'Untitled';
+
     const presetData = {
       id: mode === 'overwrite' && node.presetId ? node.presetId : `preset-${Date.now()}`,
-      label: node.title || 'Untitled',
+      label: presetLabel,
       title: node.title,
       manufacturer: node.manufacturer || '',
       model: node.model || '',
@@ -3102,6 +3133,40 @@ export default function App() {
               setIsSelecting(false);
               setSelectionBox(null);
             }
+          }}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            try {
+              const raw = e.dataTransfer.getData('application/json');
+              if (!raw) return;
+              const data = JSON.parse(raw);
+              if (data.type === 'node313-preset' && data.preset) {
+                // Convert screen coords to canvas coords
+                const rect = containerRef.current.getBoundingClientRect();
+                const canvasX = (e.clientX - rect.left - panRef.current.x) / zoomRef.current;
+                const canvasY = (e.clientY - rect.top - panRef.current.y) / zoomRef.current;
+                const nodeId = `node-${Date.now()}`;
+                const preset = data.preset;
+                const newNode = createNode313(nodeId);
+                if (preset.title) newNode.title = preset.title;
+                if (preset.manufacturer) newNode.manufacturer = preset.manufacturer;
+                if (preset.model) newNode.model = preset.model;
+                if (preset.tag) newNode.tag = preset.tag;
+                if (preset.signalColor) newNode.signalColor = preset.signalColor;
+                if (preset.deviceTypes) newNode.deviceTypes = preset.deviceTypes;
+                if (preset.layout) newNode.layout = preset.layout;
+                if (preset.sectionSpacing) newNode.sectionSpacing = preset.sectionSpacing;
+                if (preset.sections) newNode.sections = JSON.parse(JSON.stringify(preset.sections));
+                if (preset.hiddenSections) newNode.hiddenSections = preset.hiddenSections;
+                if (preset.hiddenTitleFields) newNode.hiddenTitleFields = preset.hiddenTitleFields;
+                if (preset.hiddenSystemFields) newNode.hiddenSystemFields = preset.hiddenSystemFields;
+                if (preset.mirroredSections) newNode.mirroredSections = preset.mirroredSections;
+                newNode.presetId = preset.id;
+                newNode.position = { x: Math.round(canvasX), y: Math.round(canvasY) };
+                setNodes(prev => ({ ...prev, [nodeId]: newNode }));
+              }
+            } catch (err) { /* ignore bad drops */ }
           }}
         >
         {/* Pan + Zoom container */}
