@@ -14,6 +14,7 @@ import { usePageGrid } from './hooks/usePageGrid';
 import { getSubcategories } from './config/nodePresets';
 import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
 import ChangelogPopup from './components/ChangelogPopup';
+import ToolbarSignalFlow from './components/toolbar/ToolbarSignalFlow';
 import { APP_VERSION } from './config/version';
 import repoPresets from './config/userPresets.json';
 
@@ -389,6 +390,7 @@ const createNode313 = (id) => ({
   version: 3,
   signalColor: null,
   deviceTypes: [],
+  primaryDeviceType: null,
   position: { x: 100, y: 100 },
   scale: 0.5,
   layout: 'a_b_c',
@@ -761,6 +763,7 @@ export default function App() {
         if (preset.tag) newNode.tag = preset.tag;
         if (preset.signalColor) newNode.signalColor = preset.signalColor;
         if (preset.deviceTypes) newNode.deviceTypes = preset.deviceTypes;
+        if (preset.primaryDeviceType) newNode.primaryDeviceType = preset.primaryDeviceType;
         if (preset.layout) newNode.layout = preset.layout;
         if (preset.sectionSpacing) newNode.sectionSpacing = preset.sectionSpacing;
         if (preset.sections) newNode.sections = JSON.parse(JSON.stringify(preset.sections));
@@ -918,6 +921,7 @@ export default function App() {
       tag: node.tag || '',
       signalColor: node.signalColor,
       deviceTypes: node.deviceTypes || [],
+      primaryDeviceType: node.primaryDeviceType || null,
       layout: node.layout,
       sectionSpacing: node.sectionSpacing,
       sections: JSON.parse(JSON.stringify(node.sections || {})),
@@ -2684,356 +2688,62 @@ export default function App() {
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col overflow-hidden">
       {/* Header Toolbar */}
-      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm px-4 py-2 relative">
-        {/* Row 1: File & Actions */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Logo & Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded border-2 border-cyan-500 flex items-center justify-center font-mono font-bold text-sm text-cyan-400">
-              SF
-            </div>
-            <div>
-              <h1 className="font-mono text-sm font-semibold tracking-wide text-zinc-100">
-                SIGNAL FLOW WORKSPACE
-              </h1>
-              <p className="font-mono text-xs text-zinc-600">
-                {Object.keys(nodes).length} nodes • {connections.length} wires
-              </p>
-            </div>
-          </div>
-
-          <div className="h-4 border-l border-zinc-700" />
-
-          {/* Library */}
-          <button
-            onClick={() => setSidePanelOpen(prev => !prev)}
-            className={`px-2 py-1 border rounded text-xs font-mono ${
-              sidePanelOpen
-                ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
-                : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-            }`}
-            title="Toggle library panel"
-          >
-            ☰ Library
-          </button>
-
-          <div className="h-4 border-l border-zinc-700" />
-
-          {/* Undo/Redo */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => { undo(); }}
-              disabled={history.length === 0}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                history.length === 0
-                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="Undo (Ctrl+Z)"
-            >
-              ↶
-            </button>
-            <button
-              onClick={() => { redo(); }}
-              disabled={future.length === 0}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                future.length === 0
-                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="Redo (Ctrl+Shift+Z)"
-            >
-              ↷
-            </button>
-          </div>
-
-          <div className="h-4 border-l border-zinc-700" />
-
-          {/* File Operations */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleNewProject}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="New project"
-            >
-              New
-            </button>
-            <button
-              onClick={handleOpenFile}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="Open project file"
-            >
-              Open
-            </button>
-            <button
-              onClick={handleSaveAs}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="Save project to file"
-            >
-              Save As
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowRecents(prev => !prev)}
-                className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-                title="Recent projects"
-              >
-                Recents{recentFiles.length > 0 ? ` (${recentFiles.length})` : ''}
-              </button>
-              {showRecents && (
-                <div className="absolute top-full mt-1 right-0 bg-zinc-800 border border-zinc-700 rounded shadow-xl z-50 w-64">
-                  {recentFiles.length === 0 ? (
-                    <div className="px-3 py-2 text-xs font-mono text-zinc-500">No recent files</div>
-                  ) : (
-                    recentFiles.map((file, i) => (
-                      <button
-                        key={i}
-                        className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:bg-zinc-700 border-b border-zinc-700/50 last:border-0"
-                        onClick={() => handleLoadRecent(file)}
-                      >
-                        <div className="truncate">{file.name}</div>
-                        <div className="text-zinc-500 text-[10px]">{new Date(file.timestamp).toLocaleDateString()}</div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1" />
-
-          {/* Add Node */}
-          <button
-            onClick={() => addNode('node313')}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-mono text-white"
-            title="Add Node 313"
-          >
-            + Node 313
-          </button>
-
-          {/* Version */}
-          <div className="relative">
-            <button
-              onClick={() => setShowChangelog(prev => !prev)}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showChangelog
-                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="View changelog"
-            >
-              v{APP_VERSION}
-            </button>
-            <ChangelogPopup
-              isOpen={showChangelog}
-              onClose={() => setShowChangelog(false)}
-            />
-          </div>
-        </div>
-
-        {/* Row 2: Canvas & Export */}
-        <div className="flex items-center gap-3 flex-wrap mt-2 pt-2 border-t border-zinc-800/50">
-          {/* Paper */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPaperEnabled(p => !p)}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                paperEnabled
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-500'
-              }`}
-              title={paperEnabled ? 'Canvas: ON' : 'Canvas: OFF'}
-            >
-              Canvas
-            </button>
-            <select
-              value={paperSize}
-              onChange={(e) => handlePaperSizeChange(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-300"
-            >
-              {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-            {paperSize === 'Custom' && (
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={customWidth}
-                  onChange={(e) => handleCustomSizeChange(+e.target.value || 100, customHeight)}
-                  className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1 py-1 text-xs font-mono text-zinc-300"
-                  min="100"
-                  title="Custom width (px)"
-                />
-                <span className="text-zinc-500 text-xs">×</span>
-                <input
-                  type="number"
-                  value={customHeight}
-                  onChange={(e) => handleCustomSizeChange(customWidth, +e.target.value || 100)}
-                  className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1 py-1 text-xs font-mono text-zinc-300"
-                  min="100"
-                  title="Custom height (px)"
-                />
-              </div>
-            )}
-            <button
-              onClick={toggleOrientation}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                orientation === 'portrait'
-                  ? 'border-zinc-700 text-zinc-400'
-                  : 'border-cyan-500 text-cyan-400'
-              }`}
-            >
-              {orientation === 'portrait' ? '↕ Portrait' : '↔ Landscape'}
-            </button>
-            <button
-              onClick={toggleTitleBlock}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showTitleBlock
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={showTitleBlock ? 'Title Block: ON' : 'Title Block: OFF'}
-            >
-              TB
-            </button>
-          </div>
-
-          <div className="h-4 border-l border-zinc-700" />
-
-          {/* View */}
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-mono text-zinc-500">Zoom:</span>
-            <select
-              value={zoom}
-              onChange={(e) => {
-                const newZoom = parseFloat(e.target.value);
-                const container = containerRef.current;
-                if (container) {
-                  const rect = container.getBoundingClientRect();
-                  const cx = rect.width / 2;
-                  const cy = rect.height / 2;
-                  const prev = zoomRef.current;
-                  const prevPan = panRef.current;
-                  setPan({
-                    x: cx - ((cx - prevPan.x) / prev) * newZoom,
-                    y: cy - ((cy - prevPan.y) / prev) * newZoom,
-                  });
-                }
-                setZoom(newZoom);
-              }}
-              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-300"
-            >
-              {!ZOOM_LEVELS.includes(zoom) && (
-                <option value={zoom}>{Math.round(zoom * 100)}%</option>
-              )}
-              {ZOOM_LEVELS.map(z => (
-                <option key={z} value={z}>{Math.round(z * 100)}%</option>
-              ))}
-            </select>
-            <button
-              onClick={resetView}
-              className="px-2 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
-              title="Reset view"
-            >
-              ⟲ Reset
-            </button>
-            <button
-              onClick={toggleSnapToGrid}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                snapToGrid
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={snapToGrid ? 'Snap to grid: ON' : 'Snap to grid: OFF'}
-            >
-              # Snap
-            </button>
-            <button
-              onClick={toggleGrid}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showGrid
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={showGrid ? 'Grid: ON' : 'Grid: OFF'}
-            >
-              Grid
-            </button>
-            <button
-              onClick={toggleRulers}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                showRulers
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={showRulers ? 'Rulers: ON' : 'Rulers: OFF'}
-            >
-              ⌐ Rulers
-            </button>
-          </div>
-
-          <div className="h-4 border-l border-zinc-700" />
-
-          {/* Export */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPrintFriendly(p => !p)}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                printFriendly
-                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title="Print-friendly export (white background)"
-            >
-              Print
-            </button>
-            <select
-              value={exportScale}
-              onChange={(e) => setExportScale(Number(e.target.value))}
-              className="px-1 py-1 border border-zinc-700 rounded text-xs font-mono text-zinc-400 bg-zinc-900 hover:border-zinc-500"
-              title="Export resolution"
-            >
-              {EXPORT_PRESETS.map(p => (
-                <option key={p.scale} value={p.scale}>{p.label} — {p.desc}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleExportPNG}
-              disabled={exportProgress !== null}
-              className={`px-2 py-1 border rounded text-xs font-mono ${
-                exportProgress !== null
-                  ? 'border-cyan-500 text-cyan-400 cursor-wait'
-                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-              title={
-                paperEnabled && pages.length > 1
-                  ? `Export ${pages.length} pages as ZIP`
-                  : 'Export canvas as PNG image'
-              }
-            >
-              {exportProgress !== null
-                ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
-                : (paperEnabled && pages.length > 1 ? `Export ZIP (${pages.length}p)` : 'Export PNG')
-              }
-            </button>
-            {showTitleBlock && (
-              <button
-                onClick={handleExportWithTitleBlock}
-                disabled={exportProgress !== null}
-                className={`px-2 py-1 border rounded text-xs font-mono ${
-                  exportProgress !== null
-                    ? 'border-cyan-500 text-cyan-400 cursor-wait'
-                    : 'border-emerald-700 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500'
-                }`}
-                title="Export PNG with title block"
-              >
-                Export + TB
-              </button>
-            )}
-          </div>
-        </div>
+      <div style={{ position: 'relative', zIndex: 50 }}>
+        <ToolbarSignalFlow
+          nodeCount={Object.keys(nodes).length}
+          wireCount={connections.length}
+          sidePanelOpen={sidePanelOpen}
+          setSidePanelOpen={setSidePanelOpen}
+          history={history}
+          future={future}
+          undo={undo}
+          redo={redo}
+          handleNewProject={handleNewProject}
+          handleOpenFile={handleOpenFile}
+          handleSaveAs={handleSaveAs}
+          recentFiles={recentFiles}
+          handleLoadRecent={handleLoadRecent}
+          showRecents={showRecents}
+          setShowRecents={setShowRecents}
+          addNode={addNode}
+          APP_VERSION={APP_VERSION}
+          paperEnabled={paperEnabled}
+          setPaperEnabled={setPaperEnabled}
+          paperSize={paperSize}
+          handlePaperSizeChange={handlePaperSizeChange}
+          PAPER_SIZES={PAPER_SIZES}
+          customWidth={customWidth}
+          customHeight={customHeight}
+          handleCustomSizeChange={handleCustomSizeChange}
+          orientation={orientation}
+          toggleOrientation={toggleOrientation}
+          showTitleBlock={showTitleBlock}
+          toggleTitleBlock={toggleTitleBlock}
+          zoom={zoom}
+          setZoom={setZoom}
+          zoomRef={zoomRef}
+          panRef={panRef}
+          containerRef={containerRef}
+          setPan={setPan}
+          resetView={resetView}
+          snapToGrid={snapToGrid}
+          toggleSnapToGrid={toggleSnapToGrid}
+          showGrid={showGrid}
+          toggleGrid={toggleGrid}
+          showRulers={showRulers}
+          toggleRulers={toggleRulers}
+          printFriendly={printFriendly}
+          setPrintFriendly={setPrintFriendly}
+          exportScale={exportScale}
+          setExportScale={setExportScale}
+          EXPORT_PRESETS={EXPORT_PRESETS}
+          handleExportPNG={handleExportPNG}
+          handleExportWithTitleBlock={handleExportWithTitleBlock}
+          exportProgress={exportProgress}
+          pages={pages}
+          showChangelog={showChangelog}
+          setShowChangelog={setShowChangelog}
+        />
 
         {/* Active Wire Indicator */}
         {activeWire && (
@@ -3093,8 +2803,7 @@ export default function App() {
             </button>
           </div>
         )}
-
-      </header>
+      </div>
 
       {/* Main Content Area with Side Panel */}
       <div className="flex-1 flex overflow-hidden">
@@ -3155,6 +2864,7 @@ export default function App() {
                 if (preset.tag) newNode.tag = preset.tag;
                 if (preset.signalColor) newNode.signalColor = preset.signalColor;
                 if (preset.deviceTypes) newNode.deviceTypes = preset.deviceTypes;
+                if (preset.primaryDeviceType) newNode.primaryDeviceType = preset.primaryDeviceType;
                 if (preset.layout) newNode.layout = preset.layout;
                 if (preset.sectionSpacing) newNode.sectionSpacing = preset.sectionSpacing;
                 if (preset.sections) newNode.sections = JSON.parse(JSON.stringify(preset.sections));
@@ -3199,6 +2909,7 @@ export default function App() {
               width: canvasDimensions.width,
               height: canvasDimensions.height,
               overflow: 'visible',
+              filter: printFriendly ? 'invert(1)' : 'none',
               backgroundColor: showTitleBlock ? (canvasBackground === 'white' ? '#ffffff' : '#09090b') : '#09090b',
               backgroundImage: (paperEnabled && showGrid) ? `
                 linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),

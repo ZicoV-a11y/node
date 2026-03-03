@@ -71,16 +71,6 @@ function PageGridOverlayInner({ pages, zoom }) {
               strokeDasharray={gridDash}
             />
           ))}
-          {/* Page label */}
-          <text
-            x={page.x - bounds.x + 10 / zoom}
-            y={page.y - bounds.y + 24 / zoom}
-            fill="#52525b"
-            fontSize={fontSize}
-            fontFamily="ui-monospace, SFMono-Regular, monospace"
-          >
-            {page.label}
-          </text>
         </g>
       ))}
 

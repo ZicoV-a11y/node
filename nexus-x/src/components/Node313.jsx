@@ -777,6 +777,24 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const [selectedRows, setSelectedRows] = useState(new Set());
   const tableRef = useRef(null);
 
+  // Card grouping (E3 Tricombo slots etc.)
+  const cardSize = section.cardSize || 0;
+  const cardStartSlot = section.cardStartSlot ?? 1;
+  const slotColumn = section.slotColumn ?? 0;
+
+  const cards = useMemo(() => {
+    if (!cardSize || cardSize <= 0) return null;
+    const result = [];
+    for (let i = 0; i < section.rows.length; i += cardSize) {
+      result.push({
+        startRow: i,
+        endRow: Math.min(i + cardSize, section.rows.length),
+        slotNumber: cardStartSlot + result.length,
+      });
+    }
+    return result;
+  }, [section.rows.length, cardSize, cardStartSlot]);
+
   // Auto-repair stale hiddenCols and oversized rows
   useEffect(() => {
     const repairs = {};
@@ -1014,16 +1032,29 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     });
   }, [portPrefix]);
 
+  // Renumber slot column values based on card position
+  const renumberSlots = useCallback((rows) => {
+    if (!cardSize || cardSize <= 0) return rows;
+    return rows.map((r, i) => {
+      const newRow = [...r];
+      const cardIdx = Math.floor(i / cardSize);
+      newRow[slotColumn] = String(cardStartSlot + cardIdx);
+      return newRow;
+    });
+  }, [cardSize, cardStartSlot, slotColumn]);
+
   const addRow = useCallback(() => {
-    const newRows = [...section.rows, section.cols.map(() => '')];
+    let newRows = [...section.rows, section.cols.map(() => '')];
     const newSpacing = [...rowSpacing, 0];
-    updateSection({ rows: renumberRows(newRows), rowSpacing: newSpacing });
-  }, [section.cols, section.rows, rowSpacing, updateSection, renumberRows]);
+    newRows = cards ? renumberSlots(newRows) : renumberRows(newRows);
+    updateSection({ rows: newRows, rowSpacing: newSpacing });
+  }, [section.cols, section.rows, rowSpacing, updateSection, renumberRows, renumberSlots, cards]);
 
   const deleteRow = useCallback((ri) => {
-    const remaining = section.rows.filter((_, i) => i !== ri);
+    let remaining = section.rows.filter((_, i) => i !== ri);
     const newSpacing = rowSpacing.filter((_, i) => i !== ri);
-    updateSection({ rows: renumberRows(remaining), rowSpacing: newSpacing });
+    remaining = cards ? renumberSlots(remaining) : renumberRows(remaining);
+    updateSection({ rows: remaining, rowSpacing: newSpacing });
     // Rebuild selection indices after deletion
     setSelectedRows(prev => {
       const next = new Set();
@@ -1033,7 +1064,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       }
       return next;
     });
-  }, [section.rows, rowSpacing, updateSection, renumberRows]);
+  }, [section.rows, rowSpacing, updateSection, renumberRows, renumberSlots, cards]);
 
   // Vertical spacing drag handler (like SuperNode)
   const handleSpacingMouseDown = useCallback((e, ri) => {
@@ -1180,8 +1211,24 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const cells = [];
     const result = [];
 
-    // Spacer row if this row has spacing > 0
-    if (spacing > 0) {
+    // Card mode calculations
+    const inCardMode = cards && cardSize > 0;
+    const cardIndex = inCardMode ? Math.floor(ri / cardSize) : -1;
+    const isCardFirst = inCardMode && (ri % cardSize === 0);
+    const isCardLast = inCardMode && (ri % cardSize === cardSize - 1 || ri === section.rows.length - 1);
+
+    // Card separator row between cards
+    if (inCardMode && isCardFirst && cardIndex > 0) {
+      result.push(
+        <tr key={`card-sep-${ri}`} className="n313-card-sep">
+          <td colSpan={totalColspan} style={{
+            padding: 0, border: 'none', background: 'transparent',
+            height: '6px', boxSizing: 'border-box',
+          }} />
+        </tr>
+      );
+    } else if (!inCardMode && spacing > 0) {
+      // Original spacer logic (non-card mode)
       result.push(
         <tr key={`sp-${ri}`}>
           <td colSpan={totalColspan} style={{
@@ -1209,8 +1256,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
     const deleteIcon = section.rows.length > 1 ? ACTION_ICON_X : null;
     const anchorType = sectionId === 'a' ? 'in' : sectionId === 'b' ? 'out' : 'both';
+
+    const spacingCell = <ActionCell key="sp" icon={ACTION_ICON_SPACING} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />;
+
     if (mirrored) {
-      cells.push(<ActionCell key="sp" icon={ACTION_ICON_SPACING} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
+      cells.push(spacingCell);
       cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={T.red} cursor={X_CURSOR} title="Delete row" />);
       for (let ci = nc - 1; ci >= 0; ci--) {
         if (hiddenCols.includes(ci)) continue;
@@ -1224,11 +1274,25 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         cells.push(renderDataCell(ci));
       }
       cells.push(<ActionCell key="rowx" icon={deleteIcon} onClick={deleteIcon ? () => deleteRow(ri) : undefined} signalColor={T.red} cursor={X_CURSOR} title="Delete row" />);
-      cells.push(<ActionCell key="sp" icon={ACTION_ICON_SPACING} onMouseDown={(e) => handleSpacingMouseDown(e, ri)} signalColor={signalColorHex} cursor="ns-resize" title="Drag to space rows" />);
+      cells.push(spacingCell);
     }
     const rowSelected = selectedRows.has(ri);
+
+    // Card boundary classes and alternating tint
+    const trClasses = [];
+    if (isCardFirst) trClasses.push('n313-card-first');
+    if (isCardLast) trClasses.push('n313-card-last');
+
+    const trStyle = {};
+    if (rowSelected) Object.assign(trStyle, ROW_SELECTED_BG);
+    if (inCardMode && cardIndex % 2 === 1) trStyle.background = `${signalColorHex || T.accent}08`;
+
     result.push(
-      <tr key={ri} style={rowSelected ? ROW_SELECTED_BG : undefined}>
+      <tr key={ri}
+        className={trClasses.length > 0 ? trClasses.join(' ') : undefined}
+        style={Object.keys(trStyle).length > 0 ? trStyle : undefined}
+        data-card-idx={inCardMode ? cardIndex : undefined}
+      >
         {cells}
       </tr>
     );
@@ -1369,6 +1433,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
               [data-sec="${nodeId}-${sectionId}"] td { border-bottom-color: ${signalColorHex}66 !important; }
               ${fullWidth ? `[data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }` : ''}
               [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac) { background: ${signalColorHex}0a !important; }
+              ` : ''}
+              ${cards ? `
+              [data-sec="${nodeId}-${sectionId}"] .n313-card-first td:not(.n313-ac) { border-top: 2px solid ${c} !important; }
+              [data-sec="${nodeId}-${sectionId}"] .n313-card-last td:not(.n313-ac) { border-bottom: 2px solid ${c} !important; }
+              [data-sec="${nodeId}-${sectionId}"] .n313-card-sep td { border: none !important; background: transparent !important; }
               ` : ''}
             `}</style>
           );
@@ -2083,10 +2152,43 @@ function Node313({
                 {openMenus.deviceType && ['Router', 'Switcher', 'Source', 'Destination', 'Converter'].map((dt) => {
                   const types = node.deviceTypes || [];
                   const isActive = types.includes(dt);
+                  const isPrimary = node.primaryDeviceType === dt;
+                  const multipleSelected = types.length > 1;
                   return (
                     <button key={dt} style={STYLES.settingsItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                      onMouseDown={(e) => { e.stopPropagation(); onUpdate({ deviceTypes: isActive ? types.filter(t => t !== dt) : [...types, dt] }); }}>
-                      <span>{dt}</span>
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (isActive) {
+                          // Remove the type
+                          const newTypes = types.filter(t => t !== dt);
+                          const updates = { deviceTypes: newTypes };
+                          // Clear primary if removing the primary type, or auto-set if only one left
+                          if (isPrimary) updates.primaryDeviceType = newTypes.length === 1 ? newTypes[0] : null;
+                          else if (newTypes.length === 1) updates.primaryDeviceType = newTypes[0];
+                          onUpdate(updates);
+                        } else {
+                          // Add the type
+                          const newTypes = [...types, dt];
+                          const updates = { deviceTypes: newTypes };
+                          // Auto-set primary if this is the first type
+                          if (newTypes.length === 1) updates.primaryDeviceType = dt;
+                          onUpdate(updates);
+                        }
+                      }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {dt}
+                        {isActive && multipleSelected && (
+                          <span
+                            style={{ fontSize: '7px', color: isPrimary ? (signalColorHex || T.accent) : T.textMuted, cursor: 'pointer' }}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              onUpdate({ primaryDeviceType: dt });
+                            }}
+                            title={isPrimary ? 'Primary type' : 'Set as primary type'}
+                          >{isPrimary ? '★' : '☆'}</span>
+                        )}
+                      </span>
                       <span className="n313-icon-btn" style={{ color: isActive ? T.accentLight : T.textMuted }}>{isActive ? ICON_CHECK : ICON_CIRCLE}</span>
                     </button>
                   );

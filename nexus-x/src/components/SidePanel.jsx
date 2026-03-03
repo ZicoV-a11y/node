@@ -4,6 +4,15 @@ import { getSubcategoryMeta } from '../config/gearMetadata';
 import PresetEditor from './PresetEditor';
 import NewSubcategoryDialog from './NewSubcategoryDialog';
 
+const BG = "#0e0e0c";
+const NODE = "#1a1a18";
+const NODEBORDER = "#2e2e2a";
+const TEXT = "#706f6a";
+const TEXTHI = "#b5b4ae";
+const WHITE = "#d8d7d2";
+const BRAND = "#6b9edd";
+const ui = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
 // Droppable subcategory folder
 const SubcategoryFolder = ({
   catId,
@@ -98,7 +107,6 @@ const SubcategoryFolder = ({
         draggable="true"
         onDragStart={(e) => {
           console.log('onDragStart fired for:', subId);
-          // Only drag if not clicking on buttons
           if (!e.target.closest('span[title*="Delete"]')) {
             console.log('Drag started:', { type: 'subcategory', catId, subId, isUserCreated });
             onDragStart && onDragStart({ type: 'subcategory', catId, subId, isUserCreated });
@@ -110,23 +118,23 @@ const SubcategoryFolder = ({
           console.log('Drag ended');
           onDragEnd && onDragEnd();
         }}
-        className={`
-          group flex items-center gap-2 px-2 py-1.5 cursor-move
-          transition-colors text-xs font-mono text-white
-          ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : 'hover:bg-zinc-700/50'}
-          ${draggedItem?.type === 'subcategory' && draggedItem.subId === subId ? 'opacity-40' : ''}
-        `}
-        style={{ paddingLeft }}
+        className="group"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: `5px 8px 5px ${paddingLeft}px`,
+          cursor: 'move', fontSize: 11, fontFamily: ui,
+          color: WHITE,
+          background: isDragOver ? 'rgba(107,158,221,0.12)' : 'transparent',
+          border: isDragOver ? `1px dashed ${BRAND}` : '1px solid transparent',
+          opacity: draggedItem?.type === 'subcategory' && draggedItem.subId === subId ? 0.4 : 1,
+        }}
+        onMouseEnter={e => { if (!isDragOver) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+        onMouseLeave={e => { if (!isDragOver) e.currentTarget.style.background = 'transparent'; }}
         onClick={(e) => {
-          // Prevent click during drag
           if (draggedItem) return;
-
-          // Always allow toggling folders open/closed
           if (canAddBlank && !hasPresets && onAddBlankNode) {
-            // Special case: empty editing folder adds a blank node
             onAddBlankNode();
           } else {
-            // All other folders can be toggled
             onToggle && onToggle();
           }
         }}
@@ -140,11 +148,11 @@ const SubcategoryFolder = ({
         }
       >
         {/* Drag handle */}
-        <span className="w-3 text-zinc-600 text-center cursor-move">⋮⋮</span>
+        <span style={{ width: 12, textAlign: 'center', color: NODEBORDER, cursor: 'move', fontSize: 9 }}>⋮⋮</span>
 
-        {/* Expand/collapse indicator - always shown */}
+        {/* Expand/collapse indicator */}
         <span
-          className="text-zinc-500 w-3 text-center"
+          style={{ color: TEXT, width: 12, textAlign: 'center', fontSize: 8 }}
           onClick={(e) => {
             e.stopPropagation();
             if (!(canAddBlank && !hasPresets)) {
@@ -152,16 +160,11 @@ const SubcategoryFolder = ({
             }
           }}
         >
-          {isExpanded ? '▼' : '▶'}
-        </span>
-
-        {/* Folder icon */}
-        <span className={isDragOver ? 'text-cyan-400' : 'text-zinc-500'}>
-          {isDragOver ? '⊕' : '▫'}
+          {isExpanded ? '▾' : '▸'}
         </span>
 
         {/* Label */}
-        <span className="flex-1 truncate">{label}</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
 
         {/* Delete subcategory button */}
         <span
@@ -173,7 +176,10 @@ const SubcategoryFolder = ({
           }}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.stopPropagation()}
-          className="text-zinc-600 hover:text-red-400 opacity-0 hover:opacity-100 px-1 group-hover:opacity-100"
+          className="opacity-0 group-hover:opacity-100"
+          style={{ color: TEXT, padding: '0 4px', cursor: 'pointer', fontSize: 11 }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = TEXT; }}
           title="Delete subcategory"
         >
           ×
@@ -181,12 +187,12 @@ const SubcategoryFolder = ({
 
         {/* Add button for empty editing subcategory */}
         {canAddBlank && !hasPresets && (
-          <span className="text-zinc-600 hover:text-cyan-400">+</span>
+          <span style={{ color: TEXT, fontSize: 11 }}>+</span>
         )}
 
         {/* Preset count */}
         {hasPresets && (
-          <span className="text-zinc-600 text-[10px]">{presets.length}</span>
+          <span style={{ fontSize: 9, fontFamily: ui, color: TEXT, opacity: 0.5 }}>{presets.length}</span>
         )}
       </div>
 
@@ -222,7 +228,6 @@ const SubcategoryFolder = ({
                   setDragOverPresetId(null);
 
                   if (draggedItem?.type === 'preset' && draggedItem.catId === catId && draggedItem.subId === subId) {
-                    // Reorder within same subcategory
                     if (onReorderPresets && draggedItem.index !== index) {
                       onReorderPresets(catId, subId, draggedItem.index, index);
                     }
@@ -233,12 +238,16 @@ const SubcategoryFolder = ({
                   setDragOverPresetId(null);
                   onDragEnd && onDragEnd();
                 }}
-                className={`group flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-zinc-700/50 text-xs font-mono text-zinc-400 transition-all ${
-                  isDragging ? 'opacity-40' : ''
-                } ${
-                  isDropTarget ? 'border-t-2 border-cyan-500' : ''
-                }`}
-                style={{ paddingLeft: paddingLeft + 12 }}
+                className="group"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: `4px 8px 4px ${paddingLeft + 12}px`,
+                  cursor: 'pointer', fontSize: 11, fontFamily: ui, color: TEXT,
+                  opacity: isDragging ? 0.4 : 1,
+                  borderTop: isDropTarget ? `2px solid ${BRAND}` : '2px solid transparent',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = WHITE; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = TEXT; }}
                 onClick={(e) => {
                   if (!isDragging) onAddPreset(preset);
                 }}
@@ -248,20 +257,23 @@ const SubcategoryFolder = ({
                 }}
                 title={`Click to add • Double-click to edit • Drag to reorder`}
               >
-                <span className="w-3 text-zinc-600">⋮⋮</span>
-                <span className="text-zinc-500">◦</span>
-                <span className="flex-1 truncate">{preset.label}</span>
+                <span style={{ width: 12, textAlign: 'center', color: NODEBORDER, fontSize: 9 }}>⋮⋮</span>
+                <span style={{ color: TEXT, opacity: 0.4 }}>◦</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preset.label}</span>
                 <span
-                  className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-1"
+                  className="opacity-0 group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDeletePreset && onDeletePreset(catId, subId, preset.id);
                   }}
+                  style={{ color: TEXT, padding: '0 4px', cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = TEXT; }}
                   title="Delete preset"
                 >
                   ×
                 </span>
-                <span className="text-zinc-600 hover:text-cyan-400">+</span>
+                <span style={{ color: TEXT, opacity: 0.4 }}>+</span>
               </div>
             );
           })
@@ -269,8 +281,11 @@ const SubcategoryFolder = ({
             /* Empty folder message */
             !children && (
               <div
-                className="px-2 py-2 text-xs font-mono text-zinc-600 italic"
-                style={{ paddingLeft: paddingLeft + 12 }}
+                style={{
+                  padding: `6px 8px 6px ${paddingLeft + 12}px`,
+                  fontSize: 10, fontFamily: ui, color: TEXT, opacity: 0.4,
+                  fontStyle: 'italic',
+                }}
               >
                 No presets yet • Drag a node here to save
               </div>
@@ -319,13 +334,18 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
   return (
     <div>
       <div
-        className={`
-          flex items-center gap-2 px-2 py-1.5 cursor-pointer
-          hover:bg-zinc-700/50 transition-colors text-xs font-mono
-          ${depth === 0 ? 'text-white font-medium' : 'text-white'}
-          ${isDragOver ? 'bg-cyan-500/20 border border-dashed border-cyan-500' : ''}
-        `}
-        style={{ paddingLeft }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: `5px 8px 5px ${paddingLeft}px`,
+          cursor: 'pointer',
+          fontSize: 11, fontFamily: ui,
+          color: depth === 0 ? WHITE : TEXTHI,
+          fontWeight: depth === 0 ? 600 : 400,
+          background: isDragOver ? 'rgba(107,158,221,0.12)' : 'transparent',
+          border: isDragOver ? `1px dashed ${BRAND}` : '1px solid transparent',
+        }}
+        onMouseEnter={e => { if (!isDragOver) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+        onMouseLeave={e => { if (!isDragOver) e.currentTarget.style.background = 'transparent'; }}
         onClick={() => {
           if (hasChildren && onToggle) {
             onToggle();
@@ -340,17 +360,17 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
       >
         {/* Expand/collapse indicator */}
         {hasChildren && (
-          <span className="text-zinc-500 w-3 text-center">
-            {isExpanded ? '▼' : '▶'}
+          <span style={{ color: TEXT, width: 12, textAlign: 'center', fontSize: 8 }}>
+            {isExpanded ? '▾' : '▸'}
           </span>
         )}
-        {!hasChildren && <span className="w-3" />}
+        {!hasChildren && <span style={{ width: 12 }} />}
 
         {/* Icon */}
-        {icon && <span className="text-zinc-500">{icon}</span>}
+        {icon && <span style={{ color: TEXT }}>{icon}</span>}
 
         {/* Label */}
-        <span className="flex-1 truncate">{label}</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
 
         {/* Add subcategory button for categories */}
         {hasChildren && onAddSubcategory && (
@@ -359,7 +379,9 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
               e.stopPropagation();
               onAddSubcategory();
             }}
-            className="text-zinc-600 hover:text-cyan-400 px-1"
+            style={{ color: TEXT, padding: '0 4px', cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.color = BRAND; }}
+            onMouseLeave={e => { e.currentTarget.style.color = TEXT; }}
             title="Add new subcategory"
           >
             +
@@ -368,7 +390,7 @@ const PanelItem = ({ label, description, depth = 0, onClick, isExpanded, onToggl
 
         {/* Add button for leaf items */}
         {!hasChildren && onClick && (
-          <span className="text-zinc-600 hover:text-cyan-400 px-1">+</span>
+          <span style={{ color: TEXT, opacity: 0.4, padding: '0 4px' }}>+</span>
         )}
       </div>
 
@@ -566,17 +588,30 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
   return (
     <div
-      className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden relative"
-      style={{ width: `${panelWidth}px` }}
+      className="h-full flex flex-col overflow-hidden relative"
+      style={{ width: `${panelWidth}px`, background: BG, borderRight: `1px solid ${NODEBORDER}` }}
     >
       {/* Panel Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
-        <span className="text-xs font-mono font-semibold text-white tracking-wide">
-          LIBRARY
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', borderBottom: `1px solid ${NODEBORDER}`,
+        background: NODE,
+      }}>
+        <span style={{
+          fontSize: 9, fontFamily: ui, fontWeight: 700,
+          letterSpacing: 1.2, textTransform: 'uppercase',
+          color: BRAND, opacity: 0.6,
+        }}>
+          Library
         </span>
         <button
           onClick={onClose}
-          className="text-zinc-500 hover:text-zinc-300 text-sm"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: TEXT, fontSize: 12, fontFamily: ui,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = WHITE; }}
+          onMouseLeave={e => { e.currentTarget.style.color = TEXT; }}
           title="Close panel"
         >
           ✕
@@ -584,12 +619,21 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
       </div>
 
       {/* Panel Content */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto" style={{ padding: '8px 0' }}>
         {/* Add Blank Node */}
-        <div className="px-3 py-1 flex flex-col gap-1">
+        <div style={{ padding: '4px 10px' }}>
           <button
             onClick={() => onAddNode('node313')}
-            className="w-full px-2 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 rounded text-[11px] font-mono text-emerald-300 text-left transition-colors"
+            style={{
+              width: '100%', padding: '7px 10px', textAlign: 'left',
+              background: 'rgba(107,158,221,0.08)',
+              border: `1px solid rgba(107,158,221,0.22)`,
+              borderRadius: 8, cursor: 'pointer',
+              fontSize: 11, fontFamily: ui, color: BRAND, fontWeight: 600,
+            }}
+            className="sf-toolbar-btn"
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(107,158,221,0.15)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(107,158,221,0.08)'; }}
           >
             + Blank Node
           </button>
@@ -600,16 +644,18 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
           const savedPresets = userPresets?.['node313/saved'] || [];
           if (savedPresets.length === 0) return null;
 
-          // Group by manufacturer, then by deviceType within each manufacturer
+          // Group by manufacturer, then by primary deviceType within each manufacturer
           const catalog = {};
           savedPresets.forEach(preset => {
             const mfg = preset.manufacturer?.trim() || 'Uncategorized';
             if (!catalog[mfg]) catalog[mfg] = {};
             const types = preset.deviceTypes?.length > 0 ? preset.deviceTypes : ['General'];
-            types.forEach(t => {
-              if (!catalog[mfg][t]) catalog[mfg][t] = [];
-              catalog[mfg][t].push(preset);
-            });
+            // Use primaryDeviceType if set, otherwise fall back to first type
+            const primaryType = preset.primaryDeviceType && types.includes(preset.primaryDeviceType)
+              ? preset.primaryDeviceType
+              : types[0];
+            if (!catalog[mfg][primaryType]) catalog[mfg][primaryType] = [];
+            catalog[mfg][primaryType].push(preset);
           });
 
           const mfgKeys = Object.keys(catalog).sort((a, b) => {
@@ -620,15 +666,19 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
           return (
             <>
-              <div className="border-t border-zinc-800 my-2" />
-              <div className="px-3 py-1">
-                <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
+              <div style={{ borderTop: `1px solid ${NODEBORDER}`, margin: '8px 0' }} />
+              <div style={{ padding: '4px 14px' }}>
+                <span style={{
+                  fontSize: 9, fontFamily: ui, fontWeight: 700,
+                  letterSpacing: 1.2, textTransform: 'uppercase',
+                  color: TEXT, opacity: 0.5,
+                }}>
                   Equipment
                 </span>
               </div>
 
               {mfgKeys.map(mfg => {
-                const isExpanded = expandedCategories[`mfg-${mfg}`] !== false; // default open
+                const isExpanded = expandedCategories[`mfg-${mfg}`] !== false;
                 const typeGroups = catalog[mfg];
                 const typeKeys = Object.keys(typeGroups).sort();
 
@@ -636,34 +686,37 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
                   <div key={mfg}>
                     {/* Manufacturer header */}
                     <button
-                      className="w-full flex items-center gap-1.5 px-3 py-1 text-left hover:bg-zinc-800/50 transition-colors"
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '6px 14px', textAlign: 'left',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                      }}
                       onClick={() => toggleCategory(`mfg-${mfg}`)}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                     >
-                      <span className="text-[9px] font-mono text-zinc-500">{isExpanded ? '▾' : '▸'}</span>
-                      <span className="text-[11px] font-mono text-zinc-300 font-medium tracking-wide uppercase">{mfg}</span>
-                      <span className="text-[9px] font-mono text-zinc-600 ml-auto">
+                      <span style={{ fontSize: 9, fontFamily: ui, color: TEXT }}>{isExpanded ? '▾' : '▸'}</span>
+                      <span style={{ fontSize: 11, fontFamily: ui, color: TEXTHI, fontWeight: 600, letterSpacing: 0.8, textTransform: 'uppercase', flex: 1 }}>{mfg}</span>
+                      <span style={{ fontSize: 9, fontFamily: ui, color: TEXT, opacity: 0.5 }}>
                         {Object.values(typeGroups).reduce((a, b) => a + b.length, 0)}
                       </span>
                     </button>
 
                     {isExpanded && typeKeys.map(type => (
-                      <div key={type} className="ml-3">
-                        {/* Device type sub-header (only show if more than one type) */}
+                      <div key={type} style={{ marginLeft: 12 }}>
                         {typeKeys.length > 1 && (
-                          <div className="px-3 py-0.5">
-                            <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-widest">{type}</span>
+                          <div style={{ padding: '2px 14px' }}>
+                            <span style={{ fontSize: 8, fontFamily: ui, color: TEXT, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 1.5 }}>{type}</span>
                           </div>
                         )}
 
-                        {/* Preset items */}
-                        <div className="flex flex-col gap-0.5 px-2 pb-1">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 8px 4px' }}>
                           {typeGroups[type].map(preset => {
-                            // Build display name: model (tag) — skip manufacturer since it's the group header
                             const parts = [preset.model, preset.tag ? `(${preset.tag})` : ''].filter(Boolean).join(' ');
                             const displayName = parts || preset.title || preset.label;
 
                             return (
-                              <div key={preset.id} className="flex items-center gap-0.5 group">
+                              <div key={preset.id} className="group" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <div
                                   draggable
                                   onDragStart={(e) => {
@@ -671,11 +724,22 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
                                     e.dataTransfer.effectAllowed = 'copy';
                                   }}
                                   onClick={() => onAddNode({ type: 'node313', preset })}
-                                  className="flex-1 px-2 py-1 hover:bg-zinc-800/70 rounded cursor-grab active:cursor-grabbing text-[11px] font-mono text-zinc-400 hover:text-zinc-200 truncate transition-colors"
+                                  style={{
+                                    flex: 1, padding: '4px 8px', cursor: 'grab',
+                                    fontSize: 11, fontFamily: ui, color: TEXT,
+                                    borderRadius: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}
+                                  className="sf-toolbar-btn"
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = WHITE; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = TEXT; }}
                                   title={`Drag to canvas or click to add — ${preset.label}`}
                                 >
                                   {preset.signalColor && (
-                                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: `var(--signal-${preset.signalColor}, #666)` }} />
+                                    <span style={{
+                                      display: 'inline-block', width: 5, height: 5, borderRadius: '50%',
+                                      marginRight: 6, verticalAlign: 'middle',
+                                      backgroundColor: `var(--signal-${preset.signalColor}, #666)`,
+                                    }} />
                                   )}
                                   {displayName}
                                 </div>
@@ -686,7 +750,13 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
                                       onDeletePreset('node313', 'saved', preset.id);
                                     }
                                   }}
-                                  className="text-zinc-700 hover:text-red-400 text-[10px] px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="opacity-0 group-hover:opacity-100"
+                                  style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: TEXT, fontSize: 10, padding: '0 4px',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = TEXT; }}
                                   title="Delete preset"
                                 >
                                   ×
@@ -707,11 +777,19 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
         {/* Export Presets */}
         {Object.keys(userPresets).length > 0 && onExportPresetsJSON && (
           <>
-            <div className="border-t border-zinc-800 my-2" />
-            <div className="px-3 py-1">
+            <div style={{ borderTop: `1px solid ${NODEBORDER}`, margin: '8px 0' }} />
+            <div style={{ padding: '4px 10px' }}>
               <button
                 onClick={onExportPresetsJSON}
-                className="w-full px-2 py-1.5 bg-zinc-800/30 hover:bg-zinc-700/50 border border-zinc-700/50 rounded text-[10px] font-mono text-zinc-500 hover:text-zinc-300 text-left transition-colors"
+                style={{
+                  width: '100%', padding: '6px 10px', textAlign: 'left',
+                  background: NODE, border: `1px solid ${NODEBORDER}`,
+                  borderRadius: 8, cursor: 'pointer',
+                  fontSize: 10, fontFamily: ui, color: TEXT,
+                }}
+                className="sf-toolbar-btn"
+                onMouseEnter={e => { e.currentTarget.style.background = '#222220'; e.currentTarget.style.color = TEXTHI; }}
+                onMouseLeave={e => { e.currentTarget.style.background = NODE; e.currentTarget.style.color = TEXT; }}
               >
                 Export Presets to JSON
               </button>
@@ -722,8 +800,14 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
 
       {/* Resize Handle */}
       <div
-        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize bg-zinc-700/30 hover:bg-cyan-500/70 transition-colors z-50"
+        style={{
+          position: 'absolute', top: 0, right: 0,
+          width: 3, height: '100%', cursor: 'ew-resize',
+          background: NODEBORDER, zIndex: 50,
+        }}
         onMouseDown={handleResizeStart}
+        onMouseEnter={e => { e.currentTarget.style.background = BRAND; }}
+        onMouseLeave={e => { e.currentTarget.style.background = NODEBORDER; }}
         title="Drag to resize sidebar"
       />
 

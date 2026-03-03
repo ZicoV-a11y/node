@@ -1,6 +1,33 @@
 @import "tailwindcss";
 
 /* ============================================ */
+/* CUSTOM SCROLLBARS                           */
+/* ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2e2a;
+  border-radius: 3px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #444440;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2e2e2a transparent;
+}
+
+/* ============================================ */
 /* FLAT DESIGN OVERRIDES                       */
 /* ============================================ */
 
@@ -102,6 +129,54 @@
 [data-node-id] input:not(:focus) {
   user-select: none !important;
   -webkit-user-select: none !important;
+}
+
+/* ============================================ */
+/* TOOLBAR — Signal Flow toolbar overrides      */
+/* ============================================ */
+.sf-toolbar-section {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+.sf-toolbar-btn {
+  border-radius: 8px !important;
+}
+.sf-toolbar-brand {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+.sf-toolbar-logo {
+  border-radius: 8px !important;
+}
+.sf-toolbar-add {
+  border-radius: 14px !important;
+}
+.sf-toolbar-port {
+  border-radius: 50% !important;
+}
+.sf-toolbar-dropdown {
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+}
+.sf-toolbar-thumb {
+  border-radius: 50% !important;
+}
+.sf-toolbar-select {
+  border-radius: 6px !important;
+}
+
+/* ============================================ */
+/* NODE 313 — Card container boundaries         */
+/* ============================================ */
+.n313-card-first td {
+  border-top-width: 2px !important;
+}
+.n313-card-last td {
+  border-bottom-width: 2px !important;
+}
+.n313-card-sep td {
+  border: none !important;
+  background: transparent !important;
 }
 
 /* ============================================ */
