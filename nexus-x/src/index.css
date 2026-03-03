@@ -165,19 +165,6 @@
   border-radius: 6px !important;
 }
 
-/* ============================================ */
-/* NODE 313 — Card container boundaries         */
-/* ============================================ */
-.n313-card-first td {
-  border-top-width: 2px !important;
-}
-.n313-card-last td {
-  border-bottom-width: 2px !important;
-}
-.n313-card-sep td {
-  border: none !important;
-  background: transparent !important;
-}
 
 /* ============================================ */
 /* NODE 313 — Auto-sizing input cells           */

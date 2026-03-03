@@ -429,7 +429,7 @@ const COLUMN_PRESETS = {
     '1280x720',
   ],
   CONNECTOR: [
-    'HDMI 2.0', '3G SDI', '12G SDI', 'DP 1.2', 'SMPTE FIBER', 'OPTICAL-CON QUAD FIBER', 'CAT5', 'CAT6A',
+    'HDMI 2.0', '3G SDI', '12G SDI', 'DP 1.2', 'SMPTE FIBER', 'OPTICAL-CON QUAD FIBER', 'CAT5', 'CAT6A', 'ETHERNET', 'BNC',
   ],
   RATE: [
     '23.98', '24', '25', '29.97', '30',
@@ -780,7 +780,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   // Card grouping (E3 Tricombo slots etc.)
   const cardSize = section.cardSize || 0;
   const cardStartSlot = section.cardStartSlot ?? 1;
-  const slotColumn = section.slotColumn ?? 0;
 
   const cards = useMemo(() => {
     if (!cardSize || cardSize <= 0) return null;
@@ -1032,30 +1031,16 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     });
   }, [portPrefix]);
 
-  // Renumber slot column values based on card position
-  const renumberSlots = useCallback((rows) => {
-    if (!cardSize || cardSize <= 0) return rows;
-    return rows.map((r, i) => {
-      const newRow = [...r];
-      const cardIdx = Math.floor(i / cardSize);
-      newRow[slotColumn] = String(cardStartSlot + cardIdx);
-      return newRow;
-    });
-  }, [cardSize, cardStartSlot, slotColumn]);
-
   const addRow = useCallback(() => {
-    let newRows = [...section.rows, section.cols.map(() => '')];
+    const newRows = [...section.rows, section.cols.map(() => '')];
     const newSpacing = [...rowSpacing, 0];
-    newRows = cards ? renumberSlots(newRows) : renumberRows(newRows);
-    updateSection({ rows: newRows, rowSpacing: newSpacing });
-  }, [section.cols, section.rows, rowSpacing, updateSection, renumberRows, renumberSlots, cards]);
+    updateSection({ rows: cards ? newRows : renumberRows(newRows), rowSpacing: newSpacing });
+  }, [section.cols, section.rows, rowSpacing, updateSection, renumberRows, cards]);
 
   const deleteRow = useCallback((ri) => {
-    let remaining = section.rows.filter((_, i) => i !== ri);
+    const remaining = section.rows.filter((_, i) => i !== ri);
     const newSpacing = rowSpacing.filter((_, i) => i !== ri);
-    remaining = cards ? renumberSlots(remaining) : renumberRows(remaining);
-    updateSection({ rows: remaining, rowSpacing: newSpacing });
-    // Rebuild selection indices after deletion
+    updateSection({ rows: cards ? remaining : renumberRows(remaining), rowSpacing: newSpacing });
     setSelectedRows(prev => {
       const next = new Set();
       for (const idx of prev) {
@@ -1064,7 +1049,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       }
       return next;
     });
-  }, [section.rows, rowSpacing, updateSection, renumberRows, renumberSlots, cards]);
+  }, [section.rows, rowSpacing, updateSection, renumberRows, cards]);
 
   // Vertical spacing drag handler (like SuperNode)
   const handleSpacingMouseDown = useCallback((e, ri) => {
@@ -1217,18 +1202,8 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const isCardFirst = inCardMode && (ri % cardSize === 0);
     const isCardLast = inCardMode && (ri % cardSize === cardSize - 1 || ri === section.rows.length - 1);
 
-    // Card separator row between cards
-    if (inCardMode && isCardFirst && cardIndex > 0) {
-      result.push(
-        <tr key={`card-sep-${ri}`} className="n313-card-sep">
-          <td colSpan={totalColspan} style={{
-            padding: 0, border: 'none', background: 'transparent',
-            height: '6px', boxSizing: 'border-box',
-          }} />
-        </tr>
-      );
-    } else if (!inCardMode && spacing > 0) {
-      // Original spacer logic (non-card mode)
+    // Spacer row if this row has spacing > 0
+    if (spacing > 0) {
       result.push(
         <tr key={`sp-${ri}`}>
           <td colSpan={totalColspan} style={{
@@ -1237,6 +1212,25 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`,
             borderBottom: '1px solid transparent',
           }} />
+        </tr>
+      );
+    }
+
+    // Card header row showing slot number
+    if (inCardMode && isCardFirst) {
+      const slotNum = cardStartSlot + cardIndex;
+      result.push(
+        <tr key={`card-hdr-${ri}`} className="n313-card-hdr">
+          <td colSpan={totalColspan} style={{
+            padding: '2px 8px', background: `${signalColorHex || T.accent}14`,
+            borderTop: `2px solid ${signalColorHex || T.border}`,
+            borderBottom: `1px solid ${signalColorHex || T.border}44`,
+            fontSize: '9px', fontFamily: T.hFont, letterSpacing: '3px',
+            textTransform: 'uppercase', color: signalColorHex || T.accent,
+            height: '18px', boxSizing: 'border-box', lineHeight: 1,
+          }}>
+            SLOT {slotNum}
+          </td>
         </tr>
       );
     }
@@ -1433,11 +1427,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
               [data-sec="${nodeId}-${sectionId}"] td { border-bottom-color: ${signalColorHex}66 !important; }
               ${fullWidth ? `[data-sec="${nodeId}-${sectionId}"] tbody tr:last-child td { border-bottom: none !important; }` : ''}
               [data-sec="${nodeId}-${sectionId}"] th:not(.n313-ac) { background: ${signalColorHex}0a !important; }
-              ` : ''}
-              ${cards ? `
-              [data-sec="${nodeId}-${sectionId}"] .n313-card-first td:not(.n313-ac) { border-top: 2px solid ${c} !important; }
-              [data-sec="${nodeId}-${sectionId}"] .n313-card-last td:not(.n313-ac) { border-bottom: 2px solid ${c} !important; }
-              [data-sec="${nodeId}-${sectionId}"] .n313-card-sep td { border: none !important; background: transparent !important; }
               ` : ''}
             `}</style>
           );
