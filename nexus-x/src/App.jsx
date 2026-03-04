@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import Node313 from './components/Node313';
@@ -651,6 +652,9 @@ export default function App() {
   // Wire selection state
   const [selectedWires, setSelectedWires] = useState(new Set());
 
+  // Node group context menu state
+  const [canvasContextMenu, setCanvasContextMenu] = useState(null); // { x, y }
+
   // Cable prompt state
   const [cablePromptData, setCablePromptData] = useState(null);
   const lastCableDataRef = useRef(null); // Remember last wire settings for new connections
@@ -1153,6 +1157,67 @@ export default function App() {
     });
   }, [selectedNodes]);
 
+  // Scale all selected nodes by a ratio (for group scaling)
+  const scaleSelectedNodes = useCallback((scaleRatio, excludeNodeId) => {
+    setNodes(prev => {
+      const updated = { ...prev };
+      selectedNodes.forEach(nodeId => {
+        if (nodeId === excludeNodeId) return;
+        if (!updated[nodeId]) return;
+        const node = updated[nodeId];
+        const oldScale = node.scale || 1;
+        const newScale = Math.max(0.05, Math.min(4, oldScale * scaleRatio));
+        updated[nodeId] = { ...node, scale: newScale };
+      });
+      return updated;
+    });
+  }, [selectedNodes]);
+
+  // Group selected nodes — assign the same group ID to all selected nodes
+  const handleGroupSelected = useCallback(() => {
+    if (selectedNodes.size < 2) return;
+    const groupId = 'grp-' + Date.now();
+    setNodes(prev => {
+      const updated = { ...prev };
+      selectedNodes.forEach(nodeId => {
+        if (updated[nodeId]) {
+          updated[nodeId] = { ...updated[nodeId], group: groupId };
+        }
+      });
+      return updated;
+    });
+  }, [selectedNodes]);
+
+  // Ungroup selected nodes — clear group field on all selected nodes
+  const handleUngroupSelected = useCallback(() => {
+    if (selectedNodes.size === 0) return;
+    setNodes(prev => {
+      const updated = { ...prev };
+      selectedNodes.forEach(nodeId => {
+        if (updated[nodeId] && updated[nodeId].group) {
+          const { group, ...rest } = updated[nodeId];
+          updated[nodeId] = rest;
+        }
+      });
+      return updated;
+    });
+  }, [selectedNodes]);
+
+  // Expand a selection set to include all group members of any selected node
+  const expandSelectionToGroups = useCallback((nodeIds) => {
+    const expanded = new Set(nodeIds);
+    const groupIds = new Set();
+    nodeIds.forEach(id => {
+      const g = nodes[id]?.group;
+      if (g) groupIds.add(g);
+    });
+    if (groupIds.size === 0) return expanded;
+    Object.entries(nodes).forEach(([id, node]) => {
+      if (node.group && groupIds.has(node.group)) expanded.add(id);
+    });
+    return expanded;
+  }, [nodes]);
+
   // Get source node for an anchor (finds the originating source of a signal)
   // Traces back through the signal chain to find the node that has a signal color
   const getSourceNode = useCallback((anchorId, visited = new Set()) => {
@@ -1164,11 +1229,46 @@ export default function App() {
 
     if (!node) return null;
 
-    // If this node has a signal color, it's the source
-    if (node.signalColor) return node;
+    const isConverter = (node.deviceTypes || []).includes('Converter') || (node.deviceRoles || []).includes('converter');
+    const isRouter = (node.deviceTypes || []).includes('Router') || (node.deviceTypes || []).includes('Switcher') || (node.deviceRoles || []).includes('router') || (node.deviceRoles || []).includes('switcher');
+    const isPassThrough = isConverter || isRouter;
 
-    // Find any INPUT connection to this node (any anchor belonging to this node)
-    // This handles the case where we're checking from an output anchor
+    // If this node has a signal color and is NOT a pass-through, it's the source
+    if (node.signalColor && !isPassThrough) return node;
+
+    // For routers/switchers: read SOURCE column from the output row to find the correct upstream
+    if (isRouter) {
+      const parts = anchorId.split('-');
+      const secId = parts[2];
+      const rowIdx = parseInt(parts[3], 10);
+      if (node.sections && node.sections[secId]) {
+        const sec = node.sections[secId];
+        if (!isNaN(rowIdx) && sec.rows && sec.rows[rowIdx]) {
+          const row = sec.rows[rowIdx];
+          const srcColIdx = sec.cols.findIndex(c => {
+            const u = (c || '').toUpperCase().trim();
+            return u.includes('SOURCE') || u === 'SRC';
+          });
+          if (srcColIdx >= 0 && row[srcColIdx]) {
+            const sourceTag = row[srcColIdx].toUpperCase().trim();
+            // Find the input connection whose upstream source matches this tag
+            const inputConns = connections.filter(c => getNodeIdFromAnchor(c.to) === nodeId);
+            for (const ic of inputConns) {
+              const upstream = getSourceNode(ic.from, new Set(visited));
+              if (upstream && upstream.tag) {
+                const upTag = upstream.tag.toUpperCase().trim();
+                if (sourceTag === upTag || sourceTag.startsWith(upTag + ' ') || sourceTag.startsWith(upTag)) {
+                  return upstream;
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // For converters and other pass-throughs, trace upstream via first input connection
     const inputConn = connections.find(c => {
       const toNodeId = getNodeIdFromAnchor(c.to);
       return toNodeId === nodeId;
@@ -1253,6 +1353,174 @@ export default function App() {
     return set;
   }, [connections]);
 
+  // Collect tags + signal colors from nodes with "Source" device type for SOURCE column dropdowns
+  const sourceNodeTags = useMemo(() => {
+    const map = {};
+    Object.values(nodes).forEach(n => {
+      if (n.tag && (n.deviceTypes || []).includes('Source')) {
+        const upper = n.tag.toUpperCase().trim();
+        if (!upper) return;
+        const hex = n.signalColor ? (SIGNAL_COLORS_BY_ID.get(n.signalColor) || null) : null;
+        // Count output ports (rows across all non-hidden sections)
+        const hidden = n.hiddenSections || [];
+        let portCount = 0;
+        if (n.sections) {
+          ['a', 'b', 'c'].forEach(secId => {
+            if (hidden.includes(secId)) return;
+            const sec = n.sections[secId];
+            if (sec && sec.rows) portCount += sec.rows.length;
+          });
+        }
+        // Generate per-port tags: "SRT 1", "SRT 2", etc.
+        if (portCount > 1) {
+          for (let i = 1; i <= portCount; i++) {
+            const key = `${upper} ${i}`;
+            if (!map[key]) map[key] = hex;
+          }
+        } else {
+          if (!map[upper]) map[upper] = hex;
+        }
+      }
+    });
+    return map;
+  }, [nodes]);
+
+  // Map each input anchor to its upstream source tag + color (traces through converters/routers)
+  const connectedSourceMap = useMemo(() => {
+    const map = {};
+    // Helper: read column values from a node's section row by column name patterns
+    const readRowData = (node, anchorId) => {
+      const parts = anchorId.split('-');
+      const secId = parts[2];
+      const rowIdx = parseInt(parts[3], 10);
+      if (!node.sections || !node.sections[secId]) return {};
+      const sec = node.sections[secId];
+      if (isNaN(rowIdx) || !sec.rows || !sec.rows[rowIdx]) return {};
+      const row = sec.rows[rowIdx];
+      const data = {};
+      sec.cols.forEach((col, ci) => {
+        const upper = (col || '').toUpperCase().trim();
+        if (upper.includes('SOURCE') || upper === 'SRC') data.source = row[ci] || '';
+        if (upper.includes('RESOLUTION') || upper.includes('RES')) data.resolution = row[ci] || '';
+        if (upper.includes('RATE') || upper === 'FPS') data.rate = row[ci] || '';
+      });
+      return data;
+    };
+
+    // Helper: check if a node is a router or switcher (many-to-many, uses SOURCE column for routing)
+    const isRouterOrSwitcher = (node) => {
+      const dt = node.deviceTypes || [];
+      const dr = node.deviceRoles || [];
+      return dt.includes('Router') || dt.includes('Switcher') || dr.includes('router') || dr.includes('switcher');
+    };
+
+    // Trace upstream from an anchor to find the actual source node and its output anchor
+    // For routers/switchers: reads the SOURCE column from the output row (routing config)
+    const traceSource = (anchorId, visited = new Set()) => {
+      if (visited.has(anchorId)) return null;
+      visited.add(anchorId);
+      const nodeId = getNodeIdFromAnchor(anchorId);
+      const node = nodes[nodeId];
+      if (!node) return null;
+      const isConverter = (node.deviceTypes || []).includes('Converter') || (node.deviceRoles || []).includes('converter');
+      const isRtrSwitch = isRouterOrSwitcher(node);
+      const isPassThrough = isConverter || isRtrSwitch;
+
+      if (node.signalColor && !isPassThrough) return { node, anchor: anchorId };
+      if (node.tag && !isPassThrough) return { node, anchor: anchorId };
+
+      // For routers/switchers: read SOURCE column from output row (routing config)
+      if (isRtrSwitch) {
+        const rowData = readRowData(node, anchorId);
+        if (rowData.source) {
+          const resolvedTag = rowData.source.toUpperCase().trim();
+          return { resolvedTag };
+        }
+        return null;
+      }
+
+      // For converters and other pass-throughs, trace upstream via connections
+      const inputConn = connections.find(c => getNodeIdFromAnchor(c.to) === nodeId);
+      if (inputConn) return traceSource(inputConn.from, visited);
+      return null;
+    };
+
+    // Helper: trace upstream to find signal data (resolution, rate)
+    // Converters/Switchers define their own output values; Routers pass through
+    const traceSignalData = (anchorId, visited = new Set()) => {
+      if (visited.has(anchorId)) return {};
+      visited.add(anchorId);
+      const nodeId = getNodeIdFromAnchor(anchorId);
+      const node = nodes[nodeId];
+      if (!node) return {};
+      const data = readRowData(node, anchorId);
+      const isRtrSwitch = isRouterOrSwitcher(node);
+      // If router/switcher with empty resolution/rate, trace upstream via SOURCE column
+      if (isRtrSwitch && !data.resolution && !data.rate) {
+        if (data.source) {
+          // Find the input anchor on this router that matches the SOURCE tag
+          // by checking which input connection comes from a source with that tag
+          for (const inputConn of connections.filter(c => getNodeIdFromAnchor(c.to) === nodeId)) {
+            const upResult = traceSource(inputConn.from, new Set());
+            if (upResult) {
+              let upTag = '';
+              if (upResult.resolvedTag) {
+                upTag = upResult.resolvedTag;
+              } else if (upResult.node && upResult.node.tag) {
+                upTag = upResult.node.tag.toUpperCase().trim();
+              }
+              // Check if this upstream matches the SOURCE column (could be "CAM 2" vs "CAM")
+              const srcUpper = data.source.toUpperCase().trim();
+              if (upTag === srcUpper || srcUpper.startsWith(upTag)) {
+                return traceSignalData(inputConn.from, visited);
+              }
+            }
+          }
+        }
+        return {};
+      }
+      return data;
+    };
+
+    connections.forEach(conn => {
+      const result = traceSource(conn.from);
+      // Collect source tag info
+      let displayTag = '';
+      let hex = null;
+      if (result) {
+        if (result.resolvedTag) {
+          // Router/switcher: SOURCE column value IS the display tag
+          displayTag = result.resolvedTag;
+          hex = sourceNodeTags[displayTag] || null;
+        } else if (result.node && result.node.tag) {
+          const srcNode = result.node;
+          const tag = srcNode.tag.toUpperCase().trim();
+          hex = srcNode.signalColor ? (SIGNAL_COLORS_BY_ID.get(srcNode.signalColor) || null) : null;
+          // Count total ports on source node
+          const hidden = srcNode.hiddenSections || [];
+          let totalPorts = 0;
+          const sectionPortOffset = {};
+          if (srcNode.sections) {
+            ['a', 'b', 'c'].forEach(secId => {
+              if (hidden.includes(secId)) return;
+              const sec = srcNode.sections[secId];
+              if (sec?.rows) { sectionPortOffset[secId] = totalPorts; totalPorts += sec.rows.length; }
+            });
+          }
+          const parts = result.anchor.split('-');
+          const secId = parts[2];
+          const rowIdx = parseInt(parts[3], 10);
+          const portNum = (sectionPortOffset[secId] || 0) + (isNaN(rowIdx) ? 0 : rowIdx) + 1;
+          displayTag = totalPorts > 1 ? `${tag} ${portNum}` : tag;
+        }
+      }
+      // Collect signal data (resolution, rate) from direct upstream output row
+      const signalData = traceSignalData(conn.from);
+      map[conn.to] = { tag: displayTag, color: hex, ...signalData };
+    });
+    return map;
+  }, [connections, nodes, sourceNodeTags]);
+
   // Pre-compute which signal colors are in use across all nodes
   const usedSignalColors = useMemo(() => {
     const set = new Set();
@@ -1319,6 +1587,17 @@ export default function App() {
     });
     return map;
   }, [connections, getConnectionColor, nodes]);
+
+  // Map: sourceNodeId → outgoing connections (for interleaved rendering)
+  const wiresBySourceNode = useMemo(() => {
+    const map = new Map();
+    connections.forEach(conn => {
+      const srcId = getNodeIdFromAnchor(conn.from);
+      if (!map.has(srcId)) map.set(srcId, []);
+      map.get(srcId).push(conn);
+    });
+    return map;
+  }, [connections]);
 
   // Global source names with colors - collected from ALL nodes
   // Maps sourceName -> hex color (from wire connections)
@@ -1700,10 +1979,12 @@ export default function App() {
           });
         }
 
+        // Expand selection to include group members of any node in the box
+        const expandedBox = expandSelectionToGroups(nodesInBox);
         if (event.shiftKey) {
-          setSelectedNodes(prev => new Set([...prev, ...nodesInBox]));
+          setSelectedNodes(prev => new Set([...prev, ...expandedBox]));
         } else {
-          setSelectedNodes(nodesInBox);
+          setSelectedNodes(expandedBox);
         }
       }
       setIsSelecting(false);
@@ -1904,6 +2185,14 @@ export default function App() {
     }
   }, [selectedNodes, connections]);
 
+  // Dismiss canvas context menu on any click outside
+  useEffect(() => {
+    if (!canvasContextMenu) return;
+    const dismiss = () => setCanvasContextMenu(null);
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [canvasContextMenu]);
+
   // Cursor feedback for active wire drawing mode
   useEffect(() => {
     if (containerRef.current) {
@@ -1967,6 +2256,17 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl+G — group / Cmd/Ctrl+Shift+G — ungroup selected nodes
+      if (mod && key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleUngroupSelected();
+        } else {
+          handleGroupSelected();
+        }
+        return;
+      }
+
       // Cmd/Ctrl+C — copy selected nodes
       if (mod && key === 'c') {
         console.log('Ctrl+C pressed, selectedNodes:', selectedNodes.size);
@@ -1984,6 +2284,8 @@ export default function App() {
           e.preventDefault();
           const newSelection = new Set();
           const now = Date.now();
+          // Remap old group IDs to new group IDs so pasted copies stay grouped together
+          const groupRemap = {};
           setNodes(prev => {
             const updated = { ...prev };
             const existingForCollision = Object.values(prev);
@@ -2025,13 +2327,50 @@ export default function App() {
                 if (maxNum < 1) maxNum = 1;
               }
 
+              // Auto-numbering for tag: "CAM 1", "CAM 2", etc.
+              let newTag = node.tag;
+              if (node.tag) {
+                const baseTag = node.tag.replace(/\s+\d+$/, '');
+                let maxTagNum = 0;
+                Object.values(updated).forEach(n => {
+                  const nTag = n.tag || '';
+                  const nBase = nTag.replace(/\s+\d+$/, '');
+                  if (nBase === baseTag) {
+                    const numMatch = nTag.match(/\s+(\d+)$/);
+                    const num = numMatch ? parseInt(numMatch[1], 10) : 1;
+                    if (num > maxTagNum) maxTagNum = num;
+                  }
+                });
+                // Rename original node's tag to "TAG 1" if it doesn't have a number yet
+                const originalTagHasNum = updated[originalId]?.tag?.match(/\s+\d+$/);
+                if (updated[originalId] && updated[originalId].tag && !originalTagHasNum) {
+                  updated[originalId] = {
+                    ...updated[originalId],
+                    tag: `${baseTag} 1`,
+                  };
+                  if (maxTagNum < 1) maxTagNum = 1;
+                }
+                newTag = `${baseTag} ${maxTagNum + 1 + i}`;
+              }
+
+              // Remap group ID: pasted copies get new group IDs
+              let newGroup = undefined;
+              if (node.group) {
+                if (!groupRemap[node.group]) groupRemap[node.group] = 'grp-' + (now + 99000 + i);
+                newGroup = groupRemap[node.group];
+              }
+
               const copyNumber = maxNum + 1 + i;
               const newNode = {
                 ...structuredClone(node),
                 id: newId,
                 position,
                 title: `${baseTitle} ${copyNumber}`,
+                tag: newTag,
+                ...(newGroup ? { group: newGroup } : {}),
               };
+              // Remove old group if no new group
+              if (!newGroup) delete newNode.group;
               updated[newId] = newNode;
               existingForCollision.push(newNode);
             });
@@ -2091,7 +2430,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo, activeWire]);
+  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo, activeWire, handleGroupSelected, handleUngroupSelected]);
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {
@@ -2835,6 +3174,20 @@ export default function App() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onContextMenu={(e) => {
+            // Show group context menu when right-clicking with selected nodes
+            if (selectedNodes.size >= 2) {
+              e.preventDefault();
+              setCanvasContextMenu({ x: e.clientX, y: e.clientY });
+            } else if (selectedNodes.size === 1) {
+              // Check if the single selected node is part of a group
+              const nodeId = Array.from(selectedNodes)[0];
+              if (nodes[nodeId]?.group) {
+                e.preventDefault();
+                setCanvasContextMenu({ x: e.clientX, y: e.clientY });
+              }
+            }
+          }}
           onMouseLeave={() => {
             isPanningRef.current = false;
             if (containerRef.current) containerRef.current.style.cursor = '';
@@ -2943,10 +3296,10 @@ export default function App() {
             </div>
           )}
 
-          {/* SVG Layer for Wires - above selected nodes (z-100) but below menus (z-10000) */}
+          {/* SVG Layer for Anchor Points — behind nodes (same z, earlier in DOM) */}
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none z-[500]"
-            style={{ overflow: 'visible' }}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ overflow: 'visible', zIndex: 1 }}
           >
             {/* SVG Anchor Points - memoized for performance */}
             {Object.entries(computedAnchorPositions).map(([anchorId, pos]) => (
@@ -2960,167 +3313,10 @@ export default function App() {
                 onAnchorClick={handleAnchorClick}
               />
             ))}
+          </svg>
 
-            {connections.map(conn => {
-              const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
-              const wirePath = wirePathMap.get(conn.id) || '';
-              const fromPos = computedAnchorPositions[conn.from];
-              const toPos = computedAnchorPositions[conn.to];
-              const isSelected = selectedWires.has(conn.id);
-              const isEnhanced = conn.enhanced || false;
-
-              return (
-                <g key={conn.id}>
-                  {/* Selection highlight (behind everything) */}
-                  {isSelected && (
-                    <path
-                      d={wirePath}
-                      fill="none"
-                      stroke="#22d3ee"
-                      strokeWidth={8}
-                      strokeOpacity={0.3}
-                      strokeLinecap="round"
-                    />
-                  )}
-
-                  {/* Enhanced: White outline */}
-                  {isEnhanced && (
-                    <path
-                      d={wirePath}
-                      fill="none"
-                      stroke="rgba(255,255,255,0.15)"
-                      strokeWidth={5}
-                      strokeDasharray={conn.dashPattern || undefined}
-                      strokeLinecap="round"
-                    />
-                  )}
-
-                  {/* Main wire */}
-                  <path
-                    d={wirePath}
-                    fill="none"
-                    stroke={wireColor}
-                    strokeWidth={2}
-                    strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
-                    strokeLinecap="round"
-                    style={{
-                      filter: `drop-shadow(0 0 4px ${wireColor}50)`
-                    }}
-                  />
-
-                  {/* Enhanced: Animated flow indicator */}
-                  {isEnhanced && (
-                    <path
-                      d={wirePath}
-                      fill="none"
-                      stroke={wireColor}
-                      strokeWidth={1}
-                      strokeDasharray="4 12"
-                      strokeOpacity={0.6}
-                      strokeLinecap="round"
-                      className="wire-animated"
-                    />
-                  )}
-
-                  {/* Wire label - text follows the wire path, centered */}
-                  {(() => {
-                    let displayText = conn.label;
-                    if (!displayText && (conn.cableType || conn.cableLength)) {
-                      const parts = [];
-                      if (conn.cableType) parts.push(conn.cableType);
-                      if (conn.cableLength) parts.push(conn.cableLength);
-                      displayText = parts.join(' • ');
-                    }
-
-                    if (!displayText || !wirePath) return null;
-
-                    const fontSize = 4; // Fixed size for all wire labels
-                    const pathId = `wire-text-${conn.id}`;
-                    // Use reversed path when wire goes right-to-left so text is never upside down
-                    const textPath = wireTextPathMap.get(conn.id) || wirePath;
-
-                    return (
-                      <g style={{ pointerEvents: 'none' }}>
-                        <defs>
-                          <path id={pathId} d={textPath} />
-                        </defs>
-                        {/* Text outline for readability */}
-                        <text className="font-mono" dy={-3} style={{ fontSize }}>
-                          <textPath
-                            href={`#${pathId}`}
-                            startOffset="50%"
-                            textAnchor="middle"
-                            style={{
-                              fill: 'none',
-                              stroke: '#18181b',
-                              strokeWidth: 1.5,
-                              strokeLinejoin: 'round'
-                            }}
-                          >
-                            {displayText}
-                          </textPath>
-                        </text>
-                        {/* Text fill */}
-                        <text className="font-mono" dy={-3} style={{ fontSize }}>
-                          <textPath
-                            href={`#${pathId}`}
-                            startOffset="50%"
-                            textAnchor="middle"
-                            style={{ fill: wireColor }}
-                          >
-                            {displayText}
-                          </textPath>
-                        </text>
-                      </g>
-                    );
-                  })()}
-
-                  {/* Invisible click hit area (wider than visible wire) */}
-                  <path
-                    d={wirePath}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth={12}
-                    strokeLinecap="round"
-                    className="pointer-events-auto cursor-pointer"
-                    onClick={(e) => handleWireClick(conn.id, e)}
-                    onDoubleClick={(e) => handleWireDoubleClick(conn.id, e)}
-                  />
-
-                  {/* Delete button for wire */}
-                  {fromPos && toPos && (
-                    <g
-                      data-export-ignore="true"
-                      className="pointer-events-auto cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteConnection(conn.id);
-                      }}
-                    >
-                      <circle
-                        cx={(fromPos.x + toPos.x) / 2}
-                        cy={(fromPos.y + toPos.y) / 2}
-                        r={8}
-                        fill="#18181b"
-                        stroke="#ef4444"
-                        strokeWidth={1.5}
-                      />
-                      <text
-                        x={(fromPos.x + toPos.x) / 2}
-                        y={(fromPos.y + toPos.y) / 2 + 1}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className="fill-red-400 font-bold"
-                        style={{ fontSize: 10 }}
-                      >
-                        ×
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-
+          {/* Wire preview SVG (always on top during creation) */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 9999 }}>
             {/* Wire preview during creation */}
             {activeWire && wireMousePos && (() => {
               const fromPos = computedAnchorPositions[activeWire.from];
@@ -3291,13 +3487,16 @@ export default function App() {
             ))}
           </svg>
 
-          {/* Nodes */}
+          {/* Nodes interleaved with their outgoing wires — wire renders AFTER its source node
+              so wire is visible over its own node, but the next node covers the wire */}
           {Object.values(nodes).map(node => {
             const NodeComponent = node.version === 3 ? Node313 : node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);
+            const nodeOutgoingWires = wiresBySourceNode.get(node.id) || [];
+            const wireZ = isSelected ? 100 : 1;
             return (
+              <Fragment key={node.id}>
               <NodeComponent
-                key={node.id}
                 node={node}
                 zoom={zoom}
                 isSelected={isSelected}
@@ -3314,23 +3513,114 @@ export default function App() {
                 connections={connections}
                 connectionColorMap={connectionColorMap}
                 globalSourceNamesWithColors={globalSourceNamesWithColors}
+                sourceNodeTags={sourceNodeTags}
+                connectedSourceMap={connectedSourceMap}
                 onSavePreset={node.version === 3 ? saveNode313Preset : (categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}
                 onMoveSelectedNodes={moveSelectedNodes}
+                onScaleSelectedNodes={scaleSelectedNodes}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {
                       const next = new Set(prev);
-                      if (next.has(nodeId)) next.delete(nodeId);
-                      else next.add(nodeId);
+                      if (next.has(nodeId)) {
+                        const g = nodes[nodeId]?.group;
+                        next.delete(nodeId);
+                        if (g) {
+                          Object.entries(nodes).forEach(([id, n]) => {
+                            if (n.group === g) next.delete(id);
+                          });
+                        }
+                      } else {
+                        next.add(nodeId);
+                        const g = nodes[nodeId]?.group;
+                        if (g) {
+                          Object.entries(nodes).forEach(([id, n]) => {
+                            if (n.group === g) next.add(id);
+                          });
+                        }
+                      }
                       return next;
                     });
                   } else {
-                    setSelectedNodes(new Set([nodeId]));
+                    const sel = new Set([nodeId]);
+                    const g = nodes[nodeId]?.group;
+                    if (g) {
+                      Object.entries(nodes).forEach(([id, n]) => {
+                        if (n.group === g) sel.add(id);
+                      });
+                    }
+                    setSelectedNodes(sel);
                   }
                 }}
               />
+              {/* Outgoing wires from this node — rendered after node so visible over source */}
+              {nodeOutgoingWires.map(conn => {
+                const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
+                const wirePath = wirePathMap.get(conn.id) || '';
+                const fromPos = computedAnchorPositions[conn.from];
+                const toPos = computedAnchorPositions[conn.to];
+                const isWireSelected = selectedWires.has(conn.id);
+                const isEnhanced = conn.enhanced || false;
+                return (
+                  <svg key={conn.id} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: wireZ }}>
+                  <g>
+                    {isWireSelected && (
+                      <path d={wirePath} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.3} strokeLinecap="round" />
+                    )}
+                    {isEnhanced && (
+                      <path d={wirePath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={5} strokeDasharray={conn.dashPattern || undefined} strokeLinecap="round" />
+                    )}
+                    <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={2}
+                      strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
+                      strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }} />
+                    {isEnhanced && (
+                      <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={1} strokeDasharray="4 12" strokeOpacity={0.6} strokeLinecap="round" className="wire-animated" />
+                    )}
+                    {(() => {
+                      let displayText = conn.label;
+                      if (!displayText && (conn.cableType || conn.cableLength)) {
+                        const parts = [];
+                        if (conn.cableType) parts.push(conn.cableType);
+                        if (conn.cableLength) parts.push(conn.cableLength);
+                        displayText = parts.join(' \u2022 ');
+                      }
+                      if (!displayText || !wirePath) return null;
+                      const fontSize = 4;
+                      const pathId = `wire-text-${conn.id}`;
+                      const textPath = wireTextPathMap.get(conn.id) || wirePath;
+                      return (
+                        <g style={{ pointerEvents: 'none' }}>
+                          <defs><path id={pathId} d={textPath} /></defs>
+                          <text className="font-mono" dy={-3} style={{ fontSize }}>
+                            <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
+                              style={{ fill: 'none', stroke: '#18181b', strokeWidth: 1.5, strokeLinejoin: 'round' }}>{displayText}</textPath>
+                          </text>
+                          <text className="font-mono" dy={-3} style={{ fontSize }}>
+                            <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
+                              style={{ fill: wireColor }}>{displayText}</textPath>
+                          </text>
+                        </g>
+                      );
+                    })()}
+                    <path d={wirePath} fill="none" stroke="transparent" strokeWidth={12} strokeLinecap="round"
+                      className="pointer-events-auto cursor-pointer"
+                      onClick={(e) => handleWireClick(conn.id, e)}
+                      onDoubleClick={(e) => handleWireDoubleClick(conn.id, e)} />
+                    {fromPos && toPos && (
+                      <g data-export-ignore="true" className="pointer-events-auto cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+                        onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
+                        <circle cx={(fromPos.x + toPos.x) / 2} cy={(fromPos.y + toPos.y) / 2} r={8} fill="#18181b" stroke="#ef4444" strokeWidth={1.5} />
+                        <text x={(fromPos.x + toPos.x) / 2} y={(fromPos.y + toPos.y) / 2 + 1} textAnchor="middle" dominantBaseline="middle"
+                          className="fill-red-400 font-bold" style={{ fontSize: 10 }}>×</text>
+                      </g>
+                    )}
+                  </g>
+                  </svg>
+                );
+              })}
+              </Fragment>
             );
           })}
 
@@ -3356,6 +3646,55 @@ export default function App() {
         </div>
         <CanvasRulers ref={rulerRef} containerRef={containerRef} visible={showRulers} />
         <input ref={fileInputRef} type="file" accept=".vsf,.json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
+
+        {/* Node group context menu */}
+        {canvasContextMenu && createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: canvasContextMenu.x,
+              top: canvasContextMenu.y,
+              zIndex: 10000,
+              background: '#111',
+              border: '1px solid #333',
+              padding: '2px 0',
+              minWidth: 160,
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 13,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {selectedNodes.size >= 2 && (
+              <div
+                style={{ padding: '6px 14px', cursor: 'pointer', color: '#ddd' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#222'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleGroupSelected();
+                  setCanvasContextMenu(null);
+                }}
+              >
+                Group Selected
+              </div>
+            )}
+            {Array.from(selectedNodes).some(id => nodes[id]?.group) && (
+              <div
+                style={{ padding: '6px 14px', cursor: 'pointer', color: '#ddd' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#222'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleUngroupSelected();
+                  setCanvasContextMenu(null);
+                }}
+              >
+                Ungroup
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
       </main>
       </div>
 

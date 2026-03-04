@@ -518,7 +518,7 @@ const SzCell = memo(({ value, isHeader, onChange, onContextMenu, sizerValue, onM
 SzCell.displayName = 'SzCell';
 
 // Dropdown cell — looks like SzCell but click opens preset options
-const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
+const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColor }) => {
   const [open, setOpen] = useState(false);
   const cellRef = useRef(null);
 
@@ -551,11 +551,18 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue }) => {
 
   const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
 
+  const cellStyle = highlightColor
+    ? { ...SZ_CELL_STYLE, background: `${highlightColor}18` }
+    : SZ_CELL_STYLE;
+  const inputStyle = highlightColor
+    ? { ...SZ_INPUT_BODY, color: highlightColor }
+    : SZ_INPUT_BODY;
+
   return (
-    <td style={SZ_CELL_STYLE} ref={cellRef}>
+    <td style={cellStyle} ref={cellRef}>
       <div className="n313-sz" data-v={sizer}>
         <input
-          style={SZ_INPUT_BODY}
+          style={inputStyle}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           {...BLUR_ON_ENTER}
@@ -767,7 +774,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, connectedSourceMap }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1136,6 +1143,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     }
   }, [contextMenu, hiddenCols, updateSection]);
 
+  const handleUnhideCol = useCallback((ci) => {
+    updateSection({ hiddenCols: hiddenCols.filter(h => h !== ci) });
+    setContextMenu(null);
+  }, [hiddenCols, updateSection]);
+
   const handleUnhideAll = useCallback(() => {
     updateSection({ hiddenCols: [] });
     setContextMenu(null);
@@ -1241,11 +1253,32 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       if (ci === 0) {
         return <PortCell key={`cell-${ci}`} value={row[ci]} isSelected={selectedRows.has(ri)} onToggle={() => toggleRowSelection(ri)} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
       }
-      const presets = getPresetsForColumn(section.cols[ci]);
+      const colUpper = (section.cols[ci] || '').toUpperCase().trim();
+      const isSourceCol = (colUpper.includes('SOURCE') || colUpper.includes('SRC'));
+      const isResCol = (colUpper.includes('RESOLUTION') || colUpper.includes('RES'));
+      const isRateCol = (colUpper.includes('RATE') || colUpper === 'FPS');
+      const sourceKeys = isSourceCol && sourceNodeTags ? Object.keys(sourceNodeTags) : [];
+      const presets = sourceKeys.length > 0 ? sourceKeys : getPresetsForColumn(section.cols[ci]);
+
+      // Auto-fill from connected signal data
+      const anchorId = `${nodeId}-${sectionId}-${ri}`;
+      const connected = connectedSourceMap?.[anchorId];
+      let cellValue = row[ci];
+
       if (presets) {
-        return <DropdownCell key={`cell-${ci}`} value={row[ci]} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
+        let sourceColor = null;
+        if (isSourceCol) {
+          if (connected && !cellValue) cellValue = connected.tag;
+          sourceColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
+        }
+        return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={sourceColor} />;
       }
-      return <SzCell key={`cell-${ci}`} value={row[ci]} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
+      // Auto-fill resolution and rate from upstream signal
+      if (connected && !cellValue) {
+        if (isResCol && connected.resolution) cellValue = connected.resolution;
+        if (isRateCol && connected.rate) cellValue = connected.rate;
+      }
+      return <SzCell key={`cell-${ci}`} value={cellValue} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
 
     const deleteIcon = section.rows.length > 1 ? ACTION_ICON_X : null;
@@ -1492,9 +1525,19 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           {hiddenCols.length > 0 && (
             <>
               <div style={{ height: 1, background: T.border, margin: '2px 0' }} />
-              <div style={STYLES.contextMenuItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }} onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}>
-                Show All Columns ({hiddenCols.length} hidden)
+              <div style={{ padding: '2px 10px', fontSize: '9px', color: T.muted, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                Hidden
               </div>
+              {hiddenCols.map(ci => (
+                <div key={`unhide-${ci}`} style={STYLES.contextMenuItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }} onMouseDown={(e) => { e.stopPropagation(); handleUnhideCol(ci); }}>
+                  Show "{section.cols[ci]}"
+                </div>
+              ))}
+              {hiddenCols.length > 1 && (
+                <div style={STYLES.contextMenuItem} onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }} onMouseDown={(e) => { e.stopPropagation(); handleUnhideAll(); }}>
+                  Show All ({hiddenCols.length})
+                </div>
+              )}
             </>
           )}
         </div>,
@@ -1512,8 +1555,8 @@ Section313.displayName = 'Section313';
 function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
-  onSelect, selectedNodes, onMoveSelectedNodes,
-  onAnchorClick, onSavePreset,
+  onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
+  onAnchorClick, onSavePreset, sourceNodeTags, connectedSourceMap,
 }) {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1522,6 +1565,8 @@ function Node313({
   const [isScaling, setIsScaling] = useState(false);
   const scaleStartRef = useRef(null);
   const lastPositionRef = useRef(null);
+  const hasDraggedRef = useRef(false);
+  const wasSelectedOnDownRef = useRef(false);
 
   // Settings dropdown state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1656,9 +1701,20 @@ function Node313({
   const handleTitleMouseDown = useCallback((e) => {
     e.stopPropagation();
 
-    // Select this node
+    const modifier = e.shiftKey || e.ctrlKey || e.metaKey;
+    const alreadySelected = selectedNodes && selectedNodes.has(node.id);
+    wasSelectedOnDownRef.current = alreadySelected;
+    hasDraggedRef.current = false;
+
     if (onSelect) {
-      onSelect(node.id, e.shiftKey || e.ctrlKey || e.metaKey);
+      if (modifier) {
+        // Shift/Ctrl: toggle in selection immediately
+        onSelect(node.id, true);
+      } else if (!alreadySelected) {
+        // Clicking unselected node: select only this one
+        onSelect(node.id, false);
+      }
+      // If already selected without modifier: don't change selection (allow group drag)
     }
 
     const canvas = nodeRef.current?.closest('[data-canvas]');
@@ -1671,7 +1727,7 @@ function Node313({
       offsetY: e.clientY - canvasRect.top - node.position.y * zoom,
     });
     lastPositionRef.current = { x: node.position.x, y: node.position.y };
-  }, [node.id, node.position.x, node.position.y, zoom, onSelect]);
+  }, [node.id, node.position.x, node.position.y, zoom, onSelect, selectedNodes]);
 
   useEffect(() => {
     if (!isDragging || !dragStart) return;
@@ -1681,6 +1737,7 @@ function Node313({
     let pendingDelta = null;
 
     const handleMouseMove = (e) => {
+      hasDraggedRef.current = true;
       const canvas = nodeRef.current?.closest('[data-canvas]');
       if (!canvas) return;
       const canvasRect = canvas.getBoundingClientRect();
@@ -1714,6 +1771,10 @@ function Node313({
 
     const handleMouseUp = () => {
       if (rafId) cancelAnimationFrame(rafId);
+      // Deferred deselect: clicked an already-selected node without dragging → narrow selection
+      if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
+        onSelect(node.id, false);
+      }
       setIsDragging(false);
       lastPositionRef.current = null;
     };
@@ -1741,25 +1802,41 @@ function Node313({
     const handle = scaleHandleRef.current;
     if (!nodeEl || !handle) return;
     handle.setPointerCapture(e.pointerId);
-    const rect = nodeEl.getBoundingClientRect();
+    // Collect other selected nodes' DOM elements and starting scales for live preview
+    const peers = [];
+    if (selectedNodes && selectedNodes.size > 1) {
+      selectedNodes.forEach(id => {
+        if (id === node.id) return;
+        const el = document.querySelector(`[data-node-id="${id}"]`);
+        if (el) peers.push({ el, startScale: parseFloat(el.dataset.nodeScale) || 1 });
+      });
+    }
     scaleStartRef.current = {
       startX: e.clientX,
       startScale: node.scale || 1,
-      nodeWidth: rect.width,
+      nodeWidth: nodeEl.getBoundingClientRect().width,
       pointerId: e.pointerId,
+      peers,
     };
     setIsScaling(true);
-  }, [node.scale]);
+  }, [node.scale, node.id, selectedNodes]);
 
   const onScalePointerMove = useCallback((e) => {
     const s = scaleStartRef.current;
     const nodeEl = nodeRef.current;
     if (!s || !nodeEl || !isScaling) return;
     const dx = e.clientX - s.startX;
-    // Always smooth — exponential scaling, drag right = bigger, left = smaller
     const newScale = Math.max(0.05, Math.min(4, s.startScale * Math.pow(2, dx / 300)));
     s.currentScale = newScale;
     nodeEl.style.transform = `scale(${newScale})`;
+    // Live-preview scale on all other selected nodes
+    const ratio = newScale / s.startScale;
+    if (s.peers) {
+      s.peers.forEach(p => {
+        const peerScale = Math.max(0.05, Math.min(4, p.startScale * ratio));
+        p.el.style.transform = `scale(${peerScale})`;
+      });
+    }
   }, [isScaling]);
 
   const onScalePointerUp = useCallback((e) => {
@@ -1770,14 +1847,20 @@ function Node313({
     }
     const s = scaleStartRef.current;
     if (s && s.currentScale != null) {
-      // Reset DOM transform so React takes over cleanly
+      // Reset DOM transforms so React takes over cleanly
       const nodeEl = nodeRef.current;
       if (nodeEl) nodeEl.style.transform = '';
+      if (s.peers) s.peers.forEach(p => { p.el.style.transform = ''; });
       onUpdate({ scale: s.currentScale });
+      // Commit scale to all other selected nodes
+      if (selectedNodes && selectedNodes.size > 1 && onScaleSelectedNodes) {
+        const scaleRatio = s.currentScale / s.startScale;
+        onScaleSelectedNodes(scaleRatio, node.id);
+      }
     }
     setIsScaling(false);
     scaleStartRef.current = null;
-  }, [onUpdate]);
+  }, [onUpdate, selectedNodes, onScaleSelectedNodes, node.id]);
 
   // ---- Anchor registration ----
   useLayoutEffect(() => {
@@ -1862,9 +1945,11 @@ function Node313({
         collapsible={sectionId === 'c'}
         isFirstRow={isFirstRow}
         hiddenSystemFields={hiddenSystemFields}
+        sourceNodeTags={sourceNodeTags}
+        connectedSourceMap={connectedSourceMap}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, connectedSourceMap]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones
@@ -2024,12 +2109,17 @@ function Node313({
       style={nodeStyle}
       onClick={handleNodeClick}
       data-node-id={node.id}
+      data-node-scale={node.scale || 1}
     >
       {/* Top accent line — tapers to pin on name (left) side */}
       <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />
 
       {/* Title bar — single row: Name | TAG | Manufacturer · Model | buttons */}
       <div className="n313-title-bar" style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
+          {/* Group indicator */}
+          {node.group && (
+            <span style={{ fontSize: '10px', color: signalColorHex || T.accent, opacity: 0.6, marginRight: '2px', pointerEvents: 'none' }} title="Grouped">&#x1F517;</span>
+          )}
           {/* Name */}
           {!hiddenTitleFields.includes('name') && (
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: '22px' }}>

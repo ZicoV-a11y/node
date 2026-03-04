@@ -3486,6 +3486,10 @@ const TitleBar = memo(({ node, onUpdate, themeColors, usedSignalColors, onSavePr
       className="flex items-center px-3 border-b border-zinc-700 rounded-t-lg relative"
       style={titleBarStyle}
     >
+      {/* Group indicator */}
+      {node.group && (
+        <span style={{ fontSize: '10px', color: signalColorHex || '#71717a', opacity: 0.6, marginRight: '2px', pointerEvents: 'none' }} title="Grouped">&#x1F517;</span>
+      )}
       {/* Left corner - Color picker + Manufacturer/Model */}
       <div className="flex items-center gap-2 z-10">
         {/* Signal color picker - rounded square style */}
@@ -4213,16 +4217,33 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     if (isResizing) return;
 
     e.preventDefault();
+
+    // Selection logic: preserve multi-select for group drag
+    const modifier = e.shiftKey || e.ctrlKey || e.metaKey;
+    const alreadySelected = selectedNodes && selectedNodes.has(node.id);
+    wasSelectedOnDownRef.current = alreadySelected;
+    hasDraggedRef.current = false;
+
+    if (onSelect) {
+      if (modifier) {
+        onSelect(node.id, true);
+      } else if (!alreadySelected) {
+        onSelect(node.id, false);
+      }
+    }
+
     setIsDragging(true);
     const rect = nodeRef.current.getBoundingClientRect();
     setDragStart({
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top
     });
-  }, [isResizing]);
+  }, [isResizing, selectedNodes, node.id, onSelect]);
 
   // Track last position for calculating delta when multi-select dragging
   const lastPositionRef = useRef(null);
+  const hasDraggedRef = useRef(false);
+  const wasSelectedOnDownRef = useRef(false);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -4235,6 +4256,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     let pendingDelta = null;
 
     const handleMouseMove = (e) => {
+      hasDraggedRef.current = true;
       const canvas = nodeRef.current?.closest('[data-canvas]');
       if (!canvas) return;
 
@@ -4273,6 +4295,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const handleMouseUp = () => {
       if (rafId) cancelAnimationFrame(rafId);
+      // Deferred deselect: clicked already-selected node without dragging → narrow selection
+      if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
+        onSelect(node.id, false);
+      }
       setIsDragging(false);
       lastPositionRef.current = null;
     };
@@ -4767,12 +4793,9 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors, sourceNamesWithColors
   ]);
 
-  // Handle click to select (shift+click to add to selection)
+  // Click handler — selection is now handled in mouseDown/mouseUp for proper group drag
   const handleClick = useCallback((e) => {
-    if (onSelect && !isDragging) {
-      e.stopPropagation();
-      onSelect(node.id, e.shiftKey);
-    }
+    e.stopPropagation();
   }, [onSelect, isDragging, node.id]);
 
   // Node width is now determined by content naturally (no explicit width constraints)
@@ -4946,6 +4969,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     <div
       ref={nodeRef}
       data-node-id={node.id}
+      data-node-scale={node.scale || 1}
       className={wrapperClassName}
         style={{
           left: node.position.x,

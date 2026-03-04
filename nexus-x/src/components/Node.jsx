@@ -866,9 +866,11 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect }) {
+function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, selectedNodes, onMoveSelectedNodes }) {
   const isDraggingRef = useRef(false);
   const hasDraggedRef = useRef(false);
+  const wasSelectedOnDownRef = useRef(false);
+  const lastPositionRef = useRef(null);
   const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
   const [isDraggingVisual, setIsDraggingVisual] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -982,6 +984,19 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
     e.preventDefault();
     e.stopPropagation();
 
+    // Selection logic: preserve multi-select for group drag
+    const modifier = e.shiftKey || e.ctrlKey || e.metaKey;
+    const alreadySelected = selectedNodes && selectedNodes.has(node.id);
+    wasSelectedOnDownRef.current = alreadySelected;
+
+    if (onSelect) {
+      if (modifier) {
+        onSelect(node.id, true);
+      } else if (!alreadySelected) {
+        onSelect(node.id, false);
+      }
+    }
+
     setIsDraggingVisual(true);
 
     const rect = nodeRef.current.getBoundingClientRect();
@@ -993,6 +1008,7 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
     };
     isDraggingRef.current = true;
     hasDraggedRef.current = false;
+    lastPositionRef.current = { x: node.position.x, y: node.position.y };
 
     const handleMouseMove = (moveEvent) => {
       if (!isDraggingRef.current) return;
@@ -1017,12 +1033,24 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
         newY = Math.round(newY / gridSize) * gridSize;
       }
 
+      const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
+      const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
+
       onUpdate({ position: { x: newX, y: newY } });
+      if (selectedNodes && selectedNodes.size > 1 && onMoveSelectedNodes) {
+        onMoveSelectedNodes(deltaX, deltaY, node.id);
+      }
+      lastPositionRef.current = { x: newX, y: newY };
     };
 
     const handleMouseUp = () => {
+      // Deferred deselect: clicked already-selected node without dragging → narrow selection
+      if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
+        onSelect(node.id, false);
+      }
       isDraggingRef.current = false;
       setIsDraggingVisual(false);
+      lastPositionRef.current = null;
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -1157,6 +1185,10 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
         borderLeft: signalColorHex ? `4px solid ${signalColorHex}` : undefined
       }}
     >
+      {/* Group indicator */}
+      {node.group && (
+        <span style={{ fontSize: '10px', color: signalColorHex || '#71717a', opacity: 0.6, pointerEvents: 'none' }} title="Grouped">&#x1F517;</span>
+      )}
       {/* Display combined title (software + device) */}
       <span className="font-mono font-bold text-zinc-100 text-sm">
         {displayTitle()}
@@ -1239,18 +1271,16 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
   // Determine if we're using flex-columns layout
   const isFlexColumns = gridTemplate.type === 'flex-columns';
 
-  // Handle click to select (shift+click to add to selection)
+  // Click handler — selection is now handled in mouseDown/mouseUp for proper group drag
   const handleClick = (e) => {
     e.stopPropagation();
-    if (onSelect && !hasDraggedRef.current) {
-      onSelect(node.id, e.shiftKey);
-    }
   };
 
   return (
     <div
       ref={nodeRef}
       data-node-id={node.id}
+      data-node-scale={node.scale || 1}
       className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
         isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
       } ${
