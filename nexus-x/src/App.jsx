@@ -1404,6 +1404,36 @@ export default function App() {
     return map;
   }, [nodes]);
 
+  // Collect tags from nodes with "Destination" device type for DESTINATION column dropdowns
+  const destinationNodeTags = useMemo(() => {
+    const map = {};
+    Object.values(nodes).forEach(n => {
+      if (n.tag && (n.deviceTypes || []).includes('Destination')) {
+        const upper = n.tag.toUpperCase().trim();
+        if (!upper) return;
+        const hex = n.signalColor ? (SIGNAL_COLORS_BY_ID.get(n.signalColor) || null) : null;
+        const hidden = n.hiddenSections || [];
+        let portCount = 0;
+        if (n.sections) {
+          ['a', 'b', 'c'].forEach(secId => {
+            if (hidden.includes(secId)) return;
+            const sec = n.sections[secId];
+            if (sec && sec.rows) portCount += sec.rows.length;
+          });
+        }
+        if (portCount > 1) {
+          for (let i = 1; i <= portCount; i++) {
+            const key = `${upper} ${i}`;
+            if (!map[key]) map[key] = hex;
+          }
+        } else {
+          if (!map[upper]) map[upper] = hex;
+        }
+      }
+    });
+    return map;
+  }, [nodes]);
+
   // Map each input anchor to its upstream source tag + color (traces through converters/routers)
   const connectedSourceMap = useMemo(() => {
     const map = {};
@@ -3743,6 +3773,7 @@ export default function App() {
                 connectionColorMap={connectionColorMap}
                 globalSourceNamesWithColors={globalSourceNamesWithColors}
                 sourceNodeTags={sourceNodeTags}
+                destinationNodeTags={destinationNodeTags}
                 connectedSourceMap={connectedSourceMap}
                 onSavePreset={node.version === 3 ? saveNode313Preset : (categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
                 userSubcategories={userSubcategories}

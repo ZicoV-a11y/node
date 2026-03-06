@@ -795,7 +795,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, getSpacingAxisSnap }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1284,10 +1284,12 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       }
       const colUpper = (section.cols[ci] || '').toUpperCase().trim();
       const isSourceCol = (colUpper.includes('SOURCE') || colUpper.includes('SRC'));
+      const isDestCol = (colUpper.includes('DESTINATION') || colUpper.includes('DEST'));
       const isResCol = (colUpper.includes('RESOLUTION') || colUpper.includes('RES'));
       const isRateCol = (colUpper.includes('RATE') || colUpper === 'FPS');
       const sourceKeys = isSourceCol && sourceNodeTags ? Object.keys(sourceNodeTags) : [];
-      const presets = sourceKeys.length > 0 ? sourceKeys : getPresetsForColumn(section.cols[ci]);
+      const destKeys = isDestCol && destinationNodeTags ? Object.keys(destinationNodeTags) : [];
+      const presets = sourceKeys.length > 0 ? sourceKeys : destKeys.length > 0 ? destKeys : getPresetsForColumn(section.cols[ci]);
 
       // Auto-fill from connected signal data
       const anchorId = `${nodeId}-${sectionId}-${ri}`;
@@ -1300,12 +1302,15 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (isRateCol && connected.rate) cellValue = connected.rate;
       }
       if (presets) {
-        let sourceColor = null;
+        let hlColor = null;
         if (isSourceCol) {
           if (connected && !cellValue) cellValue = connected.tag;
-          sourceColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
+          hlColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
         }
-        return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={sourceColor} />;
+        if (isDestCol && cellValue) {
+          hlColor = destinationNodeTags[(cellValue || '').toUpperCase().trim()] || null;
+        }
+        return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={hlColor} />;
       }
       return <SzCell key={`cell-${ci}`} value={cellValue} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
@@ -1585,7 +1590,7 @@ function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
-  onAnchorClick, onSavePreset, sourceNodeTags, connectedSourceMap,
+  onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap,
   getWireAxisSnap, getSpacingAxisSnap,
 }) {
   const nodeRef = useRef(null);
@@ -1660,6 +1665,9 @@ function Node313({
 
   const layoutKey = node.layout || 'ab_c';
   const layout = LAYOUTS[layoutKey] || LAYOUTS['ab_c'];
+  // L-shaped border: when columns (a+b) are the last row, each column gets its own border
+  const sideBySideIsLastRow = layout[layout.length - 1].length === 2;
+  const nodeBorderStyle = `2px solid ${signalColorHex || T.border}`;
 
   // ---- Section updates ----
   const handleSectionUpdate = useCallback((sectionId, updates) => {
@@ -1986,11 +1994,12 @@ function Node313({
         isFirstRow={isFirstRow}
         hiddenSystemFields={hiddenSystemFields}
         sourceNodeTags={sourceNodeTags}
+        destinationNodeTags={destinationNodeTags}
         connectedSourceMap={connectedSourceMap}
         getSpacingAxisSnap={getSpacingAxisSnap}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, destinationNodeTags, connectedSourceMap, getSpacingAxisSnap]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones
@@ -2014,16 +2023,31 @@ function Node313({
         // Side-by-side row
         const sp0 = node.sectionSpacing?.[row[0]] || 0;
         const sp1 = node.sectionSpacing?.[row[1]] || 0;
+        const isLastRow = rowIndex === layout.length - 1;
+        // L-shaped border: left col gets left+right(divider)+bottom, right col gets right+bottom
+        const leftWrapStyle = sideBySideIsLastRow ? {
+          ...STYLES.sectionWrap,
+          borderLeft: nodeBorderStyle,
+          borderRight: nodeBorderStyle,
+          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px' } : {}),
+          background: T.card,
+        } : STYLES.sectionWrap;
+        const rightWrapStyle = sideBySideIsLastRow ? {
+          ...STYLES.sectionWrap,
+          borderRight: nodeBorderStyle,
+          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomRightRadius: '4px' } : {}),
+          background: T.card,
+        } : STYLES.sectionWrap;
         elements.push(
           <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
-            <div style={STYLES.sectionWrap}>
+            <div style={leftWrapStyle}>
               {sp0 > 0 && <div style={{ height: `${sp0}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />
-            <div style={STYLES.sectionWrap}>
+            {!sideBySideIsLastRow && <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />}
+            <div style={rightWrapStyle}>
               {sp1 > 0 && <div style={{ height: `${sp1}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
@@ -2070,10 +2094,19 @@ function Node313({
             borderBottom: '1px solid transparent',
           }} />);
         }
+        const isLastRow = rowIndex === layout.length - 1;
         elements.push(
           <div
             key={rowIndex}
-            style={{ position: 'relative' }}
+            style={{
+              position: 'relative',
+              ...(sideBySideIsLastRow ? {
+                borderLeft: nodeBorderStyle,
+                borderRight: nodeBorderStyle,
+                ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' } : {}),
+                background: T.card,
+              } : {}),
+            }}
           >
             <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
               {renderSection(row[0], true, false, overlapTop)}
@@ -2131,8 +2164,12 @@ function Node313({
     if (signalColorHex) {
       base.borderColor = signalColorHex;
     }
+    if (sideBySideIsLastRow) {
+      base.border = 'none';
+      base.background = 'transparent';
+    }
     return base;
-  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex]);
+  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex, sideBySideIsLastRow]);
 
   // Tinted title bar
   const titleBarStyle = useMemo(() => {
@@ -2141,8 +2178,14 @@ function Node313({
       base.borderBottom = `2px solid ${signalColorHex}`;
       base.background = `linear-gradient(180deg, ${signalColorHex}30, ${signalColorHex}10)`;
     }
+    if (sideBySideIsLastRow) {
+      base.borderTop = nodeBorderStyle;
+      base.borderLeft = nodeBorderStyle;
+      base.borderRight = nodeBorderStyle;
+      if (!signalColorHex) base.background = T.card;
+    }
     return base;
-  }, [signalColorHex]);
+  }, [signalColorHex, sideBySideIsLastRow, nodeBorderStyle]);
 
   return (
     <div
