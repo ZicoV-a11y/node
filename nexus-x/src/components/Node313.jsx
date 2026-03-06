@@ -487,9 +487,6 @@ const BLUR_ON_ENTER = { onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur
 
 // Manufacturer logos — keyed by uppercase manufacturer name
 const MANUFACTURER_LOGOS = {
-  BLACKMAGIC: (h = 18) => (
-    <img src="/logos/blackmagic.png" alt="Blackmagic Design" style={{ height: h, objectFit: 'contain', display: 'block' }} />
-  ),
 };
 const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
 const HOVER_BG_2A = hover('background', 'none', T.rowHover);

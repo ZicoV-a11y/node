@@ -128,6 +128,9 @@ export async function renderLayoutBlob(canvasElement, pageBounds, options = {}) 
       height: pageBounds.height,
       style: {
         transform: `translate(${-pageBounds.x}px, ${-pageBounds.y}px)`,
+        overflow: 'hidden',
+        width: `${pageBounds.width}px`,
+        height: `${pageBounds.height}px`,
       },
     });
   } finally {

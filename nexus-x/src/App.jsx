@@ -3113,68 +3113,27 @@ export default function App() {
       const canvas = canvasRef.current;
       if (!canvas) return null;
 
-      // Save current background styles
+      // Save current background/filter styles
       const origBg = canvas.style.backgroundColor;
       const origBgImage = canvas.style.backgroundImage;
+      const origFilter = canvas.style.filter;
 
-      // Set transparent background for export
+      // Strip background and filter — invertBlob handles eco inversion post-capture
       canvas.style.backgroundColor = 'transparent';
       canvas.style.backgroundImage = 'none';
+      canvas.style.filter = 'none';
 
       try {
         return await exportFn();
       } finally {
-        // Restore original background
+        // Restore original background/filter
         canvas.style.backgroundColor = origBg;
         canvas.style.backgroundImage = origBgImage;
+        canvas.style.filter = origFilter;
       }
     };
 
-    // Multi-page ZIP export (render once, crop per page)
-    if (paperEnabled && pages.length > 1 && canvasRef.current) {
-      const total = pages.length + 1; // +1 for layout render step
-      setExportProgress({ current: 0, total });
-      try {
-        // Render with appropriate background
-        setExportProgress({ current: 1, total });
-        await new Promise(r => setTimeout(r, 0));
-        const printClone = printFriendly ? printBoldCloneNode : undefined;
-        let layoutBlob = await withTransparentCanvas(() =>
-          renderLayoutBlob(canvasRef.current, pageBounds, { scale: exportScale, onCloneNode: printClone })
-        );
-
-        // Crop each page from the layout image (cheap canvas ops)
-        setExportProgress({ current: 2, total });
-        await new Promise(r => setTimeout(r, 0));
-        const cropped = await cropPageBlobs(layoutBlob, pages, pageBounds, exportScale);
-        let namedBlobs = cropped.map(({ page, blob }) => ({
-          name: `${name}-${page.label.replace(/\s+/g, '-')}.png`, blob,
-        }));
-
-        // Add layout image
-        namedBlobs.push({ name: `${name}-Layout.png`, blob: layoutBlob });
-
-        // Post-process for print-friendly output
-        if (printFriendly) {
-          namedBlobs = await Promise.all(namedBlobs.map(async ({ name: n, blob }) => ({
-            name: n, blob: await invertBlob(blob),
-          })));
-        }
-
-        // Add PDF with all pages
-        const pdfBlob = await pngBlobsToPdf(namedBlobs.map(b => b.blob));
-        if (pdfBlob) namedBlobs.push({ name: `${name}-All-Pages.pdf`, blob: pdfBlob });
-
-        await downloadZip(namedBlobs, `${name}-${stamp}.zip`);
-      } catch (err) {
-        console.error('Multi-page export failed:', err);
-      } finally {
-        setExportProgress(null);
-      }
-      return;
-    }
-
-    // Single page or paper-off export
+    // Export the paper area — use pageBounds (same as Export+TB)
     if (canvasRef.current && pageBounds) {
       setExportProgress({ current: 1, total: 1 });
       try {
@@ -3197,6 +3156,54 @@ export default function App() {
       return;
     }
   }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions, exportScale, printFriendly]);
+
+  // Export page area as PNG — transparent bg, includes title block if toggled on
+  const handleExportViewport = useCallback(async () => {
+    if (!canvasRef.current || !pageBounds) return;
+    const name = projectName || 'untitled';
+    const stamp = new Date().toISOString().slice(0, 10);
+    const canvas = canvasRef.current;
+
+    // Include title block in export if it's toggled on
+    const titleBlockWrapper = showTitleBlock
+      ? canvas.querySelector('[data-title-block-wrapper]')
+      : null;
+    const hadIgnore = titleBlockWrapper?.getAttribute('data-export-ignore');
+    if (titleBlockWrapper) {
+      titleBlockWrapper.removeAttribute('data-export-ignore');
+    }
+
+    const origBg = canvas.style.backgroundColor;
+    const origBgImage = canvas.style.backgroundImage;
+    const origFilter = canvas.style.filter;
+    setExportProgress({ current: 1, total: 1 });
+    try {
+      canvas.style.backgroundColor = '#000000';
+      canvas.style.backgroundImage = 'none';
+      canvas.style.filter = 'none';
+      await new Promise(r => setTimeout(r, 0));
+      const printClone = printFriendly ? printBoldCloneNode : undefined;
+      let blob = await renderLayoutBlob(canvasRef.current, pageBounds, {
+        scale: exportScale,
+        backgroundColor: '#000000',
+        onCloneNode: printClone,
+      });
+      if (blob && printFriendly) blob = await invertBlob(blob);
+      if (blob) {
+        downloadBlob(blob, `${name}-${stamp}`);
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      canvas.style.backgroundColor = origBg;
+      canvas.style.backgroundImage = origBgImage;
+      canvas.style.filter = origFilter;
+      if (titleBlockWrapper && hadIgnore) {
+        titleBlockWrapper.setAttribute('data-export-ignore', hadIgnore);
+      }
+      setExportProgress(null);
+    }
+  }, [projectName, showTitleBlock, pageBounds, exportScale, printFriendly]);
 
   // Export with title block included (removes data-export-ignore temporarily)
   const handleExportWithTitleBlock = useCallback(async () => {
@@ -3221,14 +3228,17 @@ export default function App() {
       if (!canvas) return null;
       const origBg = canvas.style.backgroundColor;
       const origBgImage = canvas.style.backgroundImage;
+      const origFilter = canvas.style.filter;
       canvas.style.backgroundColor = tbBgColor;
       canvas.style.backgroundImage = 'none';
+      canvas.style.filter = 'none';
 
       try {
         return await exportFn();
       } finally {
         canvas.style.backgroundColor = origBg;
         canvas.style.backgroundImage = origBgImage;
+        canvas.style.filter = origFilter;
       }
     };
 
@@ -3309,6 +3319,7 @@ export default function App() {
           setExportScale={setExportScale}
           EXPORT_PRESETS={EXPORT_PRESETS}
           handleExportPNG={handleExportPNG}
+          handleExportViewport={handleExportViewport}
           handleExportWithTitleBlock={handleExportWithTitleBlock}
           exportProgress={exportProgress}
           pages={pages}
