@@ -866,7 +866,7 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, selectedNodes, onMoveSelectedNodes }) {
+function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, selectedNodes, onMoveSelectedNodes, getWireAxisSnap }) {
   const isDraggingRef = useRef(false);
   const hasDraggedRef = useRef(false);
   const wasSelectedOnDownRef = useRef(false);
@@ -1028,7 +1028,12 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
       let newX = (moveEvent.clientX - canvasRect.left - dragStartRef.current.offsetX) / zoom;
       let newY = (moveEvent.clientY - canvasRect.top - dragStartRef.current.offsetY) / zoom;
 
-      if (snapToGrid && gridSize > 0) {
+      if ((moveEvent.ctrlKey || moveEvent.metaKey) && getWireAxisSnap) {
+        // Ctrl/Cmd: snap node so connected wires become perfectly straight
+        const snapped = getWireAxisSnap(node.id, newX, newY);
+        newX = snapped.x;
+        newY = snapped.y;
+      } else if (snapToGrid && gridSize > 0) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }
@@ -1291,7 +1296,7 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
         top: node.position.y,
         width: 'auto',
         minWidth: 320,
-        zIndex: isDraggingVisual || isResizing ? 100 : isSelected ? 50 : 10,
+        zIndex: isDraggingVisual || isResizing ? 1000 : 1,
         transform: `scale(${nodeScale})`,
         transformOrigin: 'top left',
         // Conditionally apply grid or flex styles

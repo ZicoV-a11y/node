@@ -484,6 +484,13 @@ const hover = (prop, normal, hovered) => ({
 const HOVER_333_888 = hover('color', T.textMuted, T.textSec);
 const HOVER_888_CCC = hover('color', T.textSec, T.accentLight);
 const BLUR_ON_ENTER = { onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur(); } };
+
+// Manufacturer logos — keyed by uppercase manufacturer name
+const MANUFACTURER_LOGOS = {
+  BLACKMAGIC: (h = 18) => (
+    <img src="/logos/blackmagic.png" alt="Blackmagic Design" style={{ height: h, objectFit: 'contain', display: 'block' }} />
+  ),
+};
 const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
 const HOVER_BG_2A = hover('background', 'none', T.rowHover);
 const HOVER_BG_CELL = { onMouseEnter: (e) => { e.currentTarget.style.setProperty('background', '#222', 'important'); }, onMouseLeave: (e) => { e.currentTarget.style.removeProperty('background'); } };
@@ -521,6 +528,7 @@ SzCell.displayName = 'SzCell';
 const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColor }) => {
   const [open, setOpen] = useState(false);
   const cellRef = useRef(null);
+  const inputRef = useRef(null);
 
   const handleInputClick = useCallback((e) => {
     e.stopPropagation();
@@ -542,12 +550,22 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColo
     return () => window.removeEventListener('mousedown', dismiss);
   }, [open]);
 
+  // Open dropdown when typing
+  const handleChange = useCallback((e) => {
+    onChange(e.target.value);
+    if (!open) setOpen(true);
+  }, [onChange, open]);
+
   // Get position for the portal dropdown
   const getDropdownPos = () => {
     if (!cellRef.current) return { left: 0, top: 0, width: 0 };
     const rect = cellRef.current.getBoundingClientRect();
     return { left: rect.left, top: rect.bottom, width: Math.max(rect.width, 120) };
   };
+
+  // Filter presets by typed value
+  const query = (value || '').toUpperCase().trim();
+  const filtered = query ? presets.filter(p => p.toUpperCase().includes(query)) : presets;
 
   const sizer = sizerValue && sizerValue.length > (value || '').length ? sizerValue : (value || ' ');
 
@@ -562,14 +580,15 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColo
     <td style={cellStyle} ref={cellRef}>
       <div className="n313-sz" data-v={sizer}>
         <input
+          ref={inputRef}
           style={inputStyle}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleChange}
           {...BLUR_ON_ENTER}
           onClick={handleInputClick}
         />
       </div>
-      {open && createPortal(
+      {open && filtered.length > 0 && createPortal(
         (() => {
           const pos = getDropdownPos();
           return (
@@ -579,6 +598,8 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColo
                 left: pos.left,
                 top: pos.top,
                 minWidth: pos.width,
+                maxHeight: 200,
+                overflowY: 'auto',
                 zIndex: 10000,
                 background: T.card,
                 border: `1px solid ${T.borderStrong}`,
@@ -586,7 +607,7 @@ const DropdownCell = memo(({ value, presets, onChange, sizerValue, highlightColo
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {presets.map((p) => (
+              {filtered.map((p) => (
                 <div
                   key={p}
                   style={STYLES.contextMenuItem}
@@ -774,7 +795,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, connectedSourceMap }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1071,9 +1092,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     const handleMouseMove = (moveEvent) => {
       const delta = moveEvent.clientY - dragStartY.current;
       const raw = Math.max(0, dragStartSpacing.current + delta);
-      const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
-      const snap = pixelMode ? 1 : SPACING_SNAP;
-      const newSpacing = Math.round(raw / snap) * snap;
+      let newSpacing;
+      if ((moveEvent.ctrlKey || moveEvent.metaKey) && getSpacingAxisSnap) {
+        // Ctrl: snap spacing so connected wires become straight
+        const affected = [];
+        for (let j = ri; j < section.rows.length; j++) {
+          affected.push(`${nodeId}-${sectionId}-${j}`);
+        }
+        newSpacing = getSpacingAxisSnap(nodeId, affected, raw, dragStartSpacing.current);
+      } else {
+        newSpacing = Math.round(raw / SPACING_SNAP) * SPACING_SNAP;
+      }
 
       pending = newSpacing;
       if (!rafId) {
@@ -1098,7 +1127,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [rowSpacing, section.rows.length, updateSection]);
+  }, [rowSpacing, section.rows.length, updateSection, getSpacingAxisSnap, nodeId, sectionId]);
 
   const updateColName = useCallback((ci, value) => {
     const newCols = [...section.cols];
@@ -1265,6 +1294,11 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       const connected = connectedSourceMap?.[anchorId];
       let cellValue = row[ci];
 
+      // Auto-fill from connected signal data
+      if (connected && !cellValue) {
+        if (isResCol && connected.resolution) cellValue = connected.resolution;
+        if (isRateCol && connected.rate) cellValue = connected.rate;
+      }
       if (presets) {
         let sourceColor = null;
         if (isSourceCol) {
@@ -1272,11 +1306,6 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           sourceColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
         }
         return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={sourceColor} />;
-      }
-      // Auto-fill resolution and rate from upstream signal
-      if (connected && !cellValue) {
-        if (isResCol && connected.resolution) cellValue = connected.resolution;
-        if (isRateCol && connected.rate) cellValue = connected.rate;
       }
       return <SzCell key={`cell-${ci}`} value={cellValue} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
@@ -1557,6 +1586,7 @@ function Node313({
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
   onAnchorClick, onSavePreset, sourceNodeTags, connectedSourceMap,
+  getWireAxisSnap, getSpacingAxisSnap,
 }) {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1676,9 +1706,15 @@ function Node313({
     const onMove = (moveEvent) => {
       const delta = moveEvent.clientY - startY;
       const raw = Math.max(0, startSpacing + delta);
-      const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
-      const snap = pixelMode ? 1 : SPACING_SNAP;
-      pending = Math.round(raw / snap) * snap;
+      if ((moveEvent.ctrlKey || moveEvent.metaKey) && getSpacingAxisSnap) {
+        // Ctrl: snap spacing so connected wires become straight
+        const affected = [];
+        const sec = node.sections[sectionId];
+        if (sec) sec.rows.forEach((_, ri) => affected.push(`${node.id}-${sectionId}-${ri}`));
+        pending = getSpacingAxisSnap(node.id, affected, raw, startSpacing);
+      } else {
+        pending = Math.round(raw / SPACING_SNAP) * SPACING_SNAP;
+      }
       if (!rafId) {
         rafId = requestAnimationFrame(() => {
           if (pending !== null) {
@@ -1695,7 +1731,7 @@ function Node313({
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [node.sectionSpacing, onUpdate]);
+  }, [node.sectionSpacing, node.sections, node.id, onUpdate, getSpacingAxisSnap]);
 
   // ---- Node dragging ----
   const handleTitleMouseDown = useCallback((e) => {
@@ -1744,8 +1780,12 @@ function Node313({
       let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
       let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
 
-      // Snap to grid (Ctrl/Cmd bypasses)
-      if (snapToGrid && gridSize > 0 && !e.ctrlKey && !e.metaKey) {
+      if ((e.ctrlKey || e.metaKey) && getWireAxisSnap) {
+        // Ctrl/Cmd: snap node so connected wires become perfectly straight
+        const snapped = getWireAxisSnap(node.id, newX, newY);
+        newX = snapped.x;
+        newY = snapped.y;
+      } else if (snapToGrid && gridSize > 0) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }
@@ -1786,7 +1826,7 @@ function Node313({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y, getWireAxisSnap]);
 
   // ---- Scale by dragging bottom-right handle ----
   // Scale via Pointer Events — uses setPointerCapture for reliable Ctrl+drag
@@ -1947,9 +1987,10 @@ function Node313({
         hiddenSystemFields={hiddenSystemFields}
         sourceNodeTags={sourceNodeTags}
         connectedSourceMap={connectedSourceMap}
+        getSpacingAxisSnap={getSpacingAxisSnap}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, connectedSourceMap]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones
@@ -2085,7 +2126,7 @@ function Node313({
       transformOrigin: 'top left',
       outline: isSelected ? `2px solid ${signalColorHex || T.accent}` : 'none',
       outlineOffset: '1px',
-      zIndex: settingsOpen ? 10000 : isDragging ? 1000 : isSelected ? 100 : 1,
+      zIndex: settingsOpen ? 10000 : isDragging ? 1000 : 1,
     };
     if (signalColorHex) {
       base.borderColor = signalColorHex;
@@ -2153,40 +2194,51 @@ function Node313({
           </div>
           )}
           {/* Manufacturer / Model stacked */}
-          {(!hiddenTitleFields.includes('manufacturer') || !hiddenTitleFields.includes('model')) && (
-          <div style={STYLES.mfgModel}>
-            {!hiddenTitleFields.includes('manufacturer') && (
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-              {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MANUFACTURER</span>}
-              {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.manufacturer}</span>}
-              <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-                value={node.manufacturer || ''}
-                maxLength={25}
-                onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                {...BLUR_ON_ENTER}
-              />
+          {(() => {
+            const mfgKey = (node.manufacturer || '').toUpperCase().trim();
+            const logoFn = Object.keys(MANUFACTURER_LOGOS).find(k => mfgKey.includes(k));
+            const Logo = logoFn ? MANUFACTURER_LOGOS[logoFn] : null;
+            return (!hiddenTitleFields.includes('manufacturer') || !hiddenTitleFields.includes('model')) && (
+            <div style={STYLES.mfgModel}>
+              {!hiddenTitleFields.includes('manufacturer') && (
+                Logo ? (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', padding: '0 3px' }}>
+                    {Logo(16)}
+                  </div>
+                ) : (
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
+                  {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MANUFACTURER</span>}
+                  {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.manufacturer}</span>}
+                  <input
+                    style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                    value={node.manufacturer || ''}
+                    maxLength={25}
+                    onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    {...BLUR_ON_ENTER}
+                  />
+                </div>
+                )
+              )}
+              {!hiddenTitleFields.includes('model') && (
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
+                {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MODEL</span>}
+                {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.model}</span>}
+                <input
+                  style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                  value={node.model || ''}
+                  maxLength={25}
+                  onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  {...BLUR_ON_ENTER}
+                />
+              </div>
+              )}
             </div>
-            )}
-            {!hiddenTitleFields.includes('model') && (
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-              {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MODEL</span>}
-              {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.model}</span>}
-              <input
-                style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
-                value={node.model || ''}
-                maxLength={25}
-                onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                {...BLUR_ON_ENTER}
-              />
-            </div>
-            )}
-          </div>
-          )}
+            );
+          })()}
           {/* Vertical divider aligned with table header divider */}
           <div style={{ position: 'absolute', right: ACTION_AREA_W, top: 6, bottom: 6, width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />
           {/* Settings button */}

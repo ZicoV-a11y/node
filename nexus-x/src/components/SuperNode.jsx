@@ -3772,7 +3772,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, globalSourceNamesWithColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, globalSourceNamesWithColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes, getWireAxisSnap }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -4264,8 +4264,12 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       let newX = (e.clientX - canvasRect.left - dragStart.offsetX) / zoom;
       let newY = (e.clientY - canvasRect.top - dragStart.offsetY) / zoom;
 
-      // Snap to grid if enabled (Ctrl/Cmd bypasses snap for pixel-precise movement)
-      if (snapToGrid && gridSize > 0 && !e.ctrlKey && !e.metaKey) {
+      if ((e.ctrlKey || e.metaKey) && getWireAxisSnap) {
+        // Ctrl/Cmd: snap node so connected wires become perfectly straight
+        const snapped = getWireAxisSnap(node.id, newX, newY);
+        newX = snapped.x;
+        newY = snapped.y;
+      } else if (snapToGrid && gridSize > 0) {
         newX = Math.round(newX / gridSize) * gridSize;
         newY = Math.round(newY / gridSize) * gridSize;
       }
@@ -4310,7 +4314,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y, getWireAxisSnap]);
 
   // Helper to clean layout rows (remove nulls and empty rows)
   const cleanLayoutRows = useCallback((rows) => {

@@ -1155,6 +1155,25 @@ export default function App() {
       });
       return updated;
     });
+    // Also move waypoints on wires connected to selected nodes
+    setConnections(prev => prev.map(conn => {
+      const srcNode = getNodeIdFromAnchor(conn.from);
+      const destNode = getNodeIdFromAnchor(conn.to);
+      const srcSelected = selectedNodes.has(srcNode);
+      const destSelected = selectedNodes.has(destNode);
+      // Move waypoints if both ends are selected (wire fully within selection)
+      if (srcSelected && destSelected && conn.waypoints?.length > 0) {
+        return {
+          ...conn,
+          waypoints: conn.waypoints.map(wp => ({
+            ...wp,
+            x: wp.x + deltaX,
+            y: wp.y + deltaY
+          }))
+        };
+      }
+      return conn;
+    }));
   }, [selectedNodes]);
 
   // Scale all selected nodes by a ratio (for group scaling)
@@ -1426,8 +1445,9 @@ export default function App() {
       const isRtrSwitch = isRouterOrSwitcher(node);
       const isPassThrough = isConverter || isRtrSwitch;
 
+      const isSource = (node.deviceTypes || []).includes('Source') || (node.deviceRoles || []).includes('source');
       if (node.signalColor && !isPassThrough) return { node, anchor: anchorId };
-      if (node.tag && !isPassThrough) return { node, anchor: anchorId };
+      if (node.tag && isSource) return { node, anchor: anchorId };
 
       // For routers/switchers: read SOURCE column from output row (routing config)
       if (isRtrSwitch) {
@@ -1598,6 +1618,7 @@ export default function App() {
     });
     return map;
   }, [connections]);
+
 
   // Global source names with colors - collected from ALL nodes
   // Maps sourceName -> hex color (from wire connections)
@@ -1817,6 +1838,18 @@ export default function App() {
     });
   };
 
+  // Wire right-click: toggle z-layer (front/back)
+  const handleWireContextMenu = (wireId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setConnections(prev => prev.map(conn => {
+      if (conn.id === wireId) {
+        return { ...conn, zLayer: conn.zLayer === 'back' ? undefined : 'back' };
+      }
+      return conn;
+    }));
+  };
+
   // Deselect all wires (when clicking canvas) and close dropdowns
   // When wire is active, clicking canvas places a waypoint instead of canceling
   const handleCanvasClick = (event) => {
@@ -1825,9 +1858,31 @@ export default function App() {
       // If wire is active, place a waypoint
       if (activeWire) {
         const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
-        const snappedPos = snapToGrid && gridSize > 0
-          ? { x: Math.round(pos.x / gridSize) * gridSize, y: Math.round(pos.y / gridSize) * gridSize }
-          : pos;
+        let snappedPos;
+        if (event.ctrlKey || event.metaKey) {
+          // Ctrl/Cmd: axis snap to H/V alignment with previous point
+          snappedPos = { x: pos.x, y: pos.y };
+          const axisSnap = 3;
+          const existingWps = activeWire.waypoints || [];
+          let prevPt;
+          if (existingWps.length > 0) {
+            prevPt = existingWps[existingWps.length - 1];
+          } else {
+            const fromPos = computedAnchorPositions[activeWire.from];
+            if (fromPos) {
+              const ox = fromPos.side === 'left' ? fromPos.x - 30 : fromPos.x + 30;
+              prevPt = { x: ox, y: fromPos.y };
+            }
+          }
+          if (prevPt) {
+            if (Math.abs(snappedPos.x - prevPt.x) < axisSnap) snappedPos.x = prevPt.x;
+            if (Math.abs(snappedPos.y - prevPt.y) < axisSnap) snappedPos.y = prevPt.y;
+          }
+        } else {
+          snappedPos = snapToGrid && gridSize > 0
+            ? { x: Math.round(pos.x / gridSize) * gridSize, y: Math.round(pos.y / gridSize) * gridSize }
+            : pos;
+        }
 
         setActiveWire(prev => ({
           ...prev,
@@ -2267,6 +2322,16 @@ export default function App() {
         return;
       }
 
+      // F — bring selected wires to front / B — send to back
+      if (!isInInput && !mod && selectedWires.size > 0 && (key === 'f' || key === 'b')) {
+        e.preventDefault();
+        const newLayer = key === 'b' ? 'back' : undefined;
+        setConnections(prev => prev.map(conn =>
+          selectedWires.has(conn.id) ? { ...conn, zLayer: newLayer } : conn
+        ));
+        return;
+      }
+
       // Cmd/Ctrl+C — copy selected nodes
       if (mod && key === 'c') {
         console.log('Ctrl+C pressed, selectedNodes:', selectedNodes.size);
@@ -2424,6 +2489,15 @@ export default function App() {
           });
           return updated;
         });
+        // Move waypoints on wires where both ends are selected
+        setConnections(prev => prev.map(conn => {
+          const srcNode = getNodeIdFromAnchor(conn.from);
+          const destNode = getNodeIdFromAnchor(conn.to);
+          if (selectedNodes.has(srcNode) && selectedNodes.has(destNode) && conn.waypoints?.length > 0) {
+            return { ...conn, waypoints: conn.waypoints.map(wp => ({ ...wp, x: wp.x + delta.x, y: wp.y + delta.y })) };
+          }
+          return conn;
+        }));
         return;
       }
     };
@@ -2520,6 +2594,58 @@ export default function App() {
   const getAnchorPosition = useCallback((anchorId) => {
     return computedAnchorPositions[anchorId] || null;
   }, [computedAnchorPositions]);
+
+  // Ctrl+drag axis snap: given a node's proposed position, snap so connected wires become perfectly straight
+  const getWireAxisSnap = useCallback((nodeId, proposedX, proposedY) => {
+    const threshold = 3;
+    let x = proposedX, y = proposedY;
+    const scale = nodes[nodeId]?.scale || 1;
+    for (const conn of connections) {
+      let myAnchorId, otherAnchorId;
+      if (anchorLocalOffsets[conn.from]?.nodeId === nodeId) {
+        myAnchorId = conn.from; otherAnchorId = conn.to;
+      } else if (anchorLocalOffsets[conn.to]?.nodeId === nodeId) {
+        myAnchorId = conn.to; otherAnchorId = conn.from;
+      } else continue;
+      if (conn.waypoints?.length > 0) continue;
+      const myOff = anchorLocalOffsets[myAnchorId];
+      const otherPos = computedAnchorPositions[otherAnchorId];
+      if (!myOff || !otherPos) continue;
+      const myY = y + myOff.localY * scale;
+      const myX = x + myOff.localX * scale;
+      if (Math.abs(myY - otherPos.y) < threshold) y = otherPos.y - myOff.localY * scale;
+      if (Math.abs(myX - otherPos.x) < threshold) x = otherPos.x - myOff.localX * scale;
+    }
+    return { x, y };
+  }, [nodes, connections, anchorLocalOffsets, computedAnchorPositions]);
+
+  // Ctrl+drag spacing snap: given affected anchor IDs and proposed spacing, snap so wires become straight
+  // Finds the closest snap target so each anchor can snap as the user drags through its position
+  const getSpacingAxisSnap = useCallback((nodeId, affectedAnchorIds, proposedSpacing, startSpacing) => {
+    const threshold = 3;
+    const scale = nodes[nodeId]?.scale || 1;
+    const delta = proposedSpacing - startSpacing;
+    let bestSnap = proposedSpacing;
+    let bestDist = threshold;
+    for (const myAnchorId of affectedAnchorIds) {
+      for (const conn of connections) {
+        let otherAnchorId;
+        if (conn.from === myAnchorId) otherAnchorId = conn.to;
+        else if (conn.to === myAnchorId) otherAnchorId = conn.from;
+        else continue;
+        const myPos = computedAnchorPositions[myAnchorId];
+        const otherPos = computedAnchorPositions[otherAnchorId];
+        if (!myPos || !otherPos) continue;
+        const newY = myPos.y + delta * scale;
+        const dist = Math.abs(newY - otherPos.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestSnap = startSpacing + (otherPos.y - myPos.y) / scale;
+        }
+      }
+    }
+    return bestSnap;
+  }, [nodes, connections, computedAnchorPositions]);
 
   // Generate wire path (in paper-space coordinates - zoom applied at container level)
   // Routes wires OUTWARD from anchors based on their side (left/right) to avoid going through nodes
@@ -2627,6 +2753,82 @@ export default function App() {
     });
     return map;
   }, [connections, getWirePath, computedAnchorPositions]);
+
+  // Render wire visual (no pointer events)
+  const renderWireVisual = useCallback((conn) => {
+    const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
+    const wirePath = wirePathMap.get(conn.id) || '';
+    const isWireSelected = selectedWires.has(conn.id);
+    const isEnhanced = conn.enhanced || false;
+    return (
+      <svg key={conn.id} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 1 }}>
+      <g>
+        {isWireSelected && (
+          <path d={wirePath} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.3} strokeLinecap="round" />
+        )}
+        {isEnhanced && (
+          <path d={wirePath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={5} strokeDasharray={conn.dashPattern || undefined} strokeLinecap="round" />
+        )}
+        <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={2}
+          strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
+          strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }} />
+        {isEnhanced && (
+          <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={1} strokeDasharray="4 12" strokeOpacity={0.6} strokeLinecap="round" className="wire-animated" />
+        )}
+        {(() => {
+          let displayText = conn.label;
+          if (!displayText && (conn.cableType || conn.cableLength)) {
+            const parts = [];
+            if (conn.cableType) parts.push(conn.cableType);
+            if (conn.cableLength) parts.push(conn.cableLength);
+            displayText = parts.join(' \u2022 ');
+          }
+          if (!displayText || !wirePath) return null;
+          const fontSize = 4;
+          const pathId = `wire-text-${conn.id}`;
+          const textPath = wireTextPathMap.get(conn.id) || wirePath;
+          return (
+            <g style={{ pointerEvents: 'none' }}>
+              <defs><path id={pathId} d={textPath} /></defs>
+              <text className="font-mono" dy={-3} style={{ fontSize }}>
+                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
+                  style={{ fill: 'none', stroke: '#18181b', strokeWidth: 1.5, strokeLinejoin: 'round' }}>{displayText}</textPath>
+              </text>
+              <text className="font-mono" dy={-3} style={{ fontSize }}>
+                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
+                  style={{ fill: wireColor }}>{displayText}</textPath>
+              </text>
+            </g>
+          );
+        })()}
+      </g>
+      </svg>
+    );
+  }, [connectionColorMap, wirePathMap, selectedWires, wireTextPathMap]);
+
+  // Render wire hit areas (click/right-click targets) — always above nodes
+  const renderWireHitArea = useCallback((conn) => {
+    const wirePath = wirePathMap.get(conn.id) || '';
+    const fromPos = computedAnchorPositions[conn.from];
+    const toPos = computedAnchorPositions[conn.to];
+    return (
+      <svg key={`hit-${conn.id}`} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 1 }}>
+        <path d={wirePath} fill="none" stroke="transparent" strokeWidth={12} strokeLinecap="round"
+          className="pointer-events-auto cursor-pointer"
+          onClick={(e) => handleWireClick(conn.id, e)}
+          onDoubleClick={(e) => handleWireDoubleClick(conn.id, e)}
+          onContextMenu={(e) => handleWireContextMenu(conn.id, e)} />
+        {fromPos && toPos && (
+          <g data-export-ignore="true" className="pointer-events-auto cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
+            <circle cx={(fromPos.x + toPos.x) / 2} cy={(fromPos.y + toPos.y) / 2} r={8} fill="#18181b" stroke="#ef4444" strokeWidth={1.5} />
+            <text x={(fromPos.x + toPos.x) / 2} y={(fromPos.y + toPos.y) / 2 + 1} textAnchor="middle" dominantBaseline="middle"
+              className="fill-red-400 font-bold" style={{ fontSize: 10 }}>×</text>
+          </g>
+        )}
+      </svg>
+    );
+  }, [wirePathMap, computedAnchorPositions, handleWireClick, handleWireDoubleClick, handleWireContextMenu, deleteConnection]);
 
   // Build current project data object
   const buildProjectData = useCallback(() => ({
@@ -3432,8 +3634,31 @@ export default function App() {
                           let newX = startWpX + dx;
                           let newY = startWpY + dy;
 
-                          // Apply snap to grid (Ctrl/Cmd bypasses for pixel-precise movement)
-                          if (snapToGrid && gridSize > 0 && !moveEvent.ctrlKey && !moveEvent.metaKey) {
+                          if (moveEvent.ctrlKey || moveEvent.metaKey) {
+                            // Ctrl/Cmd: axis snap to H/V alignment with adjacent points
+                            const axisSnap = 3;
+                            const adjPts = [];
+                            const fromA = computedAnchorPositions[conn.from];
+                            const toA = computedAnchorPositions[conn.to];
+                            const wps = conn.waypoints;
+                            if (i === 0 && fromA) {
+                              const ox = fromA.side === 'left' ? fromA.x - 30 : fromA.x + 30;
+                              adjPts.push({ x: ox, y: fromA.y });
+                            } else if (i > 0) {
+                              adjPts.push(wps[i - 1]);
+                            }
+                            if (i === wps.length - 1 && toA) {
+                              const ox = toA.side === 'left' ? toA.x - 30 : toA.x + 30;
+                              adjPts.push({ x: ox, y: toA.y });
+                            } else if (i < wps.length - 1) {
+                              adjPts.push(wps[i + 1]);
+                            }
+                            for (const adj of adjPts) {
+                              if (Math.abs(newX - adj.x) < axisSnap) newX = adj.x;
+                              if (Math.abs(newY - adj.y) < axisSnap) newY = adj.y;
+                            }
+                          } else if (snapToGrid && gridSize > 0) {
+                            // Normal: snap to grid
                             newX = Math.round(newX / gridSize) * gridSize;
                             newY = Math.round(newY / gridSize) * gridSize;
                           }
@@ -3487,16 +3712,20 @@ export default function App() {
             ))}
           </svg>
 
-          {/* Nodes interleaved with their outgoing wires — wire renders AFTER its source node
-              so wire is visible over its own node, but the next node covers the wire */}
-          {Object.values(nodes).map(node => {
+          {/* Back wires (visuals only) — only wires explicitly sent to back */}
+          {connections.filter(c => c.zLayer === 'back').map(conn => renderWireVisual(conn))}
+
+          {/* All nodes — selected nodes render last so they appear above others */}
+          {Object.values(nodes).sort((a, b) => {
+            const aS = selectedNodes.has(a.id) ? 1 : 0;
+            const bS = selectedNodes.has(b.id) ? 1 : 0;
+            return aS - bS;
+          }).map(node => {
             const NodeComponent = node.version === 3 ? Node313 : node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);
-            const nodeOutgoingWires = wiresBySourceNode.get(node.id) || [];
-            const wireZ = isSelected ? 100 : 1;
             return (
-              <Fragment key={node.id}>
               <NodeComponent
+                key={node.id}
                 node={node}
                 zoom={zoom}
                 isSelected={isSelected}
@@ -3520,6 +3749,8 @@ export default function App() {
                 selectedNodes={selectedNodes}
                 onMoveSelectedNodes={moveSelectedNodes}
                 onScaleSelectedNodes={scaleSelectedNodes}
+                getWireAxisSnap={getWireAxisSnap}
+                getSpacingAxisSnap={getSpacingAxisSnap}
                 onSelect={(nodeId, addToSelection) => {
                   if (addToSelection) {
                     setSelectedNodes(prev => {
@@ -3555,74 +3786,14 @@ export default function App() {
                   }
                 }}
               />
-              {/* Outgoing wires from this node — rendered after node so visible over source */}
-              {nodeOutgoingWires.map(conn => {
-                const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
-                const wirePath = wirePathMap.get(conn.id) || '';
-                const fromPos = computedAnchorPositions[conn.from];
-                const toPos = computedAnchorPositions[conn.to];
-                const isWireSelected = selectedWires.has(conn.id);
-                const isEnhanced = conn.enhanced || false;
-                return (
-                  <svg key={conn.id} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: wireZ }}>
-                  <g>
-                    {isWireSelected && (
-                      <path d={wirePath} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.3} strokeLinecap="round" />
-                    )}
-                    {isEnhanced && (
-                      <path d={wirePath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={5} strokeDasharray={conn.dashPattern || undefined} strokeLinecap="round" />
-                    )}
-                    <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={2}
-                      strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
-                      strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }} />
-                    {isEnhanced && (
-                      <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={1} strokeDasharray="4 12" strokeOpacity={0.6} strokeLinecap="round" className="wire-animated" />
-                    )}
-                    {(() => {
-                      let displayText = conn.label;
-                      if (!displayText && (conn.cableType || conn.cableLength)) {
-                        const parts = [];
-                        if (conn.cableType) parts.push(conn.cableType);
-                        if (conn.cableLength) parts.push(conn.cableLength);
-                        displayText = parts.join(' \u2022 ');
-                      }
-                      if (!displayText || !wirePath) return null;
-                      const fontSize = 4;
-                      const pathId = `wire-text-${conn.id}`;
-                      const textPath = wireTextPathMap.get(conn.id) || wirePath;
-                      return (
-                        <g style={{ pointerEvents: 'none' }}>
-                          <defs><path id={pathId} d={textPath} /></defs>
-                          <text className="font-mono" dy={-3} style={{ fontSize }}>
-                            <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
-                              style={{ fill: 'none', stroke: '#18181b', strokeWidth: 1.5, strokeLinejoin: 'round' }}>{displayText}</textPath>
-                          </text>
-                          <text className="font-mono" dy={-3} style={{ fontSize }}>
-                            <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle"
-                              style={{ fill: wireColor }}>{displayText}</textPath>
-                          </text>
-                        </g>
-                      );
-                    })()}
-                    <path d={wirePath} fill="none" stroke="transparent" strokeWidth={12} strokeLinecap="round"
-                      className="pointer-events-auto cursor-pointer"
-                      onClick={(e) => handleWireClick(conn.id, e)}
-                      onDoubleClick={(e) => handleWireDoubleClick(conn.id, e)} />
-                    {fromPos && toPos && (
-                      <g data-export-ignore="true" className="pointer-events-auto cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
-                        <circle cx={(fromPos.x + toPos.x) / 2} cy={(fromPos.y + toPos.y) / 2} r={8} fill="#18181b" stroke="#ef4444" strokeWidth={1.5} />
-                        <text x={(fromPos.x + toPos.x) / 2} y={(fromPos.y + toPos.y) / 2 + 1} textAnchor="middle" dominantBaseline="middle"
-                          className="fill-red-400 font-bold" style={{ fontSize: 10 }}>×</text>
-                      </g>
-                    )}
-                  </g>
-                  </svg>
-                );
-              })}
-              </Fragment>
             );
           })}
+
+          {/* Front wires (visuals only) — above nodes (default) */}
+          {connections.filter(c => c.zLayer !== 'back').map(conn => renderWireVisual(conn))}
+
+          {/* Wire hit areas — always above nodes so clicks/right-clicks work */}
+          {connections.map(conn => renderWireHitArea(conn))}
 
           {/* Selection Box Overlay - rendered above nodes */}
           {isSelecting && selectionBox && selectionBox.active && (
