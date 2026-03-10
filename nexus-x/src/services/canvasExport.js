@@ -420,10 +420,112 @@ function drawWireLabels(ctx, connections, anchorPositions, colorMap) {
 }
 
 // =============================================
+// TITLE BLOCK (mirrors TitleBlockOverlay.jsx in Canvas 2D)
+// =============================================
+
+async function drawTitleBlock(ctx, pageBounds, titleBlockData, showGrid) {
+  const { x: bx, y: by, width: bw, height: bh } = pageBounds;
+  const data = titleBlockData || {};
+  const panelHeight = data.panelHeight || 80;
+
+  const BORDER = 'rgba(255,255,255,0.10)';
+  const TEXT_MUTED = '#666666';
+  const PANEL_BG = '#111111';
+  const SECTION_BG = '#0a0a0a';
+
+  const panelY = by + bh - panelHeight;
+  const logoW    = Math.round(bw * 0.14);
+  const projectW = Math.round(bw * 0.30);
+  const versionW = Math.round(bw * 0.14);
+  const dateW    = Math.round(bw * 0.10);
+  const notesW   = bw - logoW - projectW - versionW - dateW;
+
+  const logoX    = bx;
+  const projectX = bx + logoW;
+  const versionX = bx + logoW + projectW;
+  const dateX    = bx + logoW + projectW + versionW;
+  const notesX   = bx + logoW + projectW + versionW + dateW;
+
+  const LABEL_FONT = 8, VALUE_FONT = 10, TITLE_FONT = 14, PAD = 4, LABEL_H = 12;
+  const contentY = panelY + LABEL_H + PAD;
+  const contentH = panelHeight - LABEL_H - PAD * 2;
+
+  ctx.save();
+
+  // Drawing area border
+  ctx.strokeStyle = BORDER; ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, bw, bh - panelHeight);
+
+  // Grid
+  if (showGrid) {
+    ctx.strokeStyle = BORDER; ctx.lineWidth = 0.5; ctx.setLineDash([4, 4]);
+    for (let i = 1; i < 8; i++) {
+      const x = bx + bw * i / 8;
+      ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x, by + bh - panelHeight); ctx.stroke();
+    }
+    for (let i = 1; i < 6; i++) {
+      const y = by + (bh - panelHeight) * i / 6;
+      ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + bw, y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Panel background
+  ctx.fillStyle = PANEL_BG; ctx.fillRect(bx, panelY, bw, panelHeight);
+  ctx.strokeStyle = BORDER; ctx.lineWidth = 1; ctx.strokeRect(bx, panelY, bw, panelHeight);
+
+  // Logo section
+  ctx.fillStyle = data.logoUrl ? 'transparent' : SECTION_BG;
+  ctx.fillRect(logoX, panelY, logoW, panelHeight);
+  ctx.strokeStyle = BORDER; ctx.strokeRect(logoX, panelY, logoW, panelHeight);
+  if (data.logoUrl) {
+    await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(logoX + 16, panelY + 4, logoW - 32, panelHeight - 8);
+        ctx.clip();
+        const iw = logoW - 32, ih = panelHeight - 8;
+        const s = Math.min(iw / img.width, ih / img.height);
+        ctx.drawImage(img, logoX + 16 + (iw - img.width * s) / 2, panelY + 4 + (ih - img.height * s) / 2, img.width * s, img.height * s);
+        ctx.restore(); resolve();
+      };
+      img.onerror = resolve; img.src = data.logoUrl;
+    });
+  }
+
+  // Section helper
+  const drawSection = (sx, sw, label, value, valFont, valWeight, color) => {
+    ctx.fillStyle = SECTION_BG; ctx.fillRect(sx, panelY, sw, panelHeight);
+    ctx.strokeStyle = BORDER; ctx.strokeRect(sx, panelY, sw, panelHeight);
+    ctx.fillStyle = TEXT_MUTED;
+    ctx.font = `500 ${LABEL_FONT}px 'Space Grotesk',sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    try { ctx.letterSpacing = '2px'; } catch (_) {}
+    ctx.fillText(label, sx + PAD, panelY + LABEL_FONT + 2);
+    try { ctx.letterSpacing = '0px'; } catch (_) {}
+    if (value) {
+      ctx.fillStyle = color;
+      ctx.font = `${valWeight} ${valFont}px 'Space Grotesk',sans-serif`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(value, sx + PAD, contentY + contentH / 2);
+    }
+  };
+
+  drawSection(projectX, projectW, 'PROJECT', data.projectName, TITLE_FONT, '500', '#e0e0e0');
+  drawSection(versionX, versionW, 'VERSION', data.version,     VALUE_FONT, '400', '#bbbbbb');
+  drawSection(dateX,    dateW,    'DATE',    data.date,         VALUE_FONT, '400', '#e0e0e0');
+  drawSection(notesX,   notesW,   'NOTES',   data.notes,        8,          '400', '#999999');
+
+  ctx.restore();
+}
+
+// =============================================
 // MAIN EXPORT
 // =============================================
 
-export async function exportToCanvas(canvasEl, nodes, connections, anchorPositions, pageBounds, scale, connectionColorMap, zoom) {
+export async function exportToCanvas(canvasEl, nodes, connections, anchorPositions, pageBounds, scale, connectionColorMap, zoom, titleBlockData, showGrid) {
   await document.fonts.ready;
 
   const { x: ox, y: oy, width: w, height: h } = pageBounds;
@@ -479,6 +581,8 @@ export async function exportToCanvas(canvasEl, nodes, connections, anchorPositio
   }
 
   drawWireLabels(ctx, connections, anchorPositions, connectionColorMap);
+
+  if (titleBlockData) await drawTitleBlock(ctx, pageBounds, titleBlockData, showGrid);
 
   return canvas;
 }

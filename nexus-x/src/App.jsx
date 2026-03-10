@@ -3423,15 +3423,18 @@ export default function App() {
       const result = await exportToCanvas(
         canvasRef.current, nodes, connections, computedAnchorPositions,
         pageBounds, exportScale, connectionColorMap, zoom,
+        showTitleBlock ? titleBlockData : null,
+        showTitleBlock ? showTitleBlockGrid : false,
       );
-      const blob = await new Promise(r => result.toBlob(r, 'image/png'));
+      let blob = await new Promise(r => result.toBlob(r, 'image/png'));
+      if (blob && printFriendly) blob = await invertBlob(blob);
       if (blob) downloadBlob(blob, name);
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
       setExportProgress(null);
     }
-  }, [projectName, nodes, connections, computedAnchorPositions, pageBounds, exportScale, connectionColorMap, zoom]);
+  }, [projectName, nodes, connections, computedAnchorPositions, pageBounds, exportScale, connectionColorMap, zoom, printFriendly, showTitleBlock, titleBlockData, showTitleBlockGrid]);
 
   // Export with title block included (removes data-export-ignore temporarily)
   const handleExportWithTitleBlock = useCallback(async () => {
@@ -3733,7 +3736,7 @@ export default function App() {
               width: canvasDimensions.width,
               height: canvasDimensions.height,
               overflow: 'visible',
-              filter: printFriendly ? 'invert(1)' : 'none',
+              filter: printFriendly ? 'invert(1) hue-rotate(180deg)' : 'none',
               backgroundColor: showTitleBlock ? (canvasBackground === 'white' ? '#ffffff' : '#09090b') : '#09090b',
               backgroundImage: (paperEnabled && showGrid) ? `
                 linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
