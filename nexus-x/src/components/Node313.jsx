@@ -487,9 +487,6 @@ const BLUR_ON_ENTER = { onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur
 
 // Manufacturer logos — keyed by uppercase manufacturer name
 const MANUFACTURER_LOGOS = {
-  BLACKMAGIC: (h = 18) => (
-    <img src="/logos/blackmagic.png" alt="Blackmagic Design" style={{ height: h, objectFit: 'contain', display: 'block' }} />
-  ),
 };
 const HOVER_BG_333 = hover('background', 'transparent', T.rowHover);
 const HOVER_BG_2A = hover('background', 'none', T.rowHover);
@@ -795,7 +792,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1284,10 +1281,12 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       }
       const colUpper = (section.cols[ci] || '').toUpperCase().trim();
       const isSourceCol = (colUpper.includes('SOURCE') || colUpper.includes('SRC'));
+      const isDestCol = (colUpper.includes('DESTINATION') || colUpper.includes('DEST'));
       const isResCol = (colUpper.includes('RESOLUTION') || colUpper.includes('RES'));
       const isRateCol = (colUpper.includes('RATE') || colUpper === 'FPS');
       const sourceKeys = isSourceCol && sourceNodeTags ? Object.keys(sourceNodeTags) : [];
-      const presets = sourceKeys.length > 0 ? sourceKeys : getPresetsForColumn(section.cols[ci]);
+      const destKeys = isDestCol && destinationNodeTags ? Object.keys(destinationNodeTags) : [];
+      const presets = sourceKeys.length > 0 ? sourceKeys : destKeys.length > 0 ? destKeys : getPresetsForColumn(section.cols[ci]);
 
       // Auto-fill from connected signal data
       const anchorId = `${nodeId}-${sectionId}-${ri}`;
@@ -1300,12 +1299,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         if (isRateCol && connected.rate) cellValue = connected.rate;
       }
       if (presets) {
-        let sourceColor = null;
+        let hlColor = null;
         if (isSourceCol) {
           if (connected && !cellValue) cellValue = connected.tag;
-          sourceColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
+          hlColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
         }
-        return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={sourceColor} />;
+        if (isDestCol) {
+          const connectedDest = connectedDestinationMap?.[anchorId];
+          hlColor = (cellValue ? destinationNodeTags[(cellValue || '').toUpperCase().trim()] : null)
+            || connectedDest?.color || null;
+        }
+        return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={hlColor} />;
       }
       return <SzCell key={`cell-${ci}`} value={cellValue} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} />;
     };
@@ -1585,7 +1589,7 @@ function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
-  onAnchorClick, onSavePreset, sourceNodeTags, connectedSourceMap,
+  onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap,
   getWireAxisSnap, getSpacingAxisSnap,
 }) {
   const nodeRef = useRef(null);
@@ -1660,6 +1664,9 @@ function Node313({
 
   const layoutKey = node.layout || 'ab_c';
   const layout = LAYOUTS[layoutKey] || LAYOUTS['ab_c'];
+  // L-shaped border: when columns (a+b) are the last row, each column gets its own border
+  const sideBySideIsLastRow = layout[layout.length - 1].length === 2;
+  const nodeBorderStyle = `2px solid ${signalColorHex || T.border}`;
 
   // ---- Section updates ----
   const handleSectionUpdate = useCallback((sectionId, updates) => {
@@ -1792,6 +1799,12 @@ function Node313({
 
       const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
       const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
+
+      // Move DOM immediately — zero-latency visual (React state follows via RAF)
+      if (nodeRef.current) {
+        nodeRef.current.style.left = `${newX}px`;
+        nodeRef.current.style.top = `${newY}px`;
+      }
 
       pendingPosition = { x: newX, y: newY };
       pendingDelta = { x: deltaX, y: deltaY };
@@ -1986,11 +1999,13 @@ function Node313({
         isFirstRow={isFirstRow}
         hiddenSystemFields={hiddenSystemFields}
         sourceNodeTags={sourceNodeTags}
+        destinationNodeTags={destinationNodeTags}
         connectedSourceMap={connectedSourceMap}
+        connectedDestinationMap={connectedDestinationMap}
         getSpacingAxisSnap={getSpacingAxisSnap}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, connectedSourceMap, getSpacingAxisSnap]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones
@@ -2014,16 +2029,31 @@ function Node313({
         // Side-by-side row
         const sp0 = node.sectionSpacing?.[row[0]] || 0;
         const sp1 = node.sectionSpacing?.[row[1]] || 0;
+        const isLastRow = rowIndex === layout.length - 1;
+        // L-shaped border: left col gets left+right(divider)+bottom, right col gets right+bottom
+        const leftWrapStyle = sideBySideIsLastRow ? {
+          ...STYLES.sectionWrap,
+          borderLeft: nodeBorderStyle,
+          borderRight: nodeBorderStyle,
+          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px' } : {}),
+          background: T.card,
+        } : STYLES.sectionWrap;
+        const rightWrapStyle = sideBySideIsLastRow ? {
+          ...STYLES.sectionWrap,
+          borderRight: nodeBorderStyle,
+          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomRightRadius: '4px' } : {}),
+          background: T.card,
+        } : STYLES.sectionWrap;
         elements.push(
           <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
-            <div style={STYLES.sectionWrap}>
+            <div style={leftWrapStyle}>
               {sp0 > 0 && <div style={{ height: `${sp0}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[0], false, false, overlapTop)}
               </div>
             </div>
-            <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />
-            <div style={STYLES.sectionWrap}>
+            {!sideBySideIsLastRow && <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />}
+            <div style={rightWrapStyle}>
               {sp1 > 0 && <div style={{ height: `${sp1}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
                 {renderSection(row[1], false, true, overlapTop)}
@@ -2070,10 +2100,19 @@ function Node313({
             borderBottom: '1px solid transparent',
           }} />);
         }
+        const isLastRow = rowIndex === layout.length - 1;
         elements.push(
           <div
             key={rowIndex}
-            style={{ position: 'relative' }}
+            style={{
+              position: 'relative',
+              ...(sideBySideIsLastRow ? {
+                borderLeft: nodeBorderStyle,
+                borderRight: nodeBorderStyle,
+                ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' } : {}),
+                background: T.card,
+              } : {}),
+            }}
           >
             <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
               {renderSection(row[0], true, false, overlapTop)}
@@ -2131,18 +2170,53 @@ function Node313({
     if (signalColorHex) {
       base.borderColor = signalColorHex;
     }
+    if (sideBySideIsLastRow) {
+      base.border = 'none';
+      base.background = 'transparent';
+    }
     return base;
-  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex]);
+  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex, sideBySideIsLastRow]);
+
+  // Header resize
+  const headerHeight = node.headerHeight || 36;
+  const minHeaderHeight = 28;
+  const maxHeaderHeight = 120;
+  const headerScale = headerHeight / 36;
+  const nameHeaderFontSize = Math.round(16 * headerScale);
+  const mfgHeaderFontSize = Math.round(10 * headerScale);
+
+  const handleHeaderResizeStart = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startHeight = headerHeight;
+    const handleMouseMove = (me) => {
+      const newH = Math.max(minHeaderHeight, Math.min(maxHeaderHeight, startHeight + me.clientY - startY));
+      onUpdate({ headerHeight: newH });
+    };
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [headerHeight, onUpdate]);
 
   // Tinted title bar
   const titleBarStyle = useMemo(() => {
-    const base = { ...STYLES.nodeTitle, position: 'relative' };
+    const base = { ...STYLES.nodeTitle, position: 'relative', height: headerHeight, minHeight: headerHeight };
     if (signalColorHex) {
       base.borderBottom = `2px solid ${signalColorHex}`;
-      base.background = `linear-gradient(180deg, ${signalColorHex}30, ${signalColorHex}10)`;
+      base.background = `linear-gradient(180deg, ${signalColorHex}55, ${signalColorHex}33)`;
+    }
+    if (sideBySideIsLastRow) {
+      base.borderTop = nodeBorderStyle;
+      base.borderLeft = nodeBorderStyle;
+      base.borderRight = nodeBorderStyle;
+      if (!signalColorHex) base.background = T.card;
     }
     return base;
-  }, [signalColorHex]);
+  }, [signalColorHex, sideBySideIsLastRow, nodeBorderStyle, headerHeight]);
 
   return (
     <div
@@ -2163,12 +2237,12 @@ function Node313({
           )}
           {/* Name */}
           {!hiddenTitleFields.includes('name') && (
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: '22px' }}>
-            {!node.title && <span className="n313-title-font-light" style={{ fontSize: '16px', letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>NAME</span>}
-            {node.title && <span className="n313-title-font-light" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '16px', letterSpacing: '2px', padding: '0 3px' }}>{node.title}</span>}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '40px', height: `${Math.round(22 * headerScale)}px` }}>
+            {!node.title && <span className="n313-title-font-light" style={{ fontSize: nameHeaderFontSize, letterSpacing: '2px', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>NAME</span>}
+            {node.title && <span className="n313-title-font-light" style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: nameHeaderFontSize, letterSpacing: '2px', padding: '0 3px' }}>{node.title}</span>}
             <input
               className="n313-title-font-light"
-              style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: '16px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+              style={{ ...STYLES.input, ...STYLES.titleInput, fontSize: nameHeaderFontSize, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
               value={node.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               onClick={(e) => e.stopPropagation()}
@@ -2206,11 +2280,11 @@ function Node313({
                     {Logo(16)}
                   </div>
                 ) : (
-                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-                  {!node.manufacturer && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MANUFACTURER</span>}
-                  {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.manufacturer}</span>}
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: `${Math.round(12 * headerScale)}px` }}>
+                  {!node.manufacturer && <span style={{ fontSize: mfgHeaderFontSize, letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MANUFACTURER</span>}
+                  {node.manufacturer && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: mfgHeaderFontSize, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.manufacturer}</span>}
                   <input
-                    style={{ ...STYLES.input, fontSize: '10px', color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                    style={{ ...STYLES.input, fontSize: mfgHeaderFontSize, color: T.textSec, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: `${Math.round(12 * headerScale)}px`, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                     value={node.manufacturer || ''}
                     maxLength={25}
                     onChange={(e) => onUpdate({ manufacturer: e.target.value.slice(0, 25) })}
@@ -2222,11 +2296,11 @@ function Node313({
                 )
               )}
               {!hiddenTitleFields.includes('model') && (
-              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '12px' }}>
-                {!node.model && <span style={{ fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MODEL</span>}
-                {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.model}</span>}
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: `${Math.round(12 * headerScale)}px` }}>
+                {!node.model && <span style={{ fontSize: mfgHeaderFontSize, letterSpacing: '1px', textTransform: 'uppercase', color: T.textMuted, pointerEvents: 'none', whiteSpace: 'pre', padding: '0 3px' }}>MODEL</span>}
+                {node.model && <span style={{ visibility: 'hidden', whiteSpace: 'pre', fontSize: mfgHeaderFontSize, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 3px' }}>{node.model}</span>}
                 <input
-                  style={{ ...STYLES.input, fontSize: '10px', color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: '12px', position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
+                  style={{ ...STYLES.input, fontSize: mfgHeaderFontSize, color: T.accentDim, letterSpacing: '1px', textTransform: 'uppercase', lineHeight: `${Math.round(12 * headerScale)}px`, position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' }}
                   value={node.model || ''}
                   maxLength={25}
                   onChange={(e) => onUpdate({ model: e.target.value.slice(0, 25) })}
@@ -2239,6 +2313,12 @@ function Node313({
             </div>
             );
           })()}
+          {/* Header resize handle */}
+          <div
+            onMouseDown={handleHeaderResizeStart}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 6, cursor: 'ns-resize', zIndex: 20 }}
+            title="Drag to resize header"
+          />
           {/* Vertical divider aligned with table header divider */}
           <div style={{ position: 'absolute', right: ACTION_AREA_W, top: 6, bottom: 6, width: 1, background: `${signalColorHex || T.accent}44`, pointerEvents: 'none' }} />
           {/* Settings button */}

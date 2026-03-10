@@ -1275,6 +1275,9 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
 
   // Determine if we're using flex-columns layout
   const isFlexColumns = gridTemplate.type === 'flex-columns';
+  const borderColorClass = isSelected ? 'border-cyan-400' : 'border-zinc-700';
+  // L-shaped border when columns layout has unequal port counts
+  const needsNotchedBorder = !isFlexColumns && node.layout.ioArrangement !== 'stacked';
 
   // Click handler — selection is now handled in mouseDown/mouseUp for proper group drag
   const handleClick = (e) => {
@@ -1286,8 +1289,10 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
       ref={nodeRef}
       data-node-id={node.id}
       data-node-scale={node.scale || 1}
-      className={`absolute bg-zinc-900 border rounded-lg shadow-xl select-none ${
-        isSelected ? 'border-cyan-400 ring-2 ring-cyan-500/50' : 'border-zinc-700'
+      className={`absolute bg-zinc-900 rounded-lg shadow-xl select-none ${
+        needsNotchedBorder ? '' : `border ${borderColorClass}`
+      } ${
+        isSelected ? 'ring-2 ring-cyan-500/50' : ''
       } ${
         isDraggingVisual ? 'cursor-grabbing ring-2 ring-cyan-500/50' : isResizing ? 'ring-2 ring-blue-500/50' : 'cursor-grab'
       }`}
@@ -1408,13 +1413,26 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
         // Original grid layout for top system position and stacked layouts
         <>
           {/* Title Section */}
-          <div style={{ gridArea: 'title' }}>
+          <div style={{ gridArea: 'title' }} className={needsNotchedBorder ? `border-t border-l border-r rounded-t-lg ${borderColorClass}` : ''}>
             <TitleContent />
           </div>
 
           {/* Render sections based on sectionOrder */}
           {(node.layout.sectionOrder || ['system', 'input', 'output']).map((sectionId) => {
             const isStacked = node.layout.ioArrangement === 'stacked';
+
+            // Compute L-shape border class for this section
+            let notchBorderClass = '';
+            if (needsNotchedBorder) {
+              if (sectionId === 'system') {
+                notchBorderClass = `border-l border-r ${borderColorClass}`;
+              } else {
+                const isLeft = (sectionId === 'input') === (node.layout.inputPosition === 'left');
+                notchBorderClass = isLeft
+                  ? `border-l border-r border-b rounded-bl-lg ${borderColorClass}`
+                  : `border-r border-b rounded-br-lg ${borderColorClass}`;
+              }
+            }
 
             const getSectionContent = () => {
               switch (sectionId) {
@@ -1474,7 +1492,7 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
                 key={sectionId}
                 ref={refProp}
                 style={{ gridArea: sectionId }}
-                className="relative"
+                className={`relative ${notchBorderClass}`}
               >
                 <DraggableSection
                   sectionId={sectionId}

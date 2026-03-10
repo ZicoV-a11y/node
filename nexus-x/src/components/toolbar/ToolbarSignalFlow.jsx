@@ -182,7 +182,7 @@ export default function ToolbarSignalFlow({
   showRulers, toggleRulers,
   printFriendly, setPrintFriendly,
   exportScale, setExportScale, EXPORT_PRESETS,
-  handleExportPNG, handleExportWithTitleBlock, exportProgress,
+  handleExportPNG, handleExportViewport, handleExportWithTitleBlock, exportProgress,
   pages, showChangelog, setShowChangelog,
 }) {
   const handleZoomChange = useCallback((newZoom) => {
@@ -363,7 +363,7 @@ export default function ToolbarSignalFlow({
         {/* Output */}
         <NodeGroup label="output" nodeKey="output"
           row1={<>
-            <Btn on={printFriendly} nodeKey="output" onClick={() => setPrintFriendly(p => !p)} title="Print-friendly export (white background)">Print</Btn>
+            <Btn on={printFriendly} nodeKey="output" onClick={() => setPrintFriendly(p => !p)} title="Print-friendly export (white background)">Eco</Btn>
             <select
               className="sf-toolbar-select"
               value={exportScale}
@@ -382,14 +382,8 @@ export default function ToolbarSignalFlow({
             </select>
           </>}
           row2={<>
-            <Btn onClick={handleExportPNG} disabled={exportProgress !== null}>
-              {exportProgress
-                ? `${exportProgress.current}/${exportProgress.total}...`
-                : (paperEnabled && pages.length > 1 ? `ZIP (${pages.length}p)` : 'PNG')
-              }
-            </Btn>
-            <Btn accent onClick={handleExportWithTitleBlock} disabled={exportProgress !== null}>
-              Export + TB
+            <Btn onClick={handleExportViewport} disabled={exportProgress !== null}>
+              PNG
             </Btn>
           </>}
         />
