@@ -792,7 +792,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, getSpacingAxisSnap }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1304,8 +1304,10 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
           if (connected && !cellValue) cellValue = connected.tag;
           hlColor = cellValue ? (sourceNodeTags[(cellValue || '').toUpperCase().trim()] || connected?.color || null) : null;
         }
-        if (isDestCol && cellValue) {
-          hlColor = destinationNodeTags[(cellValue || '').toUpperCase().trim()] || null;
+        if (isDestCol) {
+          const connectedDest = connectedDestinationMap?.[anchorId];
+          hlColor = (cellValue ? destinationNodeTags[(cellValue || '').toUpperCase().trim()] : null)
+            || connectedDest?.color || null;
         }
         return <DropdownCell key={`cell-${ci}`} value={cellValue} presets={presets} onChange={(v) => updateCell(ri, ci, v)} sizerValue={sizer} highlightColor={hlColor} />;
       }
@@ -1587,7 +1589,7 @@ function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
-  onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap,
+  onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap,
   getWireAxisSnap, getSpacingAxisSnap,
 }) {
   const nodeRef = useRef(null);
@@ -1798,6 +1800,12 @@ function Node313({
       const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
       const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
 
+      // Move DOM immediately — zero-latency visual (React state follows via RAF)
+      if (nodeRef.current) {
+        nodeRef.current.style.left = `${newX}px`;
+        nodeRef.current.style.top = `${newY}px`;
+      }
+
       pendingPosition = { x: newX, y: newY };
       pendingDelta = { x: deltaX, y: deltaY };
       if (!rafId) {
@@ -1993,10 +2001,11 @@ function Node313({
         sourceNodeTags={sourceNodeTags}
         destinationNodeTags={destinationNodeTags}
         connectedSourceMap={connectedSourceMap}
+        connectedDestinationMap={connectedDestinationMap}
         getSpacingAxisSnap={getSpacingAxisSnap}
       />
     );
-  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, destinationNodeTags, connectedSourceMap, getSpacingAxisSnap]);
+  }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap]);
 
   // ---- Render layout with overlay drop zones (no shifting) ----
   const DZ_THICKNESS = 48; // px thickness for LEFT/RIGHT edge drop zones

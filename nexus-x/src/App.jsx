@@ -8,6 +8,7 @@ import CanvasRulers from './components/canvas/CanvasRulers';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
 import TitleBlockOverlay from './components/canvas/TitleBlockOverlay';
 import CablePrompt from './components/CablePrompt';
+import { exportToCanvas } from './services/canvasExport';
 import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip, invertBlob, pngBlobsToPdf } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
@@ -403,6 +404,40 @@ const createNode313 = (id) => ({
   }
 });
 
+// Module-level helper — builds the wire preview path during mouse move (no React state needed)
+function buildWirePreviewPath(fromPos, waypoints, mousePt) {
+  const cornerRadius = 8;
+  const anchorOffset = 30;
+  const allPoints = [];
+  allPoints.push({ x: fromPos.x, y: fromPos.y });
+  const fromOffsetX = fromPos.side === 'left' ? fromPos.x - anchorOffset : fromPos.x + anchorOffset;
+  allPoints.push({ x: fromOffsetX, y: fromPos.y });
+  waypoints.forEach(wp => allPoints.push({ x: wp.x, y: wp.y }));
+  allPoints.push({ x: mousePt.x, y: mousePt.y });
+  let path = `M ${allPoints[0].x} ${allPoints[0].y}`;
+  for (let i = 1; i < allPoints.length; i++) {
+    const prev = allPoints[i - 1];
+    const curr = allPoints[i];
+    const next = allPoints[i + 1];
+    if (!next || i === allPoints.length - 1) {
+      path += ` L ${curr.x} ${curr.y}`;
+    } else {
+      const dx1 = curr.x - prev.x, dy1 = curr.y - prev.y;
+      const dx2 = next.x - curr.x, dy2 = next.y - curr.y;
+      const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+      const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+      const maxRadius = Math.min(len1 / 2, len2 / 2, cornerRadius);
+      if (maxRadius < 2 || len1 < 4 || len2 < 4) {
+        path += ` L ${curr.x} ${curr.y}`;
+      } else {
+        path += ` L ${curr.x - (dx1 / len1) * maxRadius} ${curr.y - (dy1 / len1) * maxRadius}`;
+        path += ` Q ${curr.x} ${curr.y}, ${curr.x + (dx2 / len2) * maxRadius} ${curr.y + (dy2 / len2) * maxRadius}`;
+      }
+    }
+  }
+  return path;
+}
+
 export default function App() {
   // Paper and canvas settings (persisted to localStorage)
   const {
@@ -419,8 +454,9 @@ export default function App() {
   const isPanningRef = useRef(false);
 
   // Selection box state (left click drag on canvas)
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionBox, setSelectionBox] = useState(null); // { startX, startY, endX, endY }
+  const isSelectingRef = useRef(false);
+  const selectionBoxRef = useRef({ startX: 0, startY: 0, endX: 0, endY: 0, active: false });
+  const selectionRectRef = useRef(null);
   const [selectedNodes, setSelectedNodes] = useState(new Set());
 
   // Side panel state
@@ -646,7 +682,7 @@ export default function App() {
 
   // Wire drawing state
   const [activeWire, setActiveWire] = useState(null);
-  const [wireMousePos, setWireMousePos] = useState(null); // Mouse position for wire preview
+  const wirePreviewPathRef = useRef(null); // Direct DOM ref for wire preview path (no state = no re-renders on mousemove)
   const [anchorLocalOffsets, setAnchorLocalOffsets] = useState({});
 
   // Wire selection state
@@ -692,6 +728,17 @@ export default function App() {
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { panRef.current = pan; }, [pan]);
 
+  // Measure node DOM sizes (canvas units) — only when the node set changes, not on every render
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const sizes = {};
+    canvasRef.current.querySelectorAll('[data-node-id]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      sizes[el.getAttribute('data-node-id')] = { w: r.width / zoom, h: r.height / zoom };
+    });
+    nodeSizesRef.current = sizes;
+  }, [nodes, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Apply transform directly to DOM without React re-render
   const applyTransform = useCallback(() => {
     if (transformRef.current) {
@@ -708,6 +755,15 @@ export default function App() {
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
   const cachedExportBlob = useRef(null);
+  // Measured node sizes (w/h in canvas units) — updated after each render via effect
+  const nodeSizesRef = useRef({});
+  // Always-current nodes ref — used by stable callbacks to avoid stale closures
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  // Stable per-node callback registry — prevents Node313 re-renders when App re-renders
+  const nodeCallbackMapRef = useRef({});
+  // Latest saveNode313Preset ref — so the stable wrapper always calls the current version
+  const saveNode313PresetRef = useRef(null);
 
   // Multi-page grid (pages extend dynamically as nodes are placed)
   // CRITICAL: Memoize node array to prevent creating new object references on every render
@@ -959,6 +1015,8 @@ export default function App() {
       }));
     }
   };
+  // Always keep ref current so stable wrappers can call the latest version
+  saveNode313PresetRef.current = saveNode313Preset;
 
   // Add a new subcategory to a category
   const addSubcategory = ({ categoryId, subcategoryId, label, description, parentId = null }) => {
@@ -1134,6 +1192,48 @@ export default function App() {
       return cleaned;
     });
   }, []);
+
+  // Stable per-node select handler — reads current nodes via ref, never creates new function references
+  const handleNodeSelect = useCallback((nodeId, addToSelection) => {
+    const ns = nodesRef.current;
+    if (addToSelection) {
+      setSelectedNodes(prev => {
+        const next = new Set(prev);
+        const g = ns[nodeId]?.group;
+        if (next.has(nodeId)) {
+          next.delete(nodeId);
+          if (g) Object.entries(ns).forEach(([id, n]) => { if (n.group === g) next.delete(id); });
+        } else {
+          next.add(nodeId);
+          if (g) Object.entries(ns).forEach(([id, n]) => { if (n.group === g) next.add(id); });
+        }
+        return next;
+      });
+    } else {
+      setSelectedNodes(() => {
+        const sel = new Set([nodeId]);
+        const g = ns[nodeId]?.group;
+        if (g) Object.entries(ns).forEach(([id, n]) => { if (n.group === g) sel.add(id); });
+        return sel;
+      });
+    }
+  }, []); // stable — reads nodes via ref
+
+  // Populate stable per-node callback registry (onUpdate, onDelete, onSavePreset)
+  // updateNode and deleteNode are already stable (useCallback with []); closures over nodeId are created once
+  Object.keys(nodes).forEach(nid => {
+    if (!nodeCallbackMapRef.current[nid]) {
+      nodeCallbackMapRef.current[nid] = {
+        onUpdate: (updates) => updateNode(nid, updates),
+        onDelete: () => deleteNode(nid),
+        onSavePreset: (...args) => saveNode313PresetRef.current?.(...args),
+      };
+    }
+  });
+  // Clean up callbacks for deleted nodes
+  Object.keys(nodeCallbackMapRef.current).forEach(id => {
+    if (!nodes[id]) delete nodeCallbackMapRef.current[id];
+  });
 
   // Move all selected nodes by a delta (for multi-select drag)
   const moveSelectedNodes = useCallback((deltaX, deltaY, excludeNodeId) => {
@@ -1373,6 +1473,7 @@ export default function App() {
   }, [connections]);
 
   // Collect tags + signal colors from nodes with "Source" device type for SOURCE column dropdowns
+  const _prevSourceNodeTags = useRef(null);
   const sourceNodeTags = useMemo(() => {
     const map = {};
     Object.values(nodes).forEach(n => {
@@ -1401,40 +1502,54 @@ export default function App() {
         }
       }
     });
-    return map;
+    // Stable reference if content unchanged (prevents re-renders on position-only drag)
+    const prev = _prevSourceNodeTags.current;
+    if (prev) {
+      const keys = Object.keys(map);
+      if (keys.length === Object.keys(prev).length && keys.every(k => prev[k] === map[k])) return prev;
+    }
+    return (_prevSourceNodeTags.current = map);
   }, [nodes]);
 
   // Collect tags from nodes with "Destination" device type for DESTINATION column dropdowns
+  const _prevDestinationNodeTags = useRef(null);
   const destinationNodeTags = useMemo(() => {
     const map = {};
     Object.values(nodes).forEach(n => {
-      if (n.tag && (n.deviceTypes || []).includes('Destination')) {
-        const upper = n.tag.toUpperCase().trim();
-        if (!upper) return;
-        const hex = n.signalColor ? (SIGNAL_COLORS_BY_ID.get(n.signalColor) || null) : null;
-        const hidden = n.hiddenSections || [];
-        let portCount = 0;
-        if (n.sections) {
-          ['a', 'b', 'c'].forEach(secId => {
-            if (hidden.includes(secId)) return;
-            const sec = n.sections[secId];
-            if (sec && sec.rows) portCount += sec.rows.length;
-          });
+      if (!(n.deviceTypes || []).includes('Destination')) return;
+      const label = (n.tag || n.title || n.model || '').trim();
+      const upper = label.toUpperCase();
+      if (!upper) return;
+      const hex = n.signalColor ? (SIGNAL_COLORS_BY_ID.get(n.signalColor) || null) : null;
+      const hidden = n.hiddenSections || [];
+      let portCount = 0;
+      if (n.sections) {
+        ['a', 'b', 'c'].forEach(secId => {
+          if (hidden.includes(secId)) return;
+          const sec = n.sections[secId];
+          if (sec && sec.rows) portCount += sec.rows.length;
+        });
+      }
+      if (portCount > 1) {
+        for (let i = 1; i <= portCount; i++) {
+          const key = `${upper} ${i}`;
+          if (!map[key]) map[key] = hex;
         }
-        if (portCount > 1) {
-          for (let i = 1; i <= portCount; i++) {
-            const key = `${upper} ${i}`;
-            if (!map[key]) map[key] = hex;
-          }
-        } else {
-          if (!map[upper]) map[upper] = hex;
-        }
+      } else {
+        if (!map[upper]) map[upper] = hex;
       }
     });
-    return map;
+    // Stable reference if content unchanged
+    const prevD = _prevDestinationNodeTags.current;
+    if (prevD) {
+      const keys = Object.keys(map);
+      if (keys.length === Object.keys(prevD).length && keys.every(k => prevD[k] === map[k])) return prevD;
+    }
+    return (_prevDestinationNodeTags.current = map);
   }, [nodes]);
 
   // Map each input anchor to its upstream source tag + color (traces through converters/routers)
+  const _prevConnectedSourceMap = useRef(null);
   const connectedSourceMap = useMemo(() => {
     const map = {};
     // Helper: read column values from a node's section row by column name patterns
@@ -1568,21 +1683,64 @@ export default function App() {
       const signalData = traceSignalData(conn.from);
       map[conn.to] = { tag: displayTag, color: hex, ...signalData };
     });
-    return map;
+    // Stable reference if content unchanged (each value is {tag, color, resolution, rate})
+    const prevCSM = _prevConnectedSourceMap.current;
+    if (prevCSM) {
+      const keys = Object.keys(map);
+      if (keys.length === Object.keys(prevCSM).length) {
+        let same = true;
+        for (const k of keys) {
+          const a = map[k], b = prevCSM[k];
+          if (!b || a.tag !== b.tag || a.color !== b.color || a.resolution !== b.resolution || a.rate !== b.rate) { same = false; break; }
+        }
+        if (same) return prevCSM;
+      }
+    }
+    return (_prevConnectedSourceMap.current = map);
   }, [connections, nodes, sourceNodeTags]);
 
+  // Map each output anchor to the downstream destination node's tag + color
+  const _prevConnectedDestinationMap = useRef(null);
+  const connectedDestinationMap = useMemo(() => {
+    const map = {};
+    connections.forEach(conn => {
+      const destNodeId = getNodeIdFromAnchor(conn.to);
+      const destNode = nodes[destNodeId];
+      if (!destNode) return;
+      const hex = destNode.signalColor ? (SIGNAL_COLORS_BY_ID.get(destNode.signalColor) || null) : null;
+      map[conn.from] = { tag: (destNode.tag || '').toUpperCase(), color: hex };
+    });
+    const prev = _prevConnectedDestinationMap.current;
+    if (prev) {
+      const keys = Object.keys(map);
+      if (keys.length === Object.keys(prev).length) {
+        let same = true;
+        for (const k of keys) {
+          const a = map[k], b = prev[k];
+          if (!b || a.tag !== b.tag || a.color !== b.color) { same = false; break; }
+        }
+        if (same) return prev;
+      }
+    }
+    return (_prevConnectedDestinationMap.current = map);
+  }, [connections, nodes]);
+
   // Pre-compute which signal colors are in use across all nodes
+  const _prevUsedSignalColors = useRef(null);
   const usedSignalColors = useMemo(() => {
     const set = new Set();
     Object.values(nodes).forEach(node => {
       if (node.signalColor) set.add(node.signalColor);
     });
-    return set;
+    const prev = _prevUsedSignalColors.current;
+    if (prev && prev.size === set.size && [...set].every(v => prev.has(v))) return prev;
+    return (_prevUsedSignalColors.current = set);
   }, [nodes]);
 
   // Pre-compute wire colors to avoid recursive graph traversal per wire per render
   // Depends on nodes because signal colors can change
   // Wire color override takes precedence over automatic color
+  const _prevConnectionColorMap = useRef(null);
   const connectionColorMap = useMemo(() => {
     const map = new Map();
     const colorIdToHex = {
@@ -1632,10 +1790,23 @@ export default function App() {
       if (conn.wireColor && colorIdToHex[conn.wireColor]) {
         map.set(conn.id, colorIdToHex[conn.wireColor]);
       } else {
-        map.set(conn.id, getConnectionColor(conn));
+        // If destination node has a signal color, prefer it
+        const destNodeId = getNodeIdFromAnchor(conn.to);
+        const destNode = nodes[destNodeId];
+        const destColor = destNode?.signalColor && (destNode.deviceTypes || []).includes('Destination')
+          ? (colorIdToHex[destNode.signalColor] || null)
+          : null;
+        map.set(conn.id, destColor || getConnectionColor(conn));
       }
     });
-    return map;
+    // Return same reference if content unchanged (prevents Node313 re-renders on position-only drags)
+    const prev = _prevConnectionColorMap.current;
+    if (prev && prev.size === map.size) {
+      let same = true;
+      for (const [k, v] of map) { if (prev.get(k) !== v) { same = false; break; } }
+      if (same) return prev;
+    }
+    return (_prevConnectionColorMap.current = map);
   }, [connections, getConnectionColor, nodes]);
 
   // Map: sourceNodeId → outgoing connections (for interleaved rendering)
@@ -1652,6 +1823,7 @@ export default function App() {
 
   // Global source names with colors - collected from ALL nodes
   // Maps sourceName -> hex color (from wire connections)
+  const _prevGlobalSourceNamesWithColors = useRef(null);
   const globalSourceNamesWithColors = useMemo(() => {
     const map = new Map(); // sourceName → color
 
@@ -1690,10 +1862,18 @@ export default function App() {
       });
     });
 
-    return map;
+    // Stable reference if content unchanged
+    const prev = _prevGlobalSourceNamesWithColors.current;
+    if (prev && prev.size === map.size) {
+      let same = true;
+      for (const [k, v] of map) { if (prev.get(k) !== v) { same = false; break; } }
+      if (same) return prev;
+    }
+    return (_prevGlobalSourceNamesWithColors.current = map);
   }, [nodes, connections, connectionColorMap]);
 
   // Pre-compute anchor theme colors to avoid lookups during render
+  const _prevAnchorThemeColors = useRef(null);
   const anchorThemeColors = useMemo(() => {
     const map = new Map();
     Object.keys(anchorLocalOffsets).forEach(anchorId => {
@@ -1702,7 +1882,14 @@ export default function App() {
       const themeColor = SIGNAL_COLORS_BY_ID.get(node?.signalColor) || DEFAULT_THEME_COLOR;
       map.set(anchorId, themeColor);
     });
-    return map;
+    // Stable reference if content unchanged
+    const prev = _prevAnchorThemeColors.current;
+    if (prev && prev.size === map.size) {
+      let same = true;
+      for (const [k, v] of map) { if (prev.get(k) !== v) { same = false; break; } }
+      if (same) return prev;
+    }
+    return (_prevAnchorThemeColors.current = map);
   }, [anchorLocalOffsets, nodes]);
 
   // Connection management - MEMOIZED to prevent node re-renders
@@ -1807,7 +1994,6 @@ export default function App() {
 
       setConnections(prev => [...prev, newConnection]);
       setActiveWire(null);
-      setWireMousePos(null);
     }
 
     setCablePromptData(null);
@@ -1816,7 +2002,6 @@ export default function App() {
   const handleCablePromptCancel = () => {
     setCablePromptData(null);
     setActiveWire(null);
-    setWireMousePos(null);
   };
 
   // Wire click handling (for selection)
@@ -1923,7 +2108,6 @@ export default function App() {
 
       setSelectedWires(new Set());
       setActiveWire(null);
-      setWireMousePos(null);
     }
     setShowRecents(false);
   };
@@ -1992,8 +2176,9 @@ export default function App() {
       event.preventDefault(); // Prevent browser native text selection during drag
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
       if (containerRef.current) containerRef.current.style.cursor = 'crosshair';
-      setIsSelecting(true);
-      setSelectionBox({ startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y, active: false });
+      isSelectingRef.current = true;
+      selectionBoxRef.current = { startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y, active: false };
+      if (selectionRectRef.current) selectionRectRef.current.style.display = 'none';
       // Clear selection unless shift is held
       if (!event.shiftKey) {
         setSelectedNodes(new Set());
@@ -2010,18 +2195,31 @@ export default function App() {
       };
       applyTransform();
     }
-    if (isSelecting && selectionBox) {
+    if (isSelectingRef.current) {
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
-      const dx = Math.abs(pos.x - selectionBox.startX);
-      const dy = Math.abs(pos.y - selectionBox.startY);
-      // Require minimum 3px drag distance before showing selection box
-      const isActive = selectionBox.active || dx > 3 || dy > 3;
-      setSelectionBox(prev => prev ? { ...prev, endX: pos.x, endY: pos.y, active: isActive } : null);
+      const sb = selectionBoxRef.current;
+      sb.endX = pos.x;
+      sb.endY = pos.y;
+      if (!sb.active && (Math.abs(pos.x - sb.startX) > 3 || Math.abs(pos.y - sb.startY) > 3)) {
+        sb.active = true;
+      }
+      // Update selection rect DOM directly — no React re-render
+      if (sb.active && selectionRectRef.current) {
+        const el = selectionRectRef.current;
+        el.setAttribute('x', Math.min(sb.startX, sb.endX));
+        el.setAttribute('y', Math.min(sb.startY, sb.endY));
+        el.setAttribute('width', Math.abs(sb.endX - sb.startX));
+        el.setAttribute('height', Math.abs(sb.endY - sb.startY));
+        el.style.display = '';
+      }
     }
-    // Track mouse position for wire preview during creation
-    if (activeWire) {
+    // Update wire preview path directly in DOM — no React re-render
+    if (activeWire && wirePreviewPathRef.current) {
       const pos = screenToCanvasPosition({ x: event.clientX, y: event.clientY });
-      setWireMousePos(pos);
+      const fromPos = anchorPositionsRef.current[activeWire.from];
+      if (fromPos) {
+        wirePreviewPathRef.current.setAttribute('d', buildWirePreviewPath(fromPos, activeWire.waypoints || [], pos));
+      }
     }
   };
 
@@ -2032,14 +2230,16 @@ export default function App() {
       if (containerRef.current) containerRef.current.style.cursor = '';
       setPan({ ...panRef.current });
     }
-    if (event.button === 0 && isSelecting) {
+    if (event.button === 0 && isSelectingRef.current) {
       if (containerRef.current) containerRef.current.style.cursor = '';
+      if (selectionRectRef.current) selectionRectRef.current.style.display = 'none';
+      const sb = selectionBoxRef.current;
       // Calculate which nodes overlap the selection box (AABB intersection)
-      if (selectionBox && selectionBox.active) {
-        const minX = Math.min(selectionBox.startX, selectionBox.endX);
-        const maxX = Math.max(selectionBox.startX, selectionBox.endX);
-        const minY = Math.min(selectionBox.startY, selectionBox.endY);
-        const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+      if (sb && sb.active) {
+        const minX = Math.min(sb.startX, sb.endX);
+        const maxX = Math.max(sb.startX, sb.endX);
+        const minY = Math.min(sb.startY, sb.endY);
+        const maxY = Math.max(sb.startY, sb.endY);
 
         // Use actual DOM measurements for accurate selection (works for any node type/size)
         const nodesInBox = new Set();
@@ -2072,8 +2272,7 @@ export default function App() {
           setSelectedNodes(expandedBox);
         }
       }
-      setIsSelecting(false);
-      setSelectionBox(null);
+      isSelectingRef.current = false;
     }
   };
 
@@ -2293,7 +2492,6 @@ export default function App() {
         // If wire is being drawn, cancel it
         if (activeWire) {
           setActiveWire(null);
-          setWireMousePos(null);
           return;
         }
         if (document.activeElement && document.activeElement !== document.body) {
@@ -2588,6 +2786,9 @@ export default function App() {
     });
     return positions;
   }, [nodes, anchorLocalOffsets]);
+  // Always-current ref so mousemove handlers don't need state/closure access
+  const anchorPositionsRef = useRef(computedAnchorPositions);
+  anchorPositionsRef.current = computedAnchorPositions;
 
   // Register anchor with local offset data (called by Node/SuperNode useLayoutEffect)
   const registerAnchor = useCallback((anchorId, offset) => {
@@ -2783,6 +2984,61 @@ export default function App() {
     });
     return map;
   }, [connections, getWirePath, computedAnchorPositions]);
+
+  // Pre-filter wire lists — avoids two .filter() calls on every render
+  const backWires = useMemo(() => connections.filter(c => c.zLayer === 'back'), [connections]);
+  const frontWires = useMemo(() => connections.filter(c => c.zLayer !== 'back'), [connections]);
+
+  // Pre-sort node render order — avoids O(n log n) sort on every render
+  const sortedNodes = useMemo(() =>
+    Object.values(nodes).sort((a, b) => (selectedNodes.has(a.id) ? 1 : 0) - (selectedNodes.has(b.id) ? 1 : 0)),
+    [nodes, selectedNodes]
+  );
+
+  // Memoized endpoint stubs for back-layer wires — only recomputes when wires/positions/nodes change,
+  // not on every render (avoids recompute during pan/zoom)
+  const backWireEndpointStubs = useMemo(() => {
+    const backConns = backWires;
+    if (!backConns.length) return null;
+    // Build sorted node order + O(1) index map (same sort as the render)
+    const nodeOrder = Object.values(nodes)
+      .sort((a, b) => (selectedNodes.has(a.id) ? 1 : 0) - (selectedNodes.has(b.id) ? 1 : 0));
+    const nodeIdxMap = new Map(nodeOrder.map((n, i) => [n.id, i]));
+    const anchorCovered = (anchorId, pos) => {
+      const nodeId = anchorLocalOffsets[anchorId]?.nodeId;
+      if (!nodeId) return false;
+      const ownIdx = nodeIdxMap.get(nodeId);
+      if (ownIdx == null) return false;
+      for (let j = ownIdx + 1; j < nodeOrder.length; j++) {
+        const n = nodeOrder[j];
+        const ns = nodeSizesRef.current[n.id];
+        if (!ns) continue;
+        const np = n.position;
+        if (pos.x >= np.x && pos.x <= np.x + ns.w &&
+            pos.y >= np.y && pos.y <= np.y + ns.h) return true;
+      }
+      return false;
+    };
+    const AO = 30;
+    return backConns.map(conn => {
+      const from = computedAnchorPositions[conn.from];
+      const to   = computedAnchorPositions[conn.to];
+      if (!from || !to) return null;
+      const fromHidden = anchorCovered(conn.from, from);
+      const toHidden   = anchorCovered(conn.to,   to);
+      if (fromHidden && toHidden) return null;
+      const wireColor = connectionColorMap.get(conn.id) || '#22d3ee';
+      const dashProps = conn.enhanced && conn.dashPattern ? { strokeDasharray: conn.dashPattern } : {};
+      return (
+        <svg key={`stub-${conn.id}`} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 2 }}>
+          {!fromHidden && <path d={`M ${from.x} ${from.y} L ${from.side === 'left' ? from.x - AO : from.x + AO} ${from.y}`}
+            fill="none" stroke={wireColor} strokeWidth={2} strokeLinecap="round" {...dashProps} />}
+          {!toHidden && <path d={`M ${to.side === 'left' ? to.x - AO : to.x + AO} ${to.y} L ${to.x} ${to.y}`}
+            fill="none" stroke={wireColor} strokeWidth={2} strokeLinecap="round" {...dashProps} />}
+        </svg>
+      );
+    });
+  }, [backWires, computedAnchorPositions, anchorLocalOffsets, nodes, selectedNodes, connectionColorMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render wire visual (no pointer events)
   const renderWireVisual = useCallback((conn) => {
@@ -3157,53 +3413,25 @@ export default function App() {
     }
   }, [projectName, paperEnabled, pages, pageBounds, canvasDimensions, exportScale, printFriendly]);
 
-  // Export page area as PNG — transparent bg, includes title block if toggled on
+  // Export page area as pixel-perfect PNG via Canvas 2D renderer
   const handleExportViewport = useCallback(async () => {
     if (!canvasRef.current || !pageBounds) return;
     const name = projectName || 'untitled';
-    const stamp = new Date().toISOString().slice(0, 10);
-    const canvas = canvasRef.current;
 
-    // Include title block in export if it's toggled on
-    const titleBlockWrapper = showTitleBlock
-      ? canvas.querySelector('[data-title-block-wrapper]')
-      : null;
-    const hadIgnore = titleBlockWrapper?.getAttribute('data-export-ignore');
-    if (titleBlockWrapper) {
-      titleBlockWrapper.removeAttribute('data-export-ignore');
-    }
-
-    const origBg = canvas.style.backgroundColor;
-    const origBgImage = canvas.style.backgroundImage;
-    const origFilter = canvas.style.filter;
     setExportProgress({ current: 1, total: 1 });
     try {
-      canvas.style.backgroundColor = '#000000';
-      canvas.style.backgroundImage = 'none';
-      canvas.style.filter = 'none';
-      await new Promise(r => setTimeout(r, 0));
-      const printClone = printFriendly ? printBoldCloneNode : undefined;
-      let blob = await renderLayoutBlob(canvasRef.current, pageBounds, {
-        scale: exportScale,
-        backgroundColor: '#000000',
-        onCloneNode: printClone,
-      });
-      if (blob && printFriendly) blob = await invertBlob(blob);
-      if (blob) {
-        downloadBlob(blob, `${name}-${stamp}`);
-      }
+      const result = await exportToCanvas(
+        canvasRef.current, nodes, connections, computedAnchorPositions,
+        pageBounds, exportScale, connectionColorMap, zoom,
+      );
+      const blob = await new Promise(r => result.toBlob(r, 'image/png'));
+      if (blob) downloadBlob(blob, name);
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
-      canvas.style.backgroundColor = origBg;
-      canvas.style.backgroundImage = origBgImage;
-      canvas.style.filter = origFilter;
-      if (titleBlockWrapper && hadIgnore) {
-        titleBlockWrapper.setAttribute('data-export-ignore', hadIgnore);
-      }
       setExportProgress(null);
     }
-  }, [projectName, showTitleBlock, pageBounds, exportScale, printFriendly]);
+  }, [projectName, nodes, connections, computedAnchorPositions, pageBounds, exportScale, connectionColorMap, zoom]);
 
   // Export with title block included (removes data-export-ignore temporarily)
   const handleExportWithTitleBlock = useCallback(async () => {
@@ -3339,7 +3567,7 @@ export default function App() {
               )}
             </span>
             <button
-              onClick={() => { setActiveWire(null); setWireMousePos(null); }}
+              onClick={() => { setActiveWire(null); }}
               className="text-xs font-mono text-zinc-500 hover:text-zinc-300 underline"
             >
               Cancel
@@ -3434,9 +3662,9 @@ export default function App() {
           onMouseLeave={() => {
             isPanningRef.current = false;
             if (containerRef.current) containerRef.current.style.cursor = '';
-            if (isSelecting) {
-              setIsSelecting(false);
-              setSelectionBox(null);
+            if (isSelectingRef.current) {
+              isSelectingRef.current = false;
+              if (selectionRectRef.current) selectionRectRef.current.style.display = 'none';
             }
           }}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
@@ -3560,60 +3788,16 @@ export default function App() {
 
           {/* Wire preview SVG (always on top during creation) */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 9999 }}>
-            {/* Wire preview during creation */}
-            {activeWire && wireMousePos && (() => {
+            {/* Wire preview — path updated via DOM ref on every mousemove (zero React re-renders) */}
+            {activeWire && (() => {
               const fromPos = computedAnchorPositions[activeWire.from];
               if (!fromPos) return null;
               const wireColor = anchorThemeColors.get(activeWire.from) || '#22d3ee';
-
               const waypoints = activeWire.waypoints || [];
-              const cornerRadius = 8;
-              const anchorOffset = 30;
-
-              // Build all points with anchor offset
-              const allPoints = [];
-              allPoints.push({ x: fromPos.x, y: fromPos.y });
-              const fromOffsetX = fromPos.side === 'left' ? fromPos.x - anchorOffset : fromPos.x + anchorOffset;
-              allPoints.push({ x: fromOffsetX, y: fromPos.y });
-              waypoints.forEach(wp => allPoints.push({ x: wp.x, y: wp.y }));
-              allPoints.push({ x: wireMousePos.x, y: wireMousePos.y });
-
-              // Generate preview path with straight lines and rounded corners
-              let previewPath = `M ${allPoints[0].x} ${allPoints[0].y}`;
-              for (let i = 1; i < allPoints.length; i++) {
-                const prev = allPoints[i - 1];
-                const curr = allPoints[i];
-                const next = allPoints[i + 1];
-
-                if (!next || i === allPoints.length - 1) {
-                  previewPath += ` L ${curr.x} ${curr.y}`;
-                } else {
-                  const dx1 = curr.x - prev.x;
-                  const dy1 = curr.y - prev.y;
-                  const dx2 = next.x - curr.x;
-                  const dy2 = next.y - curr.y;
-                  const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
-                  const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
-                  const maxRadius = Math.min(len1 / 2, len2 / 2, cornerRadius);
-
-                  if (maxRadius < 2 || len1 < 4 || len2 < 4) {
-                    previewPath += ` L ${curr.x} ${curr.y}`;
-                  } else {
-                    const startX = curr.x - (dx1 / len1) * maxRadius;
-                    const startY = curr.y - (dy1 / len1) * maxRadius;
-                    const endX = curr.x + (dx2 / len2) * maxRadius;
-                    const endY = curr.y + (dy2 / len2) * maxRadius;
-                    previewPath += ` L ${startX} ${startY}`;
-                    previewPath += ` Q ${curr.x} ${curr.y}, ${endX} ${endY}`;
-                  }
-                }
-              }
-
               return (
                 <g data-export-ignore="true">
-                  {/* Preview wire path */}
                   <path
-                    d={previewPath}
+                    ref={wirePreviewPathRef}
                     fill="none"
                     stroke={wireColor}
                     strokeWidth={2}
@@ -3621,27 +3805,11 @@ export default function App() {
                     strokeDasharray="8 4"
                     strokeLinecap="round"
                   />
-                  {/* Waypoint markers */}
                   {waypoints.map((wp, i) => (
                     <g key={wp.id}>
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r={6}
-                        fill={wireColor}
-                        stroke="#fff"
-                        strokeWidth={2}
-                      />
-                      <text
-                        x={wp.x}
-                        y={wp.y + 1}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="#18181b"
-                        style={{ fontSize: 8, fontWeight: 'bold' }}
-                      >
-                        {i + 1}
-                      </text>
+                      <circle cx={wp.x} cy={wp.y} r={6} fill={wireColor} stroke="#fff" strokeWidth={2} />
+                      <text x={wp.x} y={wp.y + 1} textAnchor="middle" dominantBaseline="middle"
+                        fill="#18181b" style={{ fontSize: 8, fontWeight: 'bold' }}>{i + 1}</text>
                     </g>
                   ))}
                 </g>
@@ -3754,16 +3922,13 @@ export default function App() {
           </svg>
 
           {/* Back wires (visuals only) — only wires explicitly sent to back */}
-          {connections.filter(c => c.zLayer === 'back').map(conn => renderWireVisual(conn))}
+          {backWires.map(conn => renderWireVisual(conn))}
 
           {/* All nodes — selected nodes render last so they appear above others */}
-          {Object.values(nodes).sort((a, b) => {
-            const aS = selectedNodes.has(a.id) ? 1 : 0;
-            const bS = selectedNodes.has(b.id) ? 1 : 0;
-            return aS - bS;
-          }).map(node => {
+          {sortedNodes.map(node => {
             const NodeComponent = node.version === 3 ? Node313 : node.version === 2 ? SuperNode : Node;
             const isSelected = selectedNodes.has(node.id);
+            const cbs = nodeCallbackMapRef.current[node.id] || {};
             return (
               <NodeComponent
                 key={node.id}
@@ -3772,8 +3937,8 @@ export default function App() {
                 isSelected={isSelected}
                 snapToGrid={snapToGrid}
                 gridSize={gridSize}
-                onUpdate={(updates) => updateNode(node.id, updates)}
-                onDelete={() => deleteNode(node.id)}
+                onUpdate={cbs.onUpdate}
+                onDelete={cbs.onDelete}
                 onAnchorClick={handleAnchorClick}
                 registerAnchor={registerAnchor}
                 unregisterAnchors={unregisterAnchors}
@@ -3786,75 +3951,40 @@ export default function App() {
                 sourceNodeTags={sourceNodeTags}
                 destinationNodeTags={destinationNodeTags}
                 connectedSourceMap={connectedSourceMap}
-                onSavePreset={node.version === 3 ? saveNode313Preset : (categoryId, subcategoryId) => savePreset(node.id, categoryId, subcategoryId)}
+                connectedDestinationMap={connectedDestinationMap}
+                onSavePreset={cbs.onSavePreset}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}
                 onMoveSelectedNodes={moveSelectedNodes}
                 onScaleSelectedNodes={scaleSelectedNodes}
                 getWireAxisSnap={getWireAxisSnap}
                 getSpacingAxisSnap={getSpacingAxisSnap}
-                onSelect={(nodeId, addToSelection) => {
-                  if (addToSelection) {
-                    setSelectedNodes(prev => {
-                      const next = new Set(prev);
-                      if (next.has(nodeId)) {
-                        const g = nodes[nodeId]?.group;
-                        next.delete(nodeId);
-                        if (g) {
-                          Object.entries(nodes).forEach(([id, n]) => {
-                            if (n.group === g) next.delete(id);
-                          });
-                        }
-                      } else {
-                        next.add(nodeId);
-                        const g = nodes[nodeId]?.group;
-                        if (g) {
-                          Object.entries(nodes).forEach(([id, n]) => {
-                            if (n.group === g) next.add(id);
-                          });
-                        }
-                      }
-                      return next;
-                    });
-                  } else {
-                    const sel = new Set([nodeId]);
-                    const g = nodes[nodeId]?.group;
-                    if (g) {
-                      Object.entries(nodes).forEach(([id, n]) => {
-                        if (n.group === g) sel.add(id);
-                      });
-                    }
-                    setSelectedNodes(sel);
-                  }
-                }}
+                onSelect={handleNodeSelect}
               />
             );
           })}
 
           {/* Front wires (visuals only) — above nodes (default) */}
-          {connections.filter(c => c.zLayer !== 'back').map(conn => renderWireVisual(conn))}
+          {frontWires.map(conn => renderWireVisual(conn))}
+
+          {/* Endpoint stubs for back-layer wires — memoized, only recomputes when wires/nodes change */}
+          {backWireEndpointStubs}
 
           {/* Wire hit areas — always above nodes so clicks/right-clicks work */}
           {connections.map(conn => renderWireHitArea(conn))}
 
-          {/* Selection Box Overlay - rendered above nodes */}
-          {isSelecting && selectionBox && selectionBox.active && (
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ overflow: 'visible', zIndex: 9999 }}
-            >
-              <rect
-                x={Math.min(selectionBox.startX, selectionBox.endX)}
-                y={Math.min(selectionBox.startY, selectionBox.endY)}
-                width={Math.abs(selectionBox.endX - selectionBox.startX)}
-                height={Math.abs(selectionBox.endY - selectionBox.startY)}
-                fill="rgba(34, 211, 238, 0.1)"
-                stroke="#22d3ee"
-                strokeWidth={1}
-                strokeDasharray="4 2"
-              />
-            </svg>
-          )}
+          {/* Selection Box Overlay — always rendered, shown/hidden via direct DOM (no re-renders during drag) */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 9999 }}>
+            <rect
+              ref={selectionRectRef}
+              x={0} y={0} width={0} height={0}
+              fill="rgba(34, 211, 238, 0.1)"
+              stroke="#22d3ee"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              style={{ display: 'none' }}
+            />
+          </svg>
         </div>
         </div>
         <CanvasRulers ref={rulerRef} containerRef={containerRef} visible={showRulers} />
