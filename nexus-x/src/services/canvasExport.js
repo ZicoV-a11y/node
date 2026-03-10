@@ -132,6 +132,8 @@ function captureNode(nodeEl, node, zoom) {
 
     // Background
     if (!isTransparent(cs.backgroundColor)) e.bg = cs.backgroundColor;
+    const bgImg = cs.backgroundImage;
+    if (bgImg && bgImg !== 'none' && bgImg.includes('linear-gradient')) e.bgGradient = bgImg;
 
     // Border radius (scale for canvas-space)
     const bradius = parseFloat(cs.borderRadius);
@@ -201,6 +203,17 @@ function captureNode(nodeEl, node, zoom) {
 // DRAWING
 // =============================================
 
+// Parse a simple 2-stop top-to-bottom linear-gradient from computed style
+// e.g. "linear-gradient(rgba(239, 68, 68, 0.33), rgba(239, 68, 68, 0.2))"
+function makeCanvasGradient(ctx, css, x, y, w, h) {
+  const colors = css.match(/rgba?\([^)]+\)|#[0-9a-f]{3,8}/gi);
+  if (!colors || colors.length < 2) return null;
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, colors[0]);
+  g.addColorStop(1, colors[colors.length - 1]);
+  return g;
+}
+
 function drawNodeGroup(ctx, group) {
   const { nx, ny, nw, nh, elements } = group;
 
@@ -217,8 +230,15 @@ function drawNodeGroup(ctx, group) {
 
     const r = e.radius || 0;
 
-    // Background
-    if (e.bg) {
+    // Background — gradient takes priority over solid bg-color
+    if (e.bgGradient) {
+      const grad = makeCanvasGradient(ctx, e.bgGradient, x, y, w, h);
+      if (grad) {
+        ctx.fillStyle = grad;
+        if (r > 0) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+        else ctx.fillRect(x, y, w, h);
+      }
+    } else if (e.bg) {
       ctx.fillStyle = e.bg;
       if (r > 0) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
       else ctx.fillRect(x, y, w, h);
