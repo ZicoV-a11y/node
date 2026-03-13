@@ -2207,7 +2207,8 @@ function Node313({
     const base = { ...STYLES.nodeTitle, position: 'relative', height: headerHeight, minHeight: headerHeight };
     if (signalColorHex) {
       base.borderBottom = `2px solid ${signalColorHex}`;
-      base.background = `linear-gradient(180deg, ${signalColorHex}55, ${signalColorHex}33)`;
+      base.backgroundColor = T.card;
+      base.backgroundImage = `linear-gradient(180deg, ${signalColorHex}55, ${signalColorHex}33)`;
     }
     if (sideBySideIsLastRow) {
       base.borderTop = nodeBorderStyle;
