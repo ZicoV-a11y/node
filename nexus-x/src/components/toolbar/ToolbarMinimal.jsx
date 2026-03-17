@@ -55,7 +55,7 @@ export default function ToolbarMinimal({
   // Undo/Redo
   history, future, undo, redo,
   // File
-  handleNewProject, handleOpenFile, handleSaveAs, recentFiles, handleLoadRecent,
+  handleNewProject, handleOpenFile, handleSaveAs, recentFiles, handleLoadRecent, handleLoadSample,
   // Add node
   addNode,
   // Version
@@ -152,6 +152,7 @@ export default function ToolbarMinimal({
           isOpen={fileMenuOpen} onClose={() => setFileMenuOpen(false)} anchorRef={fileBtnRef}
           onNew={handleNewProject} onOpen={handleOpenFile} onSaveAs={handleSaveAs}
           recentFiles={recentFiles} onLoadRecent={handleLoadRecent}
+          onLoadSample={handleLoadSample}
         />
       </div>
 
