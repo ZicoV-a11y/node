@@ -56,7 +56,7 @@ function NodeGroup({ label, nodeKey, row1, row2 }) {
     <div className="sf-toolbar-section" style={{
       display: "flex", flexDirection: "row", alignItems: "center", gap: 4,
       background: NODE, border: `1px solid ${NODEBORDER}`,
-      borderRadius: 9, padding: "5px 8px",
+      borderRadius: 9, padding: "8px 8px",
       borderTop: `2px solid ${topColor}`,
       position: "relative",
       overflow: "visible",
@@ -203,14 +203,14 @@ export default function ToolbarSignalFlow({
     <div style={{
       background: BG,
       borderBottom: `1px solid ${NODEBORDER}`,
-      padding: "5px 10px",
+      padding: "7px 10px",
       display: "flex", alignItems: "center",
     }}>
         {/* Brand */}
         <div className="sf-toolbar-brand" style={{
           display: "flex", alignItems: "center", gap: 7,
           background: NODE, border: `1px solid ${NODEBORDER}`,
-          borderRadius: 9, padding: "5px 10px",
+          borderRadius: 9, padding: "8px 10px",
           flexShrink: 0, position: "relative",
           overflow: "visible",
         }}>
