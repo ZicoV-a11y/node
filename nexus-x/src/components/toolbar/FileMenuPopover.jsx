@@ -23,10 +23,15 @@ const S = {
   },
 };
 
+const SAMPLES = [
+  { label: 'GEAR', path: '/samples/gear.vsf' },
+];
+
 export default function FileMenuPopover({
   isOpen, onClose, anchorRef,
   onNew, onOpen, onSaveAs,
   recentFiles, onLoadRecent,
+  onLoadSample,
 }) {
   const ref = useRef(null);
 
@@ -66,6 +71,17 @@ export default function FileMenuPopover({
         onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
         Save As
       </button>
+
+      <div style={S.divider} />
+      <div style={S.label}>Samples</div>
+      {SAMPLES.map((s, i) => (
+        <button key={i} style={S.item}
+          onClick={() => { onLoadSample?.(s.path); onClose(); }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+          {s.label}
+        </button>
+      ))}
 
       {recentFiles.length > 0 && (
         <>

@@ -3269,6 +3269,17 @@ export default function App() {
   }, [applyProject]);
 
   // Load a recent project from IndexedDB
+  const handleLoadSample = useCallback(async (samplePath) => {
+    try {
+      const res = await fetch(samplePath);
+      const text = await res.text();
+      const project = importProject(text, samplePath.split('/').pop());
+      applyProject(project);
+    } catch (err) {
+      alert('Failed to load sample: ' + err.message);
+    }
+  }, [applyProject]);
+
   const handleLoadRecent = useCallback(async (recentFile) => {
     const project = await dbLoad(recentFile.projectId);
     if (project) {
@@ -3515,6 +3526,7 @@ export default function App() {
           handleSaveAs={handleSaveAs}
           recentFiles={recentFiles}
           handleLoadRecent={handleLoadRecent}
+          handleLoadSample={handleLoadSample}
           showRecents={showRecents}
           setShowRecents={setShowRecents}
           addNode={addNode}

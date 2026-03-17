@@ -8,66 +8,2975 @@
       "model": "E3",
       "tag": "",
       "signalColor": "red",
-      "deviceTypes": ["Switcher"],
+      "deviceTypes": [
+        "Switcher"
+      ],
       "primaryDeviceType": "Switcher",
       "layout": "a_b_c",
-      "sectionSpacing": { "a": 0, "b": 0, "c": 0 },
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
       "sections": {
         "a": {
           "title": "INPUT",
-          "cols": ["PORT", "CONNECTOR", "SOURCE", "RESOLUTION"],
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "RESOLUTION"
+          ],
           "cardSize": 4,
           "cardStartSlot": 1,
           "rows": [
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""],
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""],
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""],
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""]
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ]
           ]
         },
         "b": {
           "title": "OUTPUT",
-          "cols": ["PORT", "CONNECTOR", "SOURCE", "DESTINATION"],
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
           "cardSize": 4,
           "cardStartSlot": 5,
           "rows": [
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""],
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""],
-            ["1", "TRICOMBO", "", ""],
-            ["2", "TRICOMBO", "", ""],
-            ["3", "TRICOMBO", "", ""],
-            ["4", "TRICOMBO", "", ""]
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ]
           ]
         },
         "c": {
           "title": "SYSTEM",
-          "cols": ["PORT", "RATE", "CONNECTOR", "SOURCE", "DESTINATION"],
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
           "rows": [
-            ["CONTROL", "", "ETHERNET", "", ""],
-            ["DANTE 1", "", "ETHERNET", "", ""],
-            ["DANTE 2", "", "ETHERNET", "", ""],
-            ["LTC IN", "", "BNC", "", ""],
-            ["GENLOCK IN", "", "BNC", "", ""],
-            ["GENLOCK OUT", "", "BNC", "", ""]
+            [
+              "CONTROL",
+              "",
+              "ETHERNET",
+              "",
+              ""
+            ],
+            [
+              "DANTE 1",
+              "",
+              "ETHERNET",
+              "",
+              ""
+            ],
+            [
+              "DANTE 2",
+              "",
+              "ETHERNET",
+              "",
+              ""
+            ],
+            [
+              "LTC IN",
+              "",
+              "BNC",
+              "",
+              ""
+            ],
+            [
+              "GENLOCK IN",
+              "",
+              "BNC",
+              "",
+              ""
+            ],
+            [
+              "GENLOCK OUT",
+              "",
+              "BNC",
+              "",
+              ""
+            ]
           ]
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "bm-ursa-g2-builtin",
+      "label": "Blackmagic URSA Broadcast G2",
+      "title": "Node 6",
+      "manufacturer": "Blackmagic",
+      "model": "URSA Broadcast G2",
+      "tag": "",
+      "signalColor": "red",
+      "deviceTypes": [
+        "Source"
+      ],
+      "primaryDeviceType": "Source",
+      "layout": "c_a_b",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "RATE",
+            "RESOLUTION",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "SMPTE FIBER",
+              "59.94",
+              "3840x2160",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            4,
+            5
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "MULTIVIEW",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "panasonic-ue150-builtin",
+      "label": "Panasonic AW-UE150AKPJ",
+      "title": "PTZ 4K 1",
+      "manufacturer": "Panasonic",
+      "model": "AW-UE150AKPJ",
+      "tag": "",
+      "signalColor": "blue",
+      "deviceTypes": [
+        "Source"
+      ],
+      "primaryDeviceType": "Source",
+      "layout": "c_a_b",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "RATE",
+            "RESOLUTION",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "12G SDI",
+              "59.94",
+              "3840x2160",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            4,
+            5
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [
+        "b"
+      ],
+      "version": 3
+    },
+    {
+      "id": "bm-vh40x40-builtin",
+      "label": "Blackmagic Videohub 40x40",
+      "title": "Node 1",
+      "manufacturer": "Blackmagic",
+      "model": "Videohub 40x40",
+      "tag": "",
+      "signalColor": "orange",
+      "deviceTypes": [
+        "Router"
+      ],
+      "primaryDeviceType": "Router",
+      "layout": "c_ab",
+      "sectionSpacing": {
+        "a": 180,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "SOURCE",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "CAM 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 2",
+              "CAM 2",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 3",
+              "CAM 3",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 4",
+              "CAM 4",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 5",
+              "CAM 5",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 6",
+              "CAM 6",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 7",
+              "CAM 7",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 8",
+              "CAM 8",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 9",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 10",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 11",
+              "SRT 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 12",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 13",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 14",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 15",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 16",
+              "M/E 1",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 17",
+              "M/E 2",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 18",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 19",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 20",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 21",
+              "MAC 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 22",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 23",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 24",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 25",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 26",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 27",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 28",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 29",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 30",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 31",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 32",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 33",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 34",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 35",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 36",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 37",
+              "E3 1 B",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 38",
+              "E3 2 B",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 39",
+              "E3 1 M",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 40",
+              "E3 2 M",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            0,
+            0,
+            84,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            11,
+            0,
+            0,
+            0,
+            21,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "hiddenCols": [
+            3,
+            4,
+            5
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "SOURCE",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "CAM 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 2",
+              "CAM 2",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 3",
+              "CAM 3",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 4",
+              "CAM 4",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 5",
+              "CAM 5",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 6",
+              "CAM 6",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 7",
+              "CAM 7",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 8",
+              "CAM 8",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 9",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 10",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 11",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 12",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 13",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 14",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 15",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 16",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 17",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 18",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 19",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 20",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 21",
+              "MAC 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 22",
+              "MAC 2",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 23",
+              "MAC 3",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 24",
+              "MAC 4",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 25",
+              "SRT 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 26",
+              "SRT 2",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 27",
+              "SRT 3",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 28",
+              "SRT 4",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 29",
+              "M/E 1",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 30",
+              "M/E 2",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 31",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 32",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 33",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 34",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 35",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 36",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 37",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 38",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 39",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 40",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            239.35137006565122,
+            0,
+            0,
+            0,
+            34.08656952256349,
+            2.007070436379514,
+            1.6753151171474836,
+            3.3462862714790744,
+            2.3367805957959193,
+            2.333437882489269,
+            2.3449341543701516,
+            2.327474413012995,
+            2.340325647332608,
+            2.342791905912436,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "hiddenCols": [
+            5,
+            3,
+            4
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0
+          ],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "bm-vh20x20-builtin",
+      "label": "Blackmagic Videohub 20x20",
+      "title": "Node 2",
+      "manufacturer": "Blackmagic",
+      "model": "Videohub 20x20",
+      "tag": "",
+      "signalColor": "orange",
+      "deviceTypes": [
+        "Router"
+      ],
+      "primaryDeviceType": "Router",
+      "layout": "c_ab",
+      "sectionSpacing": {
+        "a": 930.9658977830762,
+        "b": 75.66388234778356,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 2",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 3",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 4",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 5",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 6",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 7",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 8",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 9",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 10",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 11",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 12",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 13",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 14",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 15",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 16",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 17",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 18",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 19",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 20",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "hiddenCols": [
+            3,
+            2,
+            5
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "3840x2160",
+              "",
+              "",
+              "MAC 1",
+              ""
+            ],
+            [
+              "OUT 2",
+              "3840x2160",
+              "",
+              "",
+              "MAC 2",
+              ""
+            ],
+            [
+              "OUT 3",
+              "3840x2160",
+              "",
+              "",
+              "MAC 3",
+              ""
+            ],
+            [
+              "OUT 4",
+              "3840x2160",
+              "",
+              "",
+              "MAC 4",
+              ""
+            ],
+            [
+              "OUT 5",
+              "3840x2160",
+              "",
+              "",
+              "SRT 1",
+              ""
+            ],
+            [
+              "OUT 6",
+              "3840x2160",
+              "",
+              "",
+              "SRT 2",
+              ""
+            ],
+            [
+              "OUT 7",
+              "3840x2160",
+              "",
+              "",
+              "SRT 3",
+              ""
+            ],
+            [
+              "OUT 8",
+              "3840x2160",
+              "",
+              "",
+              "SRT 4",
+              ""
+            ],
+            [
+              "OUT 9",
+              "3840x2160",
+              "",
+              "",
+              "M/E 1",
+              ""
+            ],
+            [
+              "OUT 10",
+              "3840x2160",
+              "",
+              "",
+              "M/E 2",
+              ""
+            ],
+            [
+              "OUT 11",
+              "3840x2160",
+              "",
+              "",
+              "MAC 1",
+              ""
+            ],
+            [
+              "OUT 12",
+              "3840x2160",
+              "",
+              "",
+              "MAC 2",
+              ""
+            ],
+            [
+              "OUT 13",
+              "3840x2160",
+              "",
+              "",
+              "MAC 3",
+              ""
+            ],
+            [
+              "OUT 14",
+              "3840x2160",
+              "",
+              "",
+              "MAC 4",
+              ""
+            ],
+            [
+              "OUT 15",
+              "3840x2160",
+              "",
+              "",
+              "SRT 1",
+              ""
+            ],
+            [
+              "OUT 16",
+              "3840x2160",
+              "",
+              "",
+              "SRT 2",
+              ""
+            ],
+            [
+              "OUT 17",
+              "3840x2160",
+              "",
+              "",
+              "SRT 3",
+              ""
+            ],
+            [
+              "OUT 18",
+              "3840x2160",
+              "",
+              "",
+              "SRT 4",
+              ""
+            ],
+            [
+              "OUT 19",
+              "3840x2160",
+              "",
+              "",
+              "M/E 1",
+              ""
+            ],
+            [
+              "OUT 20",
+              "3840x2160",
+              "",
+              "",
+              "M/E 2",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            1.506860256494256,
+            20.94040289360981,
+            1.5051098967056933,
+            1.4935627232253417,
+            1.502262556239943,
+            20.92930062786682,
+            1.5004193702418254,
+            1.507426161551379,
+            0.8408187052985149,
+            463.74633547087456,
+            2.5762630979416987,
+            2.5746696597783374,
+            2.5729132261699164,
+            22.557191567855426,
+            2.57624185209943,
+            2.5746128935439425,
+            2.5728992835859983,
+            22.557319042912876,
+            2.58151752785259
+          ],
+          "hiddenCols": [
+            3,
+            2,
+            5
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0
+          ],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "bm-atem2me-builtin",
+      "label": "Blackmagic ATEM 2 M/E Constellation ",
+      "title": "",
+      "manufacturer": "Blackmagic",
+      "model": "ATEM 2 M/E Constellation ",
+      "tag": "",
+      "signalColor": "lime",
+      "deviceTypes": [
+        "Switcher",
+        "Source",
+        "Destination",
+        "Router"
+      ],
+      "primaryDeviceType": "Switcher",
+      "layout": "c_ab",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "SOURCE",
+            "RATE",
+            "CONNECTOR",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 2",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 3",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 4",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 5",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 6",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 7",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 8",
+              "3840x2160",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 9",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 10",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 11",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 12",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 13",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 14",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 15",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 16",
+              "",
+              "40X40",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 17",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 18",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 19",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "IN 20",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "hiddenCols": [
+            3,
+            4,
+            5
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "DESTINATION",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE"
+          ],
+          "rows": [
+            [
+              "M/E 1",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "M/E 2",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "PGM 1",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "PGM 2",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "PMG 3",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "PMG 4",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 7",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 8",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 9",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 10",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 11",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT 12",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "M/V 1",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ],
+            [
+              "M/V 2",
+              "",
+              "3840x2160",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "hiddenCols": [
+            3,
+            4,
+            5,
+            1
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "MULTIVIEW",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "barco-e3-live-builtin",
+      "label": "Barco E3",
+      "title": "BACK UP",
+      "manufacturer": "Barco",
+      "model": "E3",
+      "tag": "",
+      "signalColor": "red",
+      "deviceTypes": [
+        "Switcher",
+        "Router",
+        "Source",
+        "Destination"
+      ],
+      "primaryDeviceType": "Switcher",
+      "layout": "c_ab",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "RESOLUTION"
+          ],
+          "cardSize": 4,
+          "cardStartSlot": 1,
+          "rows": [
+            [
+              "1",
+              "12G SDI",
+              "ATEM PGM 3",
+              "3840x2160"
+            ],
+            [
+              "2",
+              "12G SDI",
+              "ATEM PGM 4",
+              ""
+            ],
+            [
+              "3",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "TRICOMBO",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "DP 1.2",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "DP 1.2",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "DP 1.2",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "DP 1.2",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            -1.4394294535570025,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "cardSize": 4,
+          "cardStartSlot": 5,
+          "rows": [
+            [
+              "1",
+              "12G SDI",
+              "CAM 1",
+              ""
+            ],
+            [
+              "2",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "3",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "12G SDI",
+              "",
+              "40X40"
+            ],
+            [
+              "2",
+              "12G SDI",
+              "",
+              "40X40"
+            ],
+            [
+              "3",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "4",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "1",
+              "12G SDI",
+              "",
+              ""
+            ],
+            [
+              "2",
+              "12G SDI",
+              "",
+              "SX40 1"
+            ],
+            [
+              "3",
+              "12G SDI",
+              "",
+              "SX40 2"
+            ],
+            [
+              "4",
+              "12G SDI",
+              "",
+              "SX40 3"
+            ]
+          ],
+          "hiddenCols": [
+            2
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION",
+            "RATE"
+          ],
+          "rows": [
+            [
+              "CONTROL",
+              "ETHERNET",
+              "",
+              "",
+              ""
+            ],
+            [
+              "DANTE 1",
+              "ETHERNET",
+              "",
+              "",
+              ""
+            ],
+            [
+              "DANTE 2",
+              "ETHERNET",
+              "",
+              "",
+              ""
+            ],
+            [
+              "LTC IN",
+              "BNC",
+              "",
+              "",
+              ""
+            ],
+            [
+              "GENLOCK IN",
+              "BNC",
+              "",
+              "",
+              ""
+            ],
+            [
+              "GENLOCK OUT",
+              "BNC",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "collapsed": true,
+          "ip": "192.168.7.150"
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "bm-hyperdeck-4k-builtin",
+      "label": "Blackmagic HyperDeck Studio 4K Pro",
+      "title": "Node 1",
+      "manufacturer": "Blackmagic",
+      "model": "HyperDeck Studio 4K Pro",
+      "tag": "",
+      "signalColor": "mint",
+      "deviceTypes": [
+        "Destination"
+      ],
+      "primaryDeviceType": "Destination",
+      "layout": "a_b_c",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            2,
+            3,
+            5
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            1,
+            2,
+            3,
+            5
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "collapsed": true,
+          "rowSpacing": []
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "brompton-sx40-builtin",
+      "label": "Brompton SX-40",
+      "title": "OVERHEAD LED",
+      "manufacturer": "Brompton",
+      "model": "SX-40",
+      "tag": "",
+      "signalColor": "wine",
+      "deviceTypes": [
+        "Destination",
+        "Source"
+      ],
+      "primaryDeviceType": "Destination",
+      "layout": "c_ab",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "SOURCE",
+            "RESOLUTION",
+            "RATE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "12G SDI",
+              "E3 B",
+              "3840x2160",
+              "",
+              ""
+            ],
+            [
+              "IN 2",
+              "HDMI 2.0",
+              "",
+              "3840x2160",
+              "",
+              ""
+            ]
+          ],
+          "hiddenCols": [
+            5,
+            4,
+            2
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "RESOLUTION",
+            "RATE",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT A",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT C",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT C",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "OUT D",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0,
+            0
+          ],
+          "hiddenCols": [
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            4,
+            3
+          ],
+          "collapsed": true
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "bm-fiber-conv-builtin",
+      "label": "Blackmagic Studio Fiber Converter",
+      "title": "Node 4",
+      "manufacturer": "Blackmagic",
+      "model": "Studio Fiber Converter",
+      "tag": "",
+      "signalColor": "red",
+      "deviceTypes": [
+        "Converter"
+      ],
+      "primaryDeviceType": "Converter",
+      "layout": "a_b_c",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "RESOLUTION",
+            "RATE",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "SMPTE FIBER",
+              "3840x2160",
+              "59.94",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            4,
+            5
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "CONNECTOR",
+            "RATE",
+            "RESOLUTION",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "12G SDI",
+              "59.94",
+              "3840x2160",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            5,
+            4
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [
+        "b"
+      ],
+      "version": 3
+    },
+    {
+      "id": "apple-mbp-builtin",
+      "label": "APPLE MAC BOOK PRO",
+      "title": "Node 1",
+      "manufacturer": "APPLE",
+      "model": "MAC BOOK PRO",
+      "tag": "",
+      "signalColor": "navy",
+      "deviceTypes": [
+        "Source"
+      ],
+      "primaryDeviceType": "Source",
+      "layout": "a_b_c",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "3840x2160",
+              "60",
+              "HDMI 2.0",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [],
+          "hiddenCols": [
+            5,
+            4
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [
+        "b"
+      ],
+      "version": 3
+    },
+    {
+      "id": "media-server-builtin",
+      "label": "media SERVER",
+      "title": "RESOULME B",
+      "manufacturer": "media",
+      "model": "SERVER",
+      "tag": "",
+      "signalColor": "pink",
+      "deviceTypes": [
+        "Source"
+      ],
+      "primaryDeviceType": "Source",
+      "layout": "a_b_c",
+      "sectionSpacing": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "IN 1",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": [
+            "PORT",
+            "RESOLUTION",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "OUT 1",
+              "3840x2160",
+              "60",
+              " DP 1.2 ",
+              "",
+              ""
+            ],
+            [
+              "OUT 2",
+              "3840x2160",
+              "60",
+              " DP 1.2 ",
+              "",
+              ""
+            ],
+            [
+              "OUT 3",
+              "3840x2160",
+              "60",
+              " DP 1.2 ",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": [
+            0
+          ],
+          "hiddenCols": [
+            4,
+            5,
+            2
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "cols": [
+            "PORT",
+            "RATE",
+            "CONNECTOR",
+            "SOURCE",
+            "DESTINATION"
+          ],
+          "rows": [
+            [
+              "NETWORK",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "rowSpacing": []
         }
       },
       "hiddenSections": [],

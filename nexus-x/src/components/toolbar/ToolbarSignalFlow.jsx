@@ -170,7 +170,7 @@ export default function ToolbarSignalFlow({
   sidePanelOpen, setSidePanelOpen,
   history, future, undo, redo,
   handleNewProject, handleOpenFile, handleSaveAs,
-  recentFiles, handleLoadRecent, showRecents, setShowRecents,
+  recentFiles, handleLoadRecent, showRecents, setShowRecents, handleLoadSample,
   APP_VERSION,
   paperEnabled, setPaperEnabled,
   paperSize, handlePaperSizeChange, PAPER_SIZES,
@@ -260,6 +260,7 @@ export default function ToolbarSignalFlow({
             <Btn onClick={handleNewProject}>New</Btn>
             <Btn onClick={handleOpenFile}>Open</Btn>
             <Btn onClick={handleSaveAs}>Save</Btn>
+            <Btn onClick={() => handleLoadSample?.('/samples/gear.vsf')} title="Load GEAR sample project">GEAR</Btn>
             <div style={{ position: 'relative' }}>
               <Btn accent onClick={() => setShowRecents(p => !p)} title="Recent projects">
                 Recents{recentFiles.length > 0 ? ` (${recentFiles.length})` : ''}
