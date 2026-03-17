@@ -20,7 +20,7 @@ const nodeThemes = {
 
 function Wire({ live }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", width: 38, flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", width: 20, flexShrink: 0 }}>
       <div style={{ flex: 1, height: 1, background: live ? "rgba(107,158,221,0.25)" : "#2a2a27" }} />
       <div style={{
         width: 7, height: 7,
@@ -54,30 +54,24 @@ function NodeGroup({ label, nodeKey, row1, row2 }) {
   const labelColor = nd ? nd.color : "#3a3a3a";
   return (
     <div className="sf-toolbar-section" style={{
-      display: "flex", flexDirection: "column", gap: 4,
+      display: "flex", flexDirection: "row", alignItems: "center", gap: 4,
       background: NODE, border: `1px solid ${NODEBORDER}`,
-      borderRadius: 14, padding: "8px 12px",
-      borderTop: `2.5px solid ${topColor}`,
+      borderRadius: 9, padding: "5px 8px",
+      borderTop: `2px solid ${topColor}`,
       position: "relative",
       overflow: "visible",
     }}>
       <Port color={topColor} side="left" />
       <Port color={topColor} side="right" />
       <span style={{
-        color: labelColor, fontSize: 9, fontFamily: ui,
-        fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase",
-        opacity: 0.45,
+        color: labelColor, fontSize: 8, fontFamily: ui,
+        fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase",
+        opacity: 0.45, flexShrink: 0,
       }}>{label}</span>
-      {row1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          {row1}
-        </div>
-      )}
-      {row2 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          {row2}
-        </div>
-      )}
+      <Divider />
+      {row1}
+      {row1 && row2 && <Divider />}
+      {row2}
     </div>
   );
 }
@@ -99,9 +93,9 @@ function Btn({ children, on, accent, nodeKey, onClick, title, disabled }) {
       style={{
         background: on ? accentBg : h ? "rgba(255,255,255,0.03)" : "transparent",
         border: `1px solid ${on ? accentBorder : h ? "#333" : NODEBORDER}`,
-        borderRadius: 8, padding: "4px 9px",
+        borderRadius: 6, padding: "3px 7px",
         color: disabled ? "#333" : on ? accentColor : accent ? BRAND : h ? TEXTHI : TEXT,
-        fontSize: 11, fontWeight: on ? 600 : 400,
+        fontSize: 10, fontWeight: on ? 600 : 400,
         fontFamily: ui, cursor: disabled ? "not-allowed" : "pointer",
         transition: "all 0.12s ease",
         whiteSpace: "nowrap",
@@ -113,7 +107,7 @@ function Btn({ children, on, accent, nodeKey, onClick, title, disabled }) {
 function Val({ children, mono }) {
   return (
     <span style={{
-      color: WHITE, fontSize: 11.5,
+      color: WHITE, fontSize: 10,
       fontFamily: mono ? codeFn : ui,
       fontWeight: 500,
       fontVariantNumeric: "tabular-nums",
@@ -125,9 +119,9 @@ function ZoomControl({ value, onChange }) {
   const pct = Math.max(0, Math.min(100, ((value - 0.05) / (8 - 0.05)) * 100));
   const c = nodeThemes.view.color;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
       <ZBtn onClick={() => onChange(Math.max(0.05, value - 0.25))}>−</ZBtn>
-      <div style={{ position: "relative", width: 56, height: 14, display: "flex", alignItems: "center" }}>
+      <div style={{ position: "relative", width: 44, height: 14, display: "flex", alignItems: "center" }}>
         <div style={{ position: "absolute", width: "100%", height: 2, borderRadius: 1, background: "#2a2a27" }} />
         <div style={{ position: "absolute", width: `${pct}%`, height: 2, borderRadius: 1, background: c }} />
         <input type="range" min={5} max={800} value={Math.round(value * 100)}
@@ -209,14 +203,14 @@ export default function ToolbarSignalFlow({
     <div style={{
       background: BG,
       borderBottom: `1px solid ${NODEBORDER}`,
-      padding: "8px 12px",
+      padding: "5px 10px",
       display: "flex", alignItems: "center",
     }}>
         {/* Brand */}
         <div className="sf-toolbar-brand" style={{
-          display: "flex", alignItems: "center", gap: 10,
+          display: "flex", alignItems: "center", gap: 7,
           background: NODE, border: `1px solid ${NODEBORDER}`,
-          borderRadius: 14, padding: "8px 14px",
+          borderRadius: 9, padding: "5px 10px",
           flexShrink: 0, position: "relative",
           overflow: "visible",
         }}>
@@ -226,27 +220,27 @@ export default function ToolbarSignalFlow({
               className="sf-toolbar-logo"
               onClick={() => setShowChangelog(p => !p)}
               style={{
-                width: 34, height: 40, borderRadius: 8,
+                width: 28, height: 32, borderRadius: 6,
                 background: "rgba(107,158,221,0.08)",
                 border: "1.5px solid rgba(107,158,221,0.3)",
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 gap: 1, cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 800, color: BRAND, fontFamily: ui, letterSpacing: 0.5, lineHeight: 1 }}>SF</span>
-              <span style={{ fontSize: 7, fontWeight: 500, color: "rgba(107,158,221,0.5)", fontFamily: ui, lineHeight: 1 }}>v{APP_VERSION}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: BRAND, fontFamily: ui, letterSpacing: 0.5, lineHeight: 1 }}>SF</span>
+              <span style={{ fontSize: 6, fontWeight: 500, color: "rgba(107,158,221,0.5)", fontFamily: ui, lineHeight: 1 }}>v{APP_VERSION}</span>
             </button>
             <ChangelogPopup isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
           </div>
           <div>
-            <div style={{ color: WHITE, fontSize: 13, fontWeight: 600, fontFamily: ui }}>
+            <div style={{ color: WHITE, fontSize: 11, fontWeight: 600, fontFamily: ui }}>
               Signal Flow
             </div>
-            <div style={{ color: "#3a3a37", fontSize: 10, fontFamily: ui, marginTop: 1 }}>
+            <div style={{ color: "#3a3a37", fontSize: 9, fontFamily: ui, marginTop: 1 }}>
               {nodeCount} node{nodeCount !== 1 ? 's' : ''} · {wireCount} wire{wireCount !== 1 ? 's' : ''}
             </div>
           </div>
-          <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
+          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.08)', margin: '0 2px' }} />
           <Btn on={sidePanelOpen} nodeKey="file" onClick={() => setSidePanelOpen(p => !p)} title="Toggle library panel">Library</Btn>
           <Btn onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)">Undo</Btn>
           <Btn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">Redo</Btn>
@@ -310,8 +304,8 @@ export default function ToolbarSignalFlow({
               onChange={(e) => handlePaperSizeChange(e.target.value)}
               style={{
                 background: NODE, border: `1px solid ${NODEBORDER}`,
-                borderRadius: 6, padding: "3px 6px",
-                color: WHITE, fontSize: 11, fontFamily: ui,
+                borderRadius: 5, padding: "2px 4px",
+                color: WHITE, fontSize: 10, fontFamily: ui,
                 cursor: "pointer", outline: "none",
               }}
             >
@@ -323,13 +317,13 @@ export default function ToolbarSignalFlow({
               <>
                 <input type="number" value={customWidth}
                   onChange={(e) => handleCustomSizeChange(+e.target.value || 100, customHeight)}
-                  style={{ width: 48, background: NODE, border: `1px solid ${NODEBORDER}`, borderRadius: 4, padding: "3px 4px", color: WHITE, fontSize: 10, fontFamily: codeFn, outline: "none" }}
+                  style={{ width: 42, background: NODE, border: `1px solid ${NODEBORDER}`, borderRadius: 4, padding: "2px 3px", color: WHITE, fontSize: 9, fontFamily: codeFn, outline: "none" }}
                   min="100" title="Custom width (px)"
                 />
-                <span style={{ color: TEXT, fontSize: 10 }}>×</span>
+                <span style={{ color: TEXT, fontSize: 9 }}>×</span>
                 <input type="number" value={customHeight}
                   onChange={(e) => handleCustomSizeChange(customWidth, +e.target.value || 100)}
-                  style={{ width: 48, background: NODE, border: `1px solid ${NODEBORDER}`, borderRadius: 4, padding: "3px 4px", color: WHITE, fontSize: 10, fontFamily: codeFn, outline: "none" }}
+                  style={{ width: 42, background: NODE, border: `1px solid ${NODEBORDER}`, borderRadius: 4, padding: "2px 3px", color: WHITE, fontSize: 9, fontFamily: codeFn, outline: "none" }}
                   min="100" title="Custom height (px)"
                 />
               </>
@@ -372,9 +366,10 @@ export default function ToolbarSignalFlow({
               title="Export resolution"
               style={{
                 background: NODE, border: `1px solid ${NODEBORDER}`,
-                borderRadius: 6, padding: "3px 6px",
-                color: WHITE, fontSize: 11, fontFamily: ui,
+                borderRadius: 5, padding: "2px 4px",
+                color: WHITE, fontSize: 10, fontFamily: ui,
                 cursor: "pointer", outline: "none",
+                maxWidth: 120,
               }}
             >
               {EXPORT_PRESETS.map(p => (
