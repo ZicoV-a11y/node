@@ -68,9 +68,11 @@ function NodeGroup({ label, nodeKey, row1, row2 }) {
         fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase",
         opacity: 0.45,
       }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        {row1}
-      </div>
+      {row1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {row1}
+        </div>
+      )}
       {row2 && (
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           {row2}
@@ -244,18 +246,16 @@ export default function ToolbarSignalFlow({
               {nodeCount} node{nodeCount !== 1 ? 's' : ''} · {wireCount} wire{wireCount !== 1 ? 's' : ''}
             </div>
           </div>
+          <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
+          <Btn on={sidePanelOpen} nodeKey="file" onClick={() => setSidePanelOpen(p => !p)} title="Toggle library panel">Library</Btn>
+          <Btn onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)">Undo</Btn>
+          <Btn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">Redo</Btn>
         </div>
 
         <Wire live />
 
         {/* File */}
         <NodeGroup label="file" nodeKey="file"
-          row1={<>
-            <Btn on={sidePanelOpen} nodeKey="file" onClick={() => setSidePanelOpen(p => !p)} title="Toggle library panel">Library</Btn>
-            <Divider />
-            <Btn onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)">Undo</Btn>
-            <Btn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">Redo</Btn>
-          </>}
           row2={<>
             <Btn onClick={handleNewProject}>New</Btn>
             <Btn onClick={handleOpenFile}>Open</Btn>
