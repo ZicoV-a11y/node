@@ -260,7 +260,7 @@ export default function ToolbarSignalFlow({
             <Btn onClick={handleNewProject}>New</Btn>
             <Btn onClick={handleOpenFile}>Open</Btn>
             <Btn onClick={handleSaveAs}>Save</Btn>
-            <Btn onClick={() => handleLoadSample?.('/samples/gear.vsf')} title="Load GEAR sample project">GEAR</Btn>
+            <Btn onClick={() => handleLoadSample?.(`${import.meta.env.BASE_URL}samples/gear.vsf`)} title="Load GEAR sample project">GEAR</Btn>
             <div style={{ position: 'relative' }}>
               <Btn accent onClick={() => setShowRecents(p => !p)} title="Recent projects">
                 Recents{recentFiles.length > 0 ? ` (${recentFiles.length})` : ''}
