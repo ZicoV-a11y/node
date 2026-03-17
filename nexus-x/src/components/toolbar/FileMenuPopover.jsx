@@ -24,7 +24,7 @@ const S = {
 };
 
 const SAMPLES = [
-  { label: 'GEAR', path: '/samples/gear.vsf' },
+  { label: 'GEAR', path: `${import.meta.env.BASE_URL}samples/gear.vsf` },
 ];
 
 export default function FileMenuPopover({
