@@ -2030,18 +2030,16 @@ function Node313({
         const sp0 = node.sectionSpacing?.[row[0]] || 0;
         const sp1 = node.sectionSpacing?.[row[1]] || 0;
         const isLastRow = rowIndex === layout.length - 1;
-        // L-shaped border: left col gets left+right(divider)+bottom, right col gets right+bottom
+        // Outer container owns left+right borders; children provide divider and bottom
         const leftWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          borderLeft: nodeBorderStyle,
-          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px' } : {}),
+          borderRight: nodeBorderStyle,
+          ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
           background: T.card,
         } : STYLES.sectionWrap;
         const rightWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          borderLeft: nodeBorderStyle,
-          borderRight: nodeBorderStyle,
-          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomRightRadius: '4px' } : {}),
+          ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
           background: T.card,
         } : STYLES.sectionWrap;
         elements.push(
@@ -2107,9 +2105,7 @@ function Node313({
             style={{
               position: 'relative',
               ...(sideBySideIsLastRow ? {
-                borderLeft: nodeBorderStyle,
-                borderRight: nodeBorderStyle,
-                ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' } : {}),
+                ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
                 background: T.card,
               } : {}),
             }}
@@ -2171,9 +2167,8 @@ function Node313({
       base.borderColor = signalColorHex;
     }
     if (sideBySideIsLastRow) {
-      base.border = 'none';
-      base.background = 'transparent';
-      base.overflow = 'visible';
+      base.borderTop = 'none';
+      base.borderBottom = 'none';
     }
     return base;
   }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex, sideBySideIsLastRow]);
@@ -2213,8 +2208,6 @@ function Node313({
     }
     if (sideBySideIsLastRow) {
       base.borderTop = nodeBorderStyle;
-      base.borderLeft = nodeBorderStyle;
-      base.borderRight = nodeBorderStyle;
       if (!signalColorHex) base.background = T.card;
     }
     return base;
@@ -2229,7 +2222,7 @@ function Node313({
       data-node-scale={node.scale || 1}
     >
       {/* Top accent line — tapers to pin on name (left) side */}
-      <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)', ...(sideBySideIsLastRow ? { borderLeft: nodeBorderStyle, borderRight: nodeBorderStyle } : {}) }} />
+      <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />
 
       {/* Title bar — single row: Name | TAG | Manufacturer · Model | buttons */}
       <div className="n313-title-bar" style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
