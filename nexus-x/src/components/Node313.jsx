@@ -2034,12 +2034,12 @@ function Node313({
         const leftWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
           borderLeft: nodeBorderStyle,
+          borderRight: nodeBorderStyle,
           ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px' } : {}),
           background: T.card,
         } : STYLES.sectionWrap;
         const rightWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          borderLeft: nodeBorderStyle,
           borderRight: nodeBorderStyle,
           ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomRightRadius: '4px' } : {}),
           background: T.card,
