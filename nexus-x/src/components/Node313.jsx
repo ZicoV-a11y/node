@@ -2227,8 +2227,8 @@ function Node313({
       data-node-id={node.id}
       data-node-scale={node.scale || 1}
     >
-      {/* Top accent line — tapers to pin on name (left) side */}
-      <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />
+      {/* Top accent line — tapers to pin on name (left) side; hidden in side-by-side mode where title bar borderTop provides the top edge */}
+      {!sideBySideIsLastRow && <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />}
 
       {/* Title bar — single row: Name | TAG | Manufacturer · Model | buttons */}
       <div className="n313-title-bar" style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
