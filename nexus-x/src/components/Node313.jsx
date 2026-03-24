@@ -2032,11 +2032,13 @@ function Node313({
         const isLastRow = rowIndex === layout.length - 1;
         const leftWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
+          alignSelf: 'stretch',
           borderRight: nodeBorderStyle,
           background: T.card,
         } : STYLES.sectionWrap;
         const rightWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
+          alignSelf: 'stretch',
           background: T.card,
         } : STYLES.sectionWrap;
         elements.push(
