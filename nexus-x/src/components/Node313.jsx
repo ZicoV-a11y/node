@@ -2030,18 +2030,16 @@ function Node313({
         const sp0 = node.sectionSpacing?.[row[0]] || 0;
         const sp1 = node.sectionSpacing?.[row[1]] || 0;
         const isLastRow = rowIndex === layout.length - 1;
-        // L-shaped border: left col gets left+right(divider)+bottom, right col gets right+bottom
+        // Outer container owns left/right borders; children only provide divider and bottom
         const leftWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          borderLeft: nodeBorderStyle,
           borderRight: nodeBorderStyle,
-          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px' } : {}),
+          ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
           background: T.card,
         } : STYLES.sectionWrap;
         const rightWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          borderRight: nodeBorderStyle,
-          ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomRightRadius: '4px' } : {}),
+          ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
           background: T.card,
         } : STYLES.sectionWrap;
         elements.push(
@@ -2107,9 +2105,7 @@ function Node313({
             style={{
               position: 'relative',
               ...(sideBySideIsLastRow ? {
-                borderLeft: nodeBorderStyle,
-                borderRight: nodeBorderStyle,
-                ...(isLastRow ? { borderBottom: nodeBorderStyle, borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' } : {}),
+                ...(isLastRow ? { borderBottom: nodeBorderStyle } : {}),
                 background: T.card,
               } : {}),
             }}
@@ -2171,7 +2167,8 @@ function Node313({
       base.borderColor = signalColorHex;
     }
     if (sideBySideIsLastRow) {
-      base.border = 'none';
+      base.borderTop = 'none';
+      base.borderBottom = 'none';
       base.background = 'transparent';
     }
     return base;
@@ -2212,8 +2209,6 @@ function Node313({
     }
     if (sideBySideIsLastRow) {
       base.borderTop = nodeBorderStyle;
-      base.borderLeft = nodeBorderStyle;
-      base.borderRight = nodeBorderStyle;
       if (!signalColorHex) base.background = T.card;
     }
     return base;
