@@ -2173,6 +2173,7 @@ function Node313({
     if (sideBySideIsLastRow) {
       base.border = 'none';
       base.background = 'transparent';
+      base.overflow = 'visible';
     }
     return base;
   }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex, sideBySideIsLastRow]);
@@ -2228,7 +2229,7 @@ function Node313({
       data-node-scale={node.scale || 1}
     >
       {/* Top accent line — tapers to pin on name (left) side */}
-      <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />
+      <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)', ...(sideBySideIsLastRow ? { borderLeft: nodeBorderStyle, borderRight: nodeBorderStyle } : {}) }} />
 
       {/* Title bar — single row: Name | TAG | Manufacturer · Model | buttons */}
       <div className="n313-title-bar" style={titleBarStyle} onMouseDown={handleTitleMouseDown}>
