@@ -149,7 +149,9 @@ const DOT_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000
 const STYLES = {
   node: {
     position: 'absolute',
-    border: `2px solid ${T.border}`,
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: T.border,
     background: T.card,
     display: 'inline-flex',
     flexDirection: 'column',
@@ -218,6 +220,7 @@ const STYLES = {
   },
   sectionTitle: {
     background: T.bg,
+    borderTop: `2px solid ${T.border}`,
     borderBottom: `2px solid ${T.border}`,
     display: 'flex',
     alignItems: 'center',
@@ -792,7 +795,7 @@ DropZone.displayName = 'DropZone';
 // SECTION COMPONENT
 // ============================================
 
-const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap }) => {
+const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUpdate, signalColorHex, onFlip, colSizerValues, onGripDown, onSpacingDown, onAnchorClick, collapsible, isFirstRow, hiddenSystemFields, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap, minRows }) => {
   const nc = section.cols.length;
   const rawHidden = section.hiddenCols || [];
   const hiddenCols = rawHidden.filter(ci => ci >= 0 && ci < nc);
@@ -1359,15 +1362,15 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     return result;
   };
 
-  const wrapperStyle = fullWidth ? STYLES.sectionFull : { borderBottom: `2px solid ${signalColorHex || T.border}` };
+  const wrapperStyle = fullWidth ? STYLES.sectionFull : {};
 
   // Tinted styles when signal color is set
   const tintedSectionTitle = useMemo(() => {
     const base = { ...STYLES.sectionTitle, position: 'relative', ...(mirrored ? { flexDirection: 'row-reverse' } : {}) };
+    if (isFirstRow) base.marginTop = '-1px';
     if (signalColorHex) {
       base.borderTop = `2px solid ${signalColorHex}`;
       base.borderBottom = `2px solid ${signalColorHex}`;
-      if (isFirstRow) base.marginTop = '-1px';
       base.background = `linear-gradient(${mirrored ? '270deg' : '90deg'}, ${signalColorHex}30, ${signalColorHex}10 60%)`;
     }
     return base;
@@ -1593,6 +1596,8 @@ function Node313({
   getWireAxisSnap, getSpacingAxisSnap,
 }) {
   const nodeRef = useRef(null);
+  const abRowRef = useRef(null);
+  const [stepCut, setStepCut] = useState(null); // L-shape cutout measurements
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [dragSec, setDragSec] = useState(null);
@@ -1664,9 +1669,36 @@ function Node313({
 
   const layoutKey = node.layout || 'ab_c';
   const layout = LAYOUTS[layoutKey] || LAYOUTS['ab_c'];
-  // L-shaped border: when columns (a+b) are the last row, each column gets its own border
+  const hasSideBySide = layout.some(r => r.length === 2);
   const sideBySideIsLastRow = layout[layout.length - 1].length === 2;
   const nodeBorderStyle = `2px solid ${signalColorHex || T.border}`;
+
+  // ---- L-shape cutout: measure side-by-side section heights ----
+  // Use a callback ref on the abRow to measure immediately when it mounts/updates
+  const abRowMeasure = useCallback((abEl) => {
+    abRowRef.current = abEl;
+    if (!abEl || !nodeRef.current) return;
+    const children = abEl.children;
+    if (children.length < 3) return;
+    const leftWrap = children[0];
+    const rightWrap = children[2];
+    const lh = leftWrap.offsetHeight;
+    const rh = rightWrap.offsetHeight;
+    if (Math.abs(lh - rh) < 2) { setStepCut(null); return; }
+    const nw = nodeRef.current.offsetWidth;
+    const nh = nodeRef.current.offsetHeight;
+    const abTop = abEl.offsetTop;
+    const shorterIsLeft = lh < rh;
+    const divX = leftWrap.offsetLeft + leftWrap.offsetWidth + 1;
+    const shortY = abTop + Math.min(lh, rh);
+    setStepCut({ nw, nh, shortY, dividerX: divX, shorterIsLeft });
+  }, []);
+
+  // Re-measure when sections/layout change
+  useLayoutEffect(() => {
+    if (!hasSideBySide || !abRowRef.current) { setStepCut(null); return; }
+    abRowMeasure(abRowRef.current);
+  }, [hasSideBySide, node.sections, node.layout, node.headerHeight, node.sectionSpacing, node.hiddenSections, abRowMeasure]);
 
   // ---- Section updates ----
   const handleSectionUpdate = useCallback((sectionId, updates) => {
@@ -1969,7 +2001,7 @@ function Node313({
   }, [node.sections]);
 
   // ---- Render sections ----
-  const renderSection = useCallback((sectionId, fullWidth, layoutMirrored, isFirstRow) => {
+  const renderSection = useCallback((sectionId, fullWidth, layoutMirrored, isFirstRow, minRows) => {
     if (hiddenSections.includes(sectionId)) return null;
     const sec = node.sections[sectionId];
     if (!sec) return null;
@@ -2003,6 +2035,7 @@ function Node313({
         connectedSourceMap={connectedSourceMap}
         connectedDestinationMap={connectedDestinationMap}
         getSpacingAxisSnap={getSpacingAxisSnap}
+        minRows={minRows}
       />
     );
   }, [node.sections, node.id, handleSectionUpdate, hiddenSections, mirroredSections, signalColorHex, toggleSectionMirrored, colSizerValues, handleSectionGripDown, handleSectionSpacingDown, onAnchorClick, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap, getSpacingAxisSnap]);
@@ -2026,34 +2059,37 @@ function Node313({
       const overlapTop = rowIndex === 0 || (rowIndex > 0 && layout[rowIndex - 1].every(secId => node.sections[secId]?.collapsed));
 
       if (row.length === 2) {
-        // Side-by-side row
+        // Side-by-side row — pad shorter section with filler rows
+        const sec0 = node.sections[row[0]];
+        const sec1 = node.sections[row[1]];
+        const rows0 = sec0?.rows?.length || 0;
+        const rows1 = sec1?.rows?.length || 0;
+        const maxRows = Math.max(rows0, rows1);
+
         const sp0 = node.sectionSpacing?.[row[0]] || 0;
         const sp1 = node.sectionSpacing?.[row[1]] || 0;
         const isLastRow = rowIndex === layout.length - 1;
         const leftWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          alignSelf: 'stretch',
-          borderRight: nodeBorderStyle,
           background: T.card,
         } : STYLES.sectionWrap;
         const rightWrapStyle = sideBySideIsLastRow ? {
           ...STYLES.sectionWrap,
-          alignSelf: 'stretch',
           background: T.card,
         } : STYLES.sectionWrap;
         elements.push(
-          <div key={rowIndex} style={{ ...STYLES.abRow, position: 'relative' }}>
+          <div key={rowIndex} ref={abRowMeasure} style={{ ...STYLES.abRow, position: 'relative' }}>
             <div style={leftWrapStyle}>
               {sp0 > 0 && <div style={{ height: `${sp0}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
-                {renderSection(row[0], false, false, overlapTop)}
+                {renderSection(row[0], false, false, overlapTop, maxRows)}
               </div>
             </div>
-            {!sideBySideIsLastRow && <div style={{ width: '2px', flexShrink: 0, background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />}
+            <div style={{ width: '2px', flexShrink: 0, alignSelf: 'stretch', background: signalColorHex || T.colDivider, pointerEvents: 'none' }} />
             <div style={rightWrapStyle}>
               {sp1 > 0 && <div style={{ height: `${sp1}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[1] ? STYLES.dragHighlight : undefined}>
-                {renderSection(row[1], false, true, overlapTop)}
+                {renderSection(row[1], false, true, overlapTop, maxRows)}
               </div>
             </div>
             {/* Overlay drop zones */}
@@ -2148,6 +2184,17 @@ function Node313({
   const totalScale = node.scale || 1;
 
   // Build node style with solid color tint
+  // Build clip-path polygon for L-shaped cutout
+  const clipPoly = useMemo(() => {
+    if (!stepCut) return null;
+    const { nw, nh, shortY, dividerX, shorterIsLeft } = stepCut;
+    if (shorterIsLeft) {
+      return `polygon(0px 0px, ${nw}px 0px, ${nw}px ${nh}px, ${dividerX}px ${nh}px, ${dividerX}px ${shortY}px, 0px ${shortY}px)`;
+    } else {
+      return `polygon(0px 0px, ${nw}px 0px, ${nw}px ${shortY}px, ${dividerX}px ${shortY}px, ${dividerX}px ${nh}px, 0px ${nh}px)`;
+    }
+  }, [stepCut]);
+
   const nodeStyle = useMemo(() => {
     const base = {
       ...STYLES.node,
@@ -2162,8 +2209,17 @@ function Node313({
     if (signalColorHex) {
       base.borderColor = signalColorHex;
     }
+    if (clipPoly) {
+      base.clipPath = clipPoly;
+      // Selection: outline ignores clip-path, use inset box-shadow via CSS class instead
+      base.outline = 'none';
+      base.outlineOffset = undefined;
+      if (isSelected) {
+        base['--n313-sel-color'] = signalColorHex || T.accent;
+      }
+    }
     return base;
-  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex]);
+  }, [node.position.x, node.position.y, totalScale, isSelected, isDragging, settingsOpen, signalColorHex, clipPoly]);
 
   // Header resize
   const headerHeight = node.headerHeight || 36;
@@ -2204,6 +2260,7 @@ function Node313({
   return (
     <div
       ref={nodeRef}
+      className={isSelected && clipPoly ? 'n313-sel' : undefined}
       style={nodeStyle}
       onClick={handleNodeClick}
       data-node-id={node.id}

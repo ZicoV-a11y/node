@@ -56,6 +56,7 @@ export default function ToolbarMinimal({
   history, future, undo, redo,
   // File
   handleNewProject, handleOpenFile, handleSaveAs, recentFiles, handleLoadRecent, handleLoadSample,
+  handleImportBackgroundImage,
   // Add node
   addNode,
   // Version
@@ -153,6 +154,7 @@ export default function ToolbarMinimal({
           onNew={handleNewProject} onOpen={handleOpenFile} onSaveAs={handleSaveAs}
           recentFiles={recentFiles} onLoadRecent={handleLoadRecent}
           onLoadSample={handleLoadSample}
+          onImportBackgroundImage={handleImportBackgroundImage}
         />
       </div>
 

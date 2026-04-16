@@ -32,6 +32,7 @@ export default function FileMenuPopover({
   onNew, onOpen, onSaveAs,
   recentFiles, onLoadRecent,
   onLoadSample,
+  onImportBackgroundImage,
 }) {
   const ref = useRef(null);
 
@@ -71,6 +72,17 @@ export default function FileMenuPopover({
         onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
         Save As
       </button>
+
+      {onImportBackgroundImage && (
+        <>
+          <div style={S.divider} />
+          <button style={S.item} onClick={() => { onImportBackgroundImage(); onClose(); }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+            Import Background Image…
+          </button>
+        </>
+      )}
 
       <div style={S.divider} />
       <div style={S.label}>Samples</div>

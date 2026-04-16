@@ -78,6 +78,10 @@
 [data-node-id] {
   border-radius: 8px 8px 0 0 !important;
 }
+/* NODE 313 — L-shape selection (overrides global box-shadow:none via higher specificity) */
+[data-node-id].n313-sel {
+  box-shadow: inset 0 0 0 3px var(--n313-sel-color, #4af) !important;
+}
 
 /* NODE 313 — Rounded title bar bottom corners */
 .n313-title-bar {

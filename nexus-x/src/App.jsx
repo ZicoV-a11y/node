@@ -7,9 +7,10 @@ import SidePanel from './components/SidePanel';
 import CanvasRulers from './components/canvas/CanvasRulers';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
 import TitleBlockOverlay from './components/canvas/TitleBlockOverlay';
+import BackgroundImage from './components/canvas/BackgroundImage';
 import CablePrompt from './components/CablePrompt';
 import { exportToCanvas } from './services/canvasExport';
-import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip, invertBlob, pngBlobsToPdf } from './services/storage';
+import { saveProject as dbSave, exportProject, importProject, loadProject as dbLoad, renderExportBlob, renderLayoutBlob, cropPageBlobs, downloadBlob, downloadZip, invertBlob, pngBlobsToPdf, putImageBlob, deleteImageBlob, revokeImageObjectUrl } from './services/storage';
 import { getRecentFiles, addToRecentFiles } from './services/recentFiles';
 import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
 import { usePageGrid } from './hooks/usePageGrid';
@@ -465,6 +466,11 @@ export default function App() {
   // Canvas state (single page)
   const [nodes, setNodes] = useState({});
   const [connections, setConnections] = useState([]);
+
+  // Background images (floor plans, layouts)
+  const [backgroundImages, setBackgroundImages] = useState([]);
+  const [selectedBackgroundImageId, setSelectedBackgroundImageId] = useState(null);
+  const bgImageInputRef = useRef(null);
 
   // Title block state
   const [showTitleBlock, setShowTitleBlock] = useState(() => {
@@ -2108,6 +2114,7 @@ export default function App() {
 
       setSelectedWires(new Set());
       setActiveWire(null);
+      setSelectedBackgroundImageId(null);
     }
     setShowRecents(false);
   };
@@ -3126,7 +3133,8 @@ export default function App() {
     nodes,
     connections,
     userPresets,
-  }), [projectId, projectName, paperSize, orientation, zoom, paperEnabled, customWidth, customHeight, snapToGrid, nodes, connections, userPresets]);
+    backgroundImages,
+  }), [projectId, projectName, paperSize, orientation, zoom, paperEnabled, customWidth, customHeight, snapToGrid, nodes, connections, userPresets, backgroundImages]);
 
   // Apply loaded project data to all state
   const applyProject = useCallback((project) => {
@@ -3155,9 +3163,76 @@ export default function App() {
     setSelectedWires(new Set());
     setActiveWire(null);
     setAnchorLocalOffsets({});
+    setBackgroundImages(project.backgroundImages || []);
+    setSelectedBackgroundImageId(null);
     // Fit view after state settles
     setTimeout(() => fitView(0.1), 50);
   }, [fitView, handlePaperSizeChange, handleOrientationChange, setPaperEnabled, handleCustomSizeChange]);
+
+  // ---- Background image CRUD ----
+  const handleAddBackgroundImage = useCallback(async (file) => {
+    if (!file) return;
+    const id = crypto.randomUUID();
+    // Measure natural dimensions
+    const tempUrl = URL.createObjectURL(file);
+    const img = new Image();
+    const natural = await new Promise((resolve, reject) => {
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = reject;
+      img.src = tempUrl;
+    });
+    URL.revokeObjectURL(tempUrl);
+
+    // Store blob in IDB
+    await putImageBlob(id, file, file.type);
+
+    // Position: center of current viewport; scale down if huge
+    const center = getViewportCenter(containerRef, panRef, zoomRef);
+    const maxInitial = 800;
+    let w = natural.w;
+    let h = natural.h;
+    if (w > maxInitial) { h = h * (maxInitial / w); w = maxInitial; }
+
+    setBackgroundImages(prev => [...prev, {
+      id,
+      blobKey: id,
+      x: center.x - w / 2,
+      y: center.y - h / 2,
+      width: w,
+      height: h,
+      naturalWidth: natural.w,
+      naturalHeight: natural.h,
+      locked: false,
+      opacity: 1.0,
+      name: file.name || 'Background',
+    }]);
+    setSelectedBackgroundImageId(id);
+  }, []);
+
+  const handleUpdateBackgroundImage = useCallback((id, patch) => {
+    setBackgroundImages(prev => prev.map(img => img.id === id ? { ...img, ...patch } : img));
+  }, []);
+
+  const handleDeleteBackgroundImage = useCallback(async (id) => {
+    setBackgroundImages(prev => prev.filter(img => img.id !== id));
+    setSelectedBackgroundImageId(curr => curr === id ? null : curr);
+    try { await deleteImageBlob(id); } catch { /* noop */ }
+    revokeImageObjectUrl(id);
+  }, []);
+
+  const handleToggleLockBackgroundImage = useCallback((id) => {
+    setBackgroundImages(prev => prev.map(img => img.id === id ? { ...img, locked: !img.locked } : img));
+  }, []);
+
+  const handleBackgroundImageFileChosen = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (file) await handleAddBackgroundImage(file);
+    event.target.value = '';
+  }, [handleAddBackgroundImage]);
+
+  const handleImportBackgroundImage = useCallback(() => {
+    bgImageInputRef.current?.click();
+  }, []);
 
   // New project
   const handleNewProject = useCallback(() => {
@@ -3170,6 +3245,8 @@ export default function App() {
     setSelectedWires(new Set());
     setActiveWire(null);
     setAnchorLocalOffsets({});
+    setBackgroundImages([]);
+    setSelectedBackgroundImageId(null);
     setTimeout(() => centerPage(), 50);
   }, [centerPage]);
 
@@ -3187,7 +3264,7 @@ export default function App() {
   // Save As — native dialog or fallback download + IndexedDB persist
   const handleSaveAs = useCallback(async () => {
     const project = buildProjectData();
-    const json = exportProject(project);
+    const json = await exportProject(project);
     const fileName = `${projectName.replace(/\s+/g, '_')}.vsf`;
 
     if ('showSaveFilePicker' in window) {
@@ -3232,7 +3309,7 @@ export default function App() {
         const file = await handle.getFile();
         const content = await file.text();
         try {
-          const project = importProject(content, file.name);
+          const project = await importProject(content, file.name);
           applyProject(project);
           await dbSave(project);
           setRecentFiles(addToRecentFiles(project.name, file.name, project.id));
@@ -3256,7 +3333,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const project = importProject(e.target.result, file.name);
+        const project = await importProject(e.target.result, file.name);
         applyProject(project);
         await dbSave(project);
         setRecentFiles(addToRecentFiles(project.name, file.name, project.id));
@@ -3273,7 +3350,7 @@ export default function App() {
     try {
       const res = await fetch(samplePath);
       const text = await res.text();
-      const project = importProject(text, samplePath.split('/').pop());
+      const project = await importProject(text, samplePath.split('/').pop());
       applyProject(project);
     } catch (err) {
       alert('Failed to load sample: ' + err.message);
@@ -3527,6 +3604,7 @@ export default function App() {
           recentFiles={recentFiles}
           handleLoadRecent={handleLoadRecent}
           handleLoadSample={handleLoadSample}
+          handleImportBackgroundImage={handleImportBackgroundImage}
           showRecents={showRecents}
           setShowRecents={setShowRecents}
           addNode={addNode}
@@ -3782,6 +3860,21 @@ export default function App() {
             </div>
           )}
 
+          {/* Background images (floor plans, layouts) — below nodes, above grid/title-block */}
+          {backgroundImages.map(img => (
+            <BackgroundImage
+              key={img.id}
+              image={img}
+              zoom={zoom}
+              canvasRef={canvasRef}
+              selected={selectedBackgroundImageId === img.id}
+              onSelect={setSelectedBackgroundImageId}
+              onUpdate={handleUpdateBackgroundImage}
+              onDelete={handleDeleteBackgroundImage}
+              onToggleLock={handleToggleLockBackgroundImage}
+            />
+          ))}
+
           {/* SVG Layer for Anchor Points — behind nodes (same z, earlier in DOM) */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
@@ -4004,6 +4097,7 @@ export default function App() {
         </div>
         <CanvasRulers ref={rulerRef} containerRef={containerRef} visible={showRulers} />
         <input ref={fileInputRef} type="file" accept=".vsf,.json,.sfw" onChange={handleFileChange} style={{ display: 'none' }} />
+        <input ref={bgImageInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" onChange={handleBackgroundImageFileChosen} style={{ display: 'none' }} />
 
         {/* Node group context menu */}
         {canvasContextMenu && createPortal(

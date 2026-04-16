@@ -4,23 +4,85 @@ import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 
 const DB_NAME = 'nexus-x';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'projects';
+const IMAGES_STORE = 'images';
 
 let dbPromise = null;
 
 function getDB() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
           store.createIndex('updatedAt', 'updatedAt');
+        }
+        if (oldVersion < 2 && !db.objectStoreNames.contains(IMAGES_STORE)) {
+          db.createObjectStore(IMAGES_STORE, { keyPath: 'id' });
         }
       },
     });
   }
   return dbPromise;
+}
+
+// ---- Background-image blob storage (IDB) ----
+
+const objectUrlCache = new Map(); // id -> objectURL
+
+export async function putImageBlob(id, blob, mime) {
+  const db = await getDB();
+  await db.put(IMAGES_STORE, { id, blob, mime: mime || blob.type || 'image/png' });
+}
+
+export async function getImageBlob(id) {
+  const db = await getDB();
+  const rec = await db.get(IMAGES_STORE, id);
+  return rec ? rec.blob : null;
+}
+
+export async function deleteImageBlob(id) {
+  const db = await getDB();
+  await db.delete(IMAGES_STORE, id);
+  revokeImageObjectUrl(id);
+}
+
+export async function getImageObjectUrl(id) {
+  if (objectUrlCache.has(id)) return objectUrlCache.get(id);
+  const blob = await getImageBlob(id);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  objectUrlCache.set(id, url);
+  return url;
+}
+
+export function revokeImageObjectUrl(id) {
+  const url = objectUrlCache.get(id);
+  if (url) {
+    URL.revokeObjectURL(url);
+    objectUrlCache.delete(id);
+  }
+}
+
+export function revokeAllImageUrls() {
+  for (const url of objectUrlCache.values()) {
+    URL.revokeObjectURL(url);
+  }
+  objectUrlCache.clear();
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(dataUrl) {
+  return fetch(dataUrl).then(r => r.blob());
 }
 
 export async function saveProject(project) {
@@ -38,11 +100,24 @@ export async function getAllProjects() {
   return db.getAllFromIndex(STORE_NAME, 'updatedAt');
 }
 
-export function exportProject(project) {
-  return JSON.stringify(project, null, 2);
+// Serialize a project to JSON, inlining referenced image blobs as data URLs.
+// bgImages: array of { id, blobKey, ... } entities. Each referenced blob is
+// fetched from IDB and embedded under _imageBlobs[id] for portability.
+export async function exportProject(project) {
+  const blobs = {};
+  const imgs = project.backgroundImages || [];
+  for (const img of imgs) {
+    const blob = await getImageBlob(img.blobKey || img.id);
+    if (blob) {
+      blobs[img.blobKey || img.id] = await blobToDataUrl(blob);
+    }
+  }
+  const payload = { ...project };
+  if (Object.keys(blobs).length > 0) payload._imageBlobs = blobs;
+  return JSON.stringify(payload, null, 2);
 }
 
-export function importProject(jsonString, fileName) {
+export async function importProject(jsonString, fileName) {
   const data = JSON.parse(jsonString);
 
   // NexusX native format: nodes as object + connections array
@@ -59,6 +134,20 @@ export function importProject(jsonString, fileName) {
   }
   else {
     throw new Error('Unrecognized project file format');
+  }
+
+  // Unpack embedded image blobs (if any) back into IDB
+  if (data._imageBlobs && typeof data._imageBlobs === 'object') {
+    for (const [id, dataUrl] of Object.entries(data._imageBlobs)) {
+      try {
+        const blob = await dataUrlToBlob(dataUrl);
+        await putImageBlob(id, blob, blob.type);
+      } catch (e) {
+        // If a blob fails to rehydrate, continue importing the rest
+        console.warn('Failed to import image blob', id, e);
+      }
+    }
+    delete data._imageBlobs;
   }
 
   const nameFromFile = fileName
