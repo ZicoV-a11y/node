@@ -275,6 +275,122 @@
       "version": 3
     },
     {
+      "id": "barco-s3-builtin",
+      "label": "Barco S3",
+      "title": "BARCO S3",
+      "manufacturer": "Barco",
+      "model": "S3",
+      "tag": "",
+      "signalColor": "red",
+      "deviceTypes": ["Switcher"],
+      "primaryDeviceType": "Switcher",
+      "layout": "c_ab",
+      "sectionSpacing": { "a": 0, "b": 0, "c": 0 },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": ["PORT", "CONNECTOR", "SOURCE", "RESOLUTION"],
+          "cardSize": 4,
+          "cardStartSlot": 1,
+          "rows": [
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""]
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": ["DESTINATION", "CONNECTOR", "PORT"],
+          "cardSize": 4,
+          "cardStartSlot": 5,
+          "rows": [
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"]
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "ip": "0.0.0.0",
+          "firmware": "0.0.0",
+          "software": "0.0.0",
+          "cols": ["PORT", "CONNECTOR"],
+          "rows": [
+            ["CONTROL", "ETHERNET"],
+            ["DANTE", "ETHERNET"]
+          ]
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
+      "id": "barco-e2-builtin",
+      "label": "Barco E2",
+      "title": "BARCO E2",
+      "manufacturer": "Barco",
+      "model": "E2",
+      "tag": "",
+      "signalColor": "red",
+      "deviceTypes": ["Switcher"],
+      "primaryDeviceType": "Switcher",
+      "layout": "c_ab",
+      "sectionSpacing": { "a": 0, "b": 0, "c": 0 },
+      "sections": {
+        "a": {
+          "title": "INPUT",
+          "cols": ["PORT", "CONNECTOR", "SOURCE", "RESOLUTION"],
+          "cardSize": 4,
+          "cardStartSlot": 1,
+          "rows": [
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""],
+            ["1", "TRICOMBO", "", ""], ["2", "TRICOMBO", "", ""], ["3", "TRICOMBO", "", ""], ["4", "TRICOMBO", "", ""]
+          ]
+        },
+        "b": {
+          "title": "OUTPUT",
+          "cols": ["DESTINATION", "CONNECTOR", "PORT"],
+          "cardSize": 4,
+          "cardStartSlot": 7,
+          "rows": [
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"],
+            ["", "TRICOMBO", "1"], ["", "TRICOMBO", "2"], ["", "TRICOMBO", "3"], ["", "TRICOMBO", "4"]
+          ]
+        },
+        "c": {
+          "title": "SYSTEM",
+          "ip": "0.0.0.0",
+          "firmware": "0.0.0",
+          "software": "0.0.0",
+          "cols": ["PORT", "CONNECTOR"],
+          "rows": [
+            ["CONTROL", "ETHERNET"],
+            ["DANTE 1", "ETHERNET"],
+            ["DANTE 2", "ETHERNET"],
+            ["LTC IN", "BNC"],
+            ["GENLOCK IN", "BNC"],
+            ["GENLOCK OUT", "BNC"]
+          ]
+        }
+      },
+      "hiddenSections": [],
+      "hiddenTitleFields": [],
+      "hiddenSystemFields": [],
+      "mirroredSections": [],
+      "version": 3
+    },
+    {
       "id": "bm-ursa-g2-builtin",
       "label": "Blackmagic URSA Broadcast G2",
       "title": "Node 6",

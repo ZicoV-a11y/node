@@ -56,6 +56,17 @@ const SIGNAL_COLORS = [
 const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
 
 // ============================================
+// CARD / SLOT TYPES (for modular switchers like Barco E2/E3/S3)
+// ============================================
+const CARD_TYPES = [
+  { id: 'tricombo', label: 'TRICOMBO', connector: 'TRICOMBO' },
+  { id: '12g-sdi',  label: '12G SDI',  connector: '12G SDI' },
+  { id: 'hdmi',     label: 'HDMI 2.0', connector: 'HDMI 2.0' },
+  { id: 'dp',       label: 'DP 1.2',   connector: 'DP 1.2' },
+  { id: 'hdbaset',  label: 'HDBaseT',  connector: 'HDBaseT' },
+];
+
+// ============================================
 // LAYOUT SYSTEM
 // ============================================
 
@@ -803,6 +814,7 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const canDel = nc > 1;
   const [contextMenu, setContextMenu] = useState(null); // { x, y, colIndex }
   const [selectedRows, setSelectedRows] = useState(new Set());
+  const [cardTypeMenu, setCardTypeMenu] = useState(null); // { cardIndex, x, y }
   const tableRef = useRef(null);
 
   // Card grouping (E3 Tricombo slots etc.)
@@ -866,6 +878,25 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
   const updateSection = useCallback((updates) => {
     onUpdate(sectionId, updates);
   }, [sectionId, onUpdate]);
+
+  // Change all connector values in a card/slot to a new card type
+  const changeCardType = useCallback((cardIndex, newConnector) => {
+    if (!cards || !cards[cardIndex]) return;
+    const { startRow, endRow } = cards[cardIndex];
+    // Find the connector column (usually index 1, or column named CONNECTOR)
+    const connCol = section.cols.findIndex(c => c.toUpperCase().includes('CONNECTOR'));
+    if (connCol < 0) return;
+    const newRows = section.rows.map((row, ri) => {
+      if (ri >= startRow && ri < endRow) {
+        const updated = [...row];
+        updated[connCol] = newConnector;
+        return updated;
+      }
+      return row;
+    });
+    updateSection({ rows: newRows });
+    setCardTypeMenu(null);
+  }, [cards, section.cols, section.rows, updateSection]);
 
   const addColumn = useCallback(() => {
     updateSection({
@@ -1190,6 +1221,14 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
     return () => window.removeEventListener('mousedown', dismiss);
   }, [contextMenu]);
 
+  // Dismiss card type menu on outside click
+  useEffect(() => {
+    if (!cardTypeMenu) return;
+    const dismiss = () => setCardTypeMenu(null);
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [cardTypeMenu]);
+
   // Count visible columns for spacer colspan
   const visibleColCount = nc - hiddenCols.length;
   // Total cell count: anchor(1) + visibleCols + x(1) + spacing(1)
@@ -1257,9 +1296,12 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
       );
     }
 
-    // Card header row showing slot number
+    // Card header row showing slot number + card type selector
     if (inCardMode && isCardFirst) {
       const slotNum = cardStartSlot + cardIndex;
+      // Detect current card type from the connector column of the first row in this card
+      const connCol = section.cols.findIndex(c => c.toUpperCase().includes('CONNECTOR'));
+      const currentConnector = connCol >= 0 ? (row[connCol] || '').toUpperCase() : '';
       result.push(
         <tr key={`card-hdr-${ri}`} className="n313-card-hdr">
           <td colSpan={totalColspan} style={{
@@ -1269,8 +1311,17 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
             fontSize: '9px', fontFamily: T.hFont, letterSpacing: '3px',
             textTransform: 'uppercase', color: signalColorHex || T.accent,
             height: '18px', boxSizing: 'border-box', lineHeight: 1,
-          }}>
+            cursor: 'pointer', position: 'relative',
+          }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCardTypeMenu(prev => prev?.cardIndex === cardIndex ? null : { cardIndex, x: rect.left, y: rect.bottom });
+            }}
+          >
             SLOT {slotNum}
+            {currentConnector && <span style={{ marginLeft: '8px', opacity: 0.5, fontSize: '8px', letterSpacing: '1px' }}>({currentConnector})</span>}
+            <span style={{ marginLeft: '4px', fontSize: '7px', opacity: 0.4 }}>▾</span>
           </td>
         </tr>
       );
@@ -1579,6 +1630,45 @@ const Section313 = memo(({ sectionId, section, nodeId, fullWidth, mirrored, onUp
         </div>,
         document.body
       )}
+
+      {/* Card type selector dropdown (portaled to body to escape transform) */}
+      {cardTypeMenu && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: cardTypeMenu.x,
+            top: cardTypeMenu.y + 2,
+            zIndex: 10001,
+            background: '#111',
+            border: `1px solid ${signalColorHex || T.borderStrong}`,
+            padding: '2px 0',
+            minWidth: 130,
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ padding: '3px 10px', fontSize: '8px', color: T.textMuted, letterSpacing: '2px', textTransform: 'uppercase' }}>Card Type</div>
+          {CARD_TYPES.map(ct => (
+            <div
+              key={ct.id}
+              style={{
+                ...STYLES.contextMenuItem,
+                cursor: 'pointer',
+                background: 'none',
+                padding: '5px 10px',
+                fontSize: '11px',
+                color: T.text,
+                letterSpacing: '1px',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              onClick={() => changeCardType(cardTypeMenu.cardIndex, ct.connector)}
+            >
+              {ct.label}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 });
@@ -1674,31 +1764,59 @@ function Node313({
   const nodeBorderStyle = `2px solid ${signalColorHex || T.border}`;
 
   // ---- L-shape cutout: measure side-by-side section heights ----
-  // Use a callback ref on the abRow to measure immediately when it mounts/updates
-  const abRowMeasure = useCallback((abEl) => {
-    abRowRef.current = abEl;
-    if (!abEl || !nodeRef.current) return;
+  const stepCutRef = useRef(null);
+
+  const measureStepCut = useCallback(() => {
+    const abEl = abRowRef.current;
+    const nodeEl = nodeRef.current;
+    if (!abEl || !nodeEl) return false;
     const children = abEl.children;
-    if (children.length < 3) return;
+    if (children.length < 3) return false;
     const leftWrap = children[0];
     const rightWrap = children[2];
     const lh = leftWrap.offsetHeight;
     const rh = rightWrap.offsetHeight;
-    if (Math.abs(lh - rh) < 2) { setStepCut(null); return; }
-    const nw = nodeRef.current.offsetWidth;
-    const nh = nodeRef.current.offsetHeight;
+    if (Math.abs(lh - rh) < 2) {
+      if (stepCutRef.current !== null) { stepCutRef.current = null; setStepCut(null); }
+      return false;
+    }
+    const nw = nodeEl.offsetWidth;
+    const nh = nodeEl.offsetHeight;
     const abTop = abEl.offsetTop;
     const shorterIsLeft = lh < rh;
-    const divX = leftWrap.offsetLeft + leftWrap.offsetWidth + 1;
+    // Measure the actual column divider element (children[1]) for exact alignment
+    const dividerEl = children[1];
+    const B = 2; // node border width
+    const divX = B + abEl.offsetLeft + dividerEl.offsetLeft + Math.round(dividerEl.offsetWidth / 2);
     const shortY = abTop + Math.min(lh, rh);
-    setStepCut({ nw, nh, shortY, dividerX: divX, shorterIsLeft });
+    // Only update state if values actually changed (avoids infinite re-render)
+    const prev = stepCutRef.current;
+    if (prev && prev.nw === nw && prev.nh === nh && prev.shortY === shortY
+        && prev.dividerX === divX && prev.shorterIsLeft === shorterIsLeft) {
+      return true; // Already correct, no update needed
+    }
+    const newCut = { nw, nh, shortY, dividerX: divX, shorterIsLeft };
+    stepCutRef.current = newCut;
+    setStepCut(newCut);
+    return true;
   }, []);
 
-  // Re-measure when sections/layout change
-  useLayoutEffect(() => {
-    if (!hasSideBySide || !abRowRef.current) { setStepCut(null); return; }
-    abRowMeasure(abRowRef.current);
-  }, [hasSideBySide, node.sections, node.layout, node.headerHeight, node.sectionSpacing, node.hiddenSections, abRowMeasure]);
+  // Measure after mount + whenever relevant props change
+  useEffect(() => {
+    if (!hasSideBySide) {
+      if (stepCutRef.current !== null) { stepCutRef.current = null; setStepCut(null); }
+      return;
+    }
+    // Measure directly — useEffect runs after commit+paint, refs are set
+    measureStepCut();
+    // ResizeObserver re-measures if sections change size dynamically
+    let obs;
+    if (abRowRef.current) {
+      obs = new ResizeObserver(() => measureStepCut());
+      obs.observe(abRowRef.current);
+    }
+    return () => obs?.disconnect();
+  }, [hasSideBySide, node.id, node.sections, node.layout, node.headerHeight, node.sectionSpacing, node.hiddenSections, measureStepCut]);
 
   // ---- Section updates ----
   const handleSectionUpdate = useCallback((sectionId, updates) => {
@@ -2078,7 +2196,7 @@ function Node313({
           background: T.card,
         } : STYLES.sectionWrap;
         elements.push(
-          <div key={rowIndex} ref={abRowMeasure} style={{ ...STYLES.abRow, position: 'relative' }}>
+          <div key={rowIndex} ref={abRowRef} style={{ ...STYLES.abRow, position: 'relative' }}>
             <div style={leftWrapStyle}>
               {sp0 > 0 && <div style={{ height: `${sp0}px`, borderTop: signalColorHex ? `1px solid ${signalColorHex}44` : `1px solid ${T.border}`, borderBottom: '1px solid transparent' }} />}
               <div style={dragSec === row[0] ? STYLES.dragHighlight : undefined}>
@@ -2183,7 +2301,6 @@ function Node313({
 
   const totalScale = node.scale || 1;
 
-  // Build node style with solid color tint
   // Build clip-path polygon for L-shaped cutout
   const clipPoly = useMemo(() => {
     if (!stepCut) return null;
@@ -2210,10 +2327,9 @@ function Node313({
       base.borderColor = signalColorHex;
     }
     if (clipPoly) {
-      base.clipPath = clipPoly;
-      // Selection: outline ignores clip-path, use inset box-shadow via CSS class instead
+      base['--n313-clip'] = clipPoly;
+      base.overflow = 'visible';
       base.outline = 'none';
-      base.outlineOffset = undefined;
       if (isSelected) {
         base['--n313-sel-color'] = signalColorHex || T.accent;
       }
@@ -2260,12 +2376,43 @@ function Node313({
   return (
     <div
       ref={nodeRef}
-      className={isSelected && clipPoly ? 'n313-sel' : undefined}
+      className={clipPoly ? (isSelected ? 'n313-lshape n313-sel' : 'n313-lshape') : undefined}
       style={nodeStyle}
       onClick={handleNodeClick}
       data-node-id={node.id}
       data-node-scale={node.scale || 1}
     >
+      {/* L-shape step borders — align with the column divider */}
+      {stepCut && (() => {
+        const bc = signalColorHex || T.border;
+        const B = 2; // node border width
+        const { shortY, dividerX, nw, nh, shorterIsLeft } = stepCut;
+        // dividerX is center of the 2px column divider (border-box coords)
+        // Content-box offset: subtract B from border-box coords
+        // Get divider's actual position in content-box coords
+        const abEl = abRowRef.current;
+        const dividerEl = abEl?.children[1];
+        if (!dividerEl) return null;
+        const dLeft = dividerEl.offsetLeft; // divider left edge in content-box
+        const dW = dividerEl.offsetWidth;   // divider width (2px)
+        // Step borders must be INSIDE the clip polygon (not on the boundary)
+        // Horizontal: 2px tall, bottom edge at the clip boundary
+        const hY = shortY - 2 * B; // 2px above boundary in content-box
+        // Vertical: same x/width as the column divider, starts at step
+        const vY = shortY - 2 * B;
+        const vH = nh - shortY + B; // extends past the step to node bottom
+        if (shorterIsLeft) {
+          return <>
+            <div style={{ position: 'absolute', left: 0, top: hY, width: dLeft + dW, height: B, background: bc, pointerEvents: 'none', zIndex: 2 }} />
+            <div style={{ position: 'absolute', left: dLeft, top: vY, width: dW, height: vH, background: bc, pointerEvents: 'none', zIndex: 2 }} />
+          </>;
+        } else {
+          return <>
+            <div style={{ position: 'absolute', left: dLeft, top: hY, width: nw - B - dLeft, height: B, background: bc, pointerEvents: 'none', zIndex: 2 }} />
+            <div style={{ position: 'absolute', left: dLeft, top: vY, width: dW, height: vH, background: bc, pointerEvents: 'none', zIndex: 2 }} />
+          </>;
+        }
+      })()}
       {/* Top accent line — tapers to pin on name (left) side */}
       <div style={{ height: '2px', background: signalColorHex || T.accent, opacity: 0.5, clipPath: 'polygon(0% 100%, 100% 0%, 100% 100%)' }} />
 
