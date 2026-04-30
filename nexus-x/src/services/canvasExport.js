@@ -214,8 +214,13 @@ function makeCanvasGradient(ctx, css, x, y, w, h) {
   return g;
 }
 
-function drawNodeGroup(ctx, group) {
+function drawNodeGroup(ctx, group, scale = 1) {
   const { nx, ny, nw, nh, elements } = group;
+  // At scale >= 2 the Canvas 2D grayscale AA visibly thins text vs the
+  // workspace's subpixel AA. A hairline same-color stroke recovers the mass.
+  // At lower scales the stroke isn't needed and would risk bleeding into
+  // adjacent geometry (e.g. semi-transparent column dividers).
+  const strokeBoost = scale >= 2;
 
   ctx.save();
   // Clip to node bounds (prevents border bleed outside)
@@ -278,19 +283,33 @@ function drawNodeGroup(ctx, group) {
     if (e.text && e.fontSize) {
       const txt = e.textTransform === 'uppercase' ? e.text.toUpperCase() : e.text;
       ctx.font = `${e.fontWeight || 500} ${e.fontSize}px ${e.fontFamily || "'Space Grotesk',sans-serif"}`;
-      ctx.fillStyle    = e.color || '#cccccc';
+      const color = e.color || '#cccccc';
+      ctx.fillStyle    = color;
       ctx.textBaseline = 'middle';
       try { ctx.letterSpacing = e.letterSpacing > 0 ? `${e.letterSpacing}px` : '0px'; } catch (_) {}
 
+      // Conditional stroke compensation — only at scale >= 2, with a tighter
+      // width than before so it doesn't bleed into adjacent thin geometry.
+      const useStroke = strokeBoost && e.fontSize >= 6;
+      if (useStroke) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = Math.max(0.25, e.fontSize * 0.035);
+        ctx.lineJoin    = 'round';
+      }
+      const drawText = (tx, ty) => {
+        if (useStroke) ctx.strokeText(txt, tx, ty);
+        ctx.fillText(txt, tx, ty);
+      };
+
       if (e.textAlign === 'center') {
         ctx.textAlign = 'center';
-        ctx.fillText(txt, x + w / 2, y + h / 2);
+        drawText(x + w / 2, y + h / 2);
       } else if (e.textAlign === 'right') {
         ctx.textAlign = 'right';
-        ctx.fillText(txt, x + w - (e.paddingRight || 3), y + h / 2);
+        drawText(x + w - (e.paddingRight || 3), y + h / 2);
       } else {
         ctx.textAlign = 'left';
-        ctx.fillText(txt, x + (e.paddingLeft || 3), y + h / 2);
+        drawText(x + (e.paddingLeft || 3), y + h / 2);
       }
       try { ctx.letterSpacing = '0px'; } catch (_) {}
     }
@@ -571,7 +590,7 @@ export async function exportToCanvas(canvasEl, nodes, connections, anchorPositio
 
   // Draw back wires → nodes → front wires → anchor dots (on top) → endpoint stubs → labels
   drawWires(ctx, connections.filter(c => c.zLayer === 'back'), anchorPositions, connectionColorMap);
-  groups.forEach(g => drawNodeGroup(ctx, g));
+  groups.forEach(g => drawNodeGroup(ctx, g, scale));
   drawWires(ctx, connections.filter(c => c.zLayer !== 'back'), anchorPositions, connectionColorMap);
 
   // Re-draw anchor dots on top of nodes — but only for anchors NOT covered by a
