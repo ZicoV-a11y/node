@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react';
 import { NODE_PRESET_CATEGORIES } from '../config/nodePresets';
+import { SIGNAL_COLORS, SIGNAL_COLORS_BY_ID } from '../config/signalColors';
+import { RESOLUTIONS, REFRESH_RATES, CONNECTOR_TYPES } from '../config/connectorOptions';
 
 /**
  * ============================================
@@ -53,69 +55,9 @@ const SIZES = {
 };
 
 // Colors per section type
-// Dropdown options
-const RESOLUTIONS = [
-  '640x480', '800x600', '1024x768',
-  '1280x720', '1920x1080',
-  '2560x1440', '3840x2160',
-  '7680x4320', 'Custom...'
-];
+// RESOLUTIONS, REFRESH_RATES, CONNECTOR_TYPES — see config/connectorOptions.js
 
-const REFRESH_RATES = [
-  '23.98', '24', '25', '29.97', '30',
-  '50', '59.94', '60', '120', 'Custom...'
-];
-
-const CONNECTOR_TYPES = [
-  'HDMI', 'SDI', '12G SDI', 'DisplayPort', 'DVI', 'VGA', 'USB-C', 'NDI', 'Custom...'
-];
-
-// Signal colors - 8 color palette (must match App.jsx)
-const SIGNAL_COLORS = [
-  // Primary colors
-  { id: 'emerald', hex: '#10b981', label: 'Emerald' },
-  { id: 'cyan', hex: '#06b6d4', label: 'Cyan' },
-  { id: 'blue', hex: '#3b82f6', label: 'Blue' },
-  { id: 'violet', hex: '#8b5cf6', label: 'Violet' },
-  { id: 'pink', hex: '#ec4899', label: 'Pink' },
-  { id: 'red', hex: '#ef4444', label: 'Red' },
-  { id: 'orange', hex: '#f97316', label: 'Orange' },
-  { id: 'yellow', hex: '#eab308', label: 'Yellow' },
-  // Extended colors
-  { id: 'lime', hex: '#84cc16', label: 'Lime' },
-  { id: 'teal', hex: '#14b8a6', label: 'Teal' },
-  { id: 'sky', hex: '#0ea5e9', label: 'Sky' },
-  { id: 'indigo', hex: '#6366f1', label: 'Indigo' },
-  { id: 'fuchsia', hex: '#d946ef', label: 'Fuchsia' },
-  { id: 'rose', hex: '#f43f5e', label: 'Rose' },
-  { id: 'amber', hex: '#f59e0b', label: 'Amber' },
-  { id: 'slate', hex: '#64748b', label: 'Slate' },
-  // Additional colors
-  { id: 'green', hex: '#22c55e', label: 'Green' },
-  { id: 'purple', hex: '#a855f7', label: 'Purple' },
-  { id: 'coral', hex: '#fb7185', label: 'Coral' },
-  { id: 'mint', hex: '#34d399', label: 'Mint' },
-  { id: 'gold', hex: '#fbbf24', label: 'Gold' },
-  { id: 'magenta', hex: '#e879f9', label: 'Magenta' },
-  { id: 'navy', hex: '#1e40af', label: 'Navy' },
-  { id: 'bronze', hex: '#b45309', label: 'Bronze' },
-  // More colors
-  { id: 'crimson', hex: '#dc2626', label: 'Crimson' },
-  { id: 'sapphire', hex: '#2563eb', label: 'Sapphire' },
-  { id: 'jade', hex: '#059669', label: 'Jade' },
-  { id: 'tangerine', hex: '#ea580c', label: 'Tangerine' },
-  { id: 'lavender', hex: '#c084fc', label: 'Lavender' },
-  { id: 'salmon', hex: '#f87171', label: 'Salmon' },
-  { id: 'turquoise', hex: '#2dd4bf', label: 'Turquoise' },
-  { id: 'plum', hex: '#9333ea', label: 'Plum' },
-  { id: 'chartreuse', hex: '#a3e635', label: 'Chartreuse' },
-  { id: 'peach', hex: '#fdba74', label: 'Peach' },
-  { id: 'steel', hex: '#475569', label: 'Steel' },
-  { id: 'wine', hex: '#881337', label: 'Wine' },
-];
-
-// Signal colors lookup Map for O(1) access by id
-const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
+// SIGNAL_COLORS, SIGNAL_COLORS_BY_ID — see config/signalColors.js
 
 // Hex color values for theming (Tailwind 500/400 equivalents)
 const HEX_COLORS = {

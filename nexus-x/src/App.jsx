@@ -17,6 +17,11 @@ import { usePageGrid } from './hooks/usePageGrid';
 import { getSubcategories } from './config/nodePresets';
 import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
 import { computeWirePath } from './utils/wirePath';
+import { getNodeIdFromAnchor } from './utils/anchorId';
+import { SIGNAL_COLORS, SIGNAL_COLOR_HEX_BY_ID, DEFAULT_THEME_COLOR } from './config/signalColors';
+import { DASH_PATTERNS } from './config/dashPatterns';
+import { useUndoRedo } from './hooks/useUndoRedo';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import ChangelogPopup from './components/ChangelogPopup';
 import ToolbarSignalFlow from './components/toolbar/ToolbarSignalFlow';
 import { APP_VERSION } from './config/version';
@@ -28,52 +33,9 @@ const ZOOM_STEP = { IN: 1.2, OUT: 0.8 };
 const ESTIMATED_NODE_SIZE = { WIDTH: 200, HEIGHT: 150 }; // For fitView calculations
 
 // Signal colors - must match SuperNode.jsx
-const SIGNAL_COLORS = [
-  // Primary colors
-  { id: 'emerald', hex: '#10b981' },
-  { id: 'cyan', hex: '#06b6d4' },
-  { id: 'blue', hex: '#3b82f6' },
-  { id: 'violet', hex: '#8b5cf6' },
-  { id: 'pink', hex: '#ec4899' },
-  { id: 'red', hex: '#ef4444' },
-  { id: 'orange', hex: '#f97316' },
-  { id: 'yellow', hex: '#eab308' },
-  // Extended colors
-  { id: 'lime', hex: '#84cc16' },
-  { id: 'teal', hex: '#14b8a6' },
-  { id: 'sky', hex: '#0ea5e9' },
-  { id: 'indigo', hex: '#6366f1' },
-  { id: 'fuchsia', hex: '#d946ef' },
-  { id: 'rose', hex: '#f43f5e' },
-  { id: 'amber', hex: '#f59e0b' },
-  { id: 'slate', hex: '#64748b' },
-  // Additional colors
-  { id: 'green', hex: '#22c55e' },
-  { id: 'purple', hex: '#a855f7' },
-  { id: 'coral', hex: '#fb7185' },
-  { id: 'mint', hex: '#34d399' },
-  { id: 'gold', hex: '#fbbf24' },
-  { id: 'magenta', hex: '#e879f9' },
-  { id: 'navy', hex: '#1e40af' },
-  { id: 'bronze', hex: '#b45309' },
-  // More colors
-  { id: 'crimson', hex: '#dc2626' },
-  { id: 'sapphire', hex: '#2563eb' },
-  { id: 'jade', hex: '#059669' },
-  { id: 'tangerine', hex: '#ea580c' },
-  { id: 'lavender', hex: '#c084fc' },
-  { id: 'salmon', hex: '#f87171' },
-  { id: 'turquoise', hex: '#2dd4bf' },
-  { id: 'plum', hex: '#9333ea' },
-  { id: 'chartreuse', hex: '#a3e635' },
-  { id: 'peach', hex: '#fdba74' },
-  { id: 'steel', hex: '#475569' },
-  { id: 'wine', hex: '#881337' },
-];
-
-// Signal colors lookup Map for O(1) access by id
-const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c.hex]));
-const DEFAULT_THEME_COLOR = '#71717a'; // zinc-500
+// SIGNAL_COLORS, SIGNAL_COLOR_HEX_BY_ID, DEFAULT_THEME_COLOR — see config/signalColors.js
+// Local alias for the hex lookup Map (existing call sites still use SIGNAL_COLORS_BY_ID)
+const SIGNAL_COLORS_BY_ID = SIGNAL_COLOR_HEX_BY_ID;
 
 // Print-friendly bold callback — applied to cloned DOM via onCloneNode.
 // Bolds all text inside nodes except the title bar and cable labels.
@@ -88,18 +50,9 @@ const printBoldCloneNode = (cloned) => {
   });
 };
 
-// Extract nodeId from anchorId (format: "node-12345-in-67890" -> "node-12345")
-// Node IDs always have 2 segments: "node-TIMESTAMP"
-const getNodeIdFromAnchor = (anchorId) => anchorId.split('-').slice(0, 2).join('-');
+// getNodeIdFromAnchor — see utils/anchorId.js
 
-// Dash patterns for enhanced wires
-const DASH_PATTERNS = [
-  { id: 'solid', pattern: null, label: '───' },
-  { id: 'long', pattern: '12 6', label: '── ──' },
-  { id: 'medium', pattern: '8 4', label: '─ ─ ─' },
-  { id: 'short', pattern: '4 4', label: '· · ·' },
-  { id: 'dashdot', pattern: '12 4 4 4', label: '─·─·' },
-];
+// DASH_PATTERNS — see config/dashPatterns.js
 
 // Memoized Cable component - only re-renders when its specific anchor positions change
 const Cable = memo(({ conn, fromPos, toPos, wirePath, wireColor, isSelected, selectedWires, onWireClick }) => {
@@ -556,93 +509,8 @@ export default function App() {
     localStorage.setItem('nx-titleBlockData', JSON.stringify(data));
   }, []);
 
-  // Undo/Redo history
-  const [history, setHistory] = useState([]);
-  const [future, setFuture] = useState([]);
-  const isUndoingRef = useRef(false);
-  const lastStateRef = useRef(null);
-  const HISTORY_LIMIT = 50;
-
-  // Debounced history capture - records state after changes settle
-  const historyTimeoutRef = useRef(null);
-  const pendingStateRef = useRef(null);
-
-  // Capture state changes with debounce (500ms)
-  useEffect(() => {
-    if (isUndoingRef.current) return;
-
-    const currentState = { nodes, connections };
-    const stateStr = JSON.stringify(currentState);
-
-    // Skip if identical to last recorded state
-    if (lastStateRef.current === stateStr) return;
-
-    // Store pending state
-    pendingStateRef.current = currentState;
-
-    // Clear existing timeout
-    if (historyTimeoutRef.current) {
-      clearTimeout(historyTimeoutRef.current);
-    }
-
-    // Set new timeout - commit to history after 500ms of no changes
-    historyTimeoutRef.current = setTimeout(() => {
-      if (pendingStateRef.current && !isUndoingRef.current) {
-        const stateToSave = pendingStateRef.current;
-        const saveStr = JSON.stringify(stateToSave);
-        if (lastStateRef.current !== saveStr) {
-          // Save previous state (before current changes) to history
-          if (lastStateRef.current) {
-            const previousState = JSON.parse(lastStateRef.current);
-            setHistory(prev => {
-              const newHistory = [...prev, previousState];
-              if (newHistory.length > HISTORY_LIMIT) {
-                return newHistory.slice(-HISTORY_LIMIT);
-              }
-              return newHistory;
-            });
-            setFuture([]); // Clear redo stack on new action
-          }
-          lastStateRef.current = saveStr;
-        }
-        pendingStateRef.current = null;
-      }
-    }, 500);
-
-    return () => {
-      if (historyTimeoutRef.current) {
-        clearTimeout(historyTimeoutRef.current);
-      }
-    };
-  }, [nodes, connections]);
-
-  // Undo - restore previous state
-  const undo = useCallback(() => {
-    if (history.length === 0) return;
-    isUndoingRef.current = true;
-    const currentState = { nodes, connections };
-    const previousState = history[history.length - 1];
-    setFuture(prev => [...prev, currentState]);
-    setHistory(prev => prev.slice(0, -1));
-    setNodes(previousState.nodes);
-    setConnections(previousState.connections);
-    lastStateRef.current = JSON.stringify(previousState);
-    setTimeout(() => { isUndoingRef.current = false; }, 50);
-  }, [history, nodes, connections]);
-
-  // Redo - restore next state
-  const redo = useCallback(() => {
-    if (future.length === 0) return;
-    isUndoingRef.current = true;
-    const currentState = { nodes, connections };
-    const nextState = future[future.length - 1];
-    setHistory(prev => [...prev, currentState]);
-    setFuture(prev => prev.slice(0, -1));
-    setNodes(nextState.nodes);
-    setConnections(nextState.connections);
-    lastStateRef.current = JSON.stringify(nextState);
-    setTimeout(() => { isUndoingRef.current = false; }, 50);
-  }, [future, nodes, connections]);
+  // Undo/Redo — debounced history of {nodes, connections} pairs (see hooks/useUndoRedo.js)
+  const { undo, redo, history, future } = useUndoRedo({ nodes, connections, setNodes, setConnections });
 
   // User-created presets — persisted to localStorage, merged with repo presets
   const [userPresets, setUserPresetsRaw] = useState(() => {
@@ -2492,255 +2360,15 @@ export default function App() {
     }
   }, [activeWire]);
 
-  // Keyboard shortcuts: copy, paste, delete, deselect
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Escape — cancel active wire or deselect all
-      if (e.key === 'Escape') {
-        // If wire is being drawn, cancel it
-        if (activeWire) {
-          setActiveWire(null);
-          return;
-        }
-        if (document.activeElement && document.activeElement !== document.body) {
-          document.activeElement.blur();
-        }
-        setSelectedNodes(new Set());
-        setSelectedWires(new Set());
-        return;
-      }
-
-      // Backspace/Delete — remove last waypoint during wire creation
-      if ((e.key === 'Backspace' || e.key === 'Delete') && activeWire?.waypoints?.length > 0) {
-        const tag = e.target.tagName;
-        const isInInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
-        if (!isInInput) {
-          e.preventDefault();
-          setActiveWire(prev => ({
-            ...prev,
-            waypoints: prev.waypoints.slice(0, -1)
-          }));
-          return;
-        }
-      }
-
-      const tag = e.target.tagName;
-      const isInInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
-      const mod = e.metaKey || e.ctrlKey;
-      const key = e.key.toLowerCase();
-
-      // Cmd/Ctrl+Z — undo (Shift for redo)
-      if (mod && key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
-        return;
-      }
-
-      // Cmd/Ctrl+Y — redo (alternative)
-      if (mod && key === 'y') {
-        e.preventDefault();
-        redo();
-        return;
-      }
-
-      // Cmd/Ctrl+G — group / Cmd/Ctrl+Shift+G — ungroup selected nodes
-      if (mod && key === 'g') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleUngroupSelected();
-        } else {
-          handleGroupSelected();
-        }
-        return;
-      }
-
-      // F — bring selected wires to front / B — send to back
-      if (!isInInput && !mod && selectedWires.size > 0 && (key === 'f' || key === 'b')) {
-        e.preventDefault();
-        const newLayer = key === 'b' ? 'back' : undefined;
-        setConnections(prev => prev.map(conn =>
-          selectedWires.has(conn.id) ? { ...conn, zLayer: newLayer } : conn
-        ));
-        return;
-      }
-
-      // Cmd/Ctrl+C — copy selected nodes
-      if (mod && key === 'c') {
-        console.log('Ctrl+C pressed, selectedNodes:', selectedNodes.size);
-        if (selectedNodes.size > 0) {
-          clipboardRef.current = Array.from(selectedNodes).map(id => nodes[id]).filter(Boolean);
-          console.log('Copied nodes:', clipboardRef.current.length);
-        }
-        return;
-      }
-
-      // Cmd/Ctrl+V — paste copied nodes
-      if (mod && key === 'v') {
-        console.log('Ctrl+V pressed, clipboard:', clipboardRef.current.length, 'isInInput:', isInInput);
-        if (clipboardRef.current.length > 0 && !isInInput) {
-          e.preventDefault();
-          const newSelection = new Set();
-          const now = Date.now();
-          // Remap old group IDs to new group IDs so pasted copies stay grouped together
-          const groupRemap = {};
-          setNodes(prev => {
-            const updated = { ...prev };
-            const existingForCollision = Object.values(prev);
-
-            clipboardRef.current.forEach((node, i) => {
-              const newId = `node-${now + i}`;
-              newSelection.add(newId);
-              const position = findOpenPosition(
-                existingForCollision,
-                node.position.x + 40,
-                node.position.y + 40,
-                { isCenterTarget: false, snapToGrid, gridSize }
-              );
-
-              // Auto-numbering: "NAME 1", "NAME 2", etc.
-              const title = node.title || 'Node';
-              const baseTitle = title.replace(/\s+\d+$/, '');
-
-              // Find highest existing number for nodes with this base title
-              let maxNum = 0;
-              Object.values(updated).forEach(n => {
-                const nTitle = n.title || '';
-                const nBase = nTitle.replace(/\s+\d+$/, '');
-                if (nBase === baseTitle) {
-                  const numMatch = nTitle.match(/\s+(\d+)$/);
-                  const num = numMatch ? parseInt(numMatch[1], 10) : 1;
-                  if (num > maxNum) maxNum = num;
-                }
-              });
-
-              // Rename original node to "NAME 1" if it doesn't have a number yet
-              const originalId = node.id;
-              const originalHasNum = updated[originalId]?.title?.match(/\s+\d+$/);
-              if (updated[originalId] && !originalHasNum) {
-                updated[originalId] = {
-                  ...updated[originalId],
-                  title: `${baseTitle} 1`,
-                };
-                if (maxNum < 1) maxNum = 1;
-              }
-
-              // Auto-numbering for tag: "CAM 1", "CAM 2", etc.
-              let newTag = node.tag;
-              if (node.tag) {
-                const baseTag = node.tag.replace(/\s+\d+$/, '');
-                let maxTagNum = 0;
-                Object.values(updated).forEach(n => {
-                  const nTag = n.tag || '';
-                  const nBase = nTag.replace(/\s+\d+$/, '');
-                  if (nBase === baseTag) {
-                    const numMatch = nTag.match(/\s+(\d+)$/);
-                    const num = numMatch ? parseInt(numMatch[1], 10) : 1;
-                    if (num > maxTagNum) maxTagNum = num;
-                  }
-                });
-                // Rename original node's tag to "TAG 1" if it doesn't have a number yet
-                const originalTagHasNum = updated[originalId]?.tag?.match(/\s+\d+$/);
-                if (updated[originalId] && updated[originalId].tag && !originalTagHasNum) {
-                  updated[originalId] = {
-                    ...updated[originalId],
-                    tag: `${baseTag} 1`,
-                  };
-                  if (maxTagNum < 1) maxTagNum = 1;
-                }
-                newTag = `${baseTag} ${maxTagNum + 1 + i}`;
-              }
-
-              // Remap group ID: pasted copies get new group IDs
-              let newGroup = undefined;
-              if (node.group) {
-                if (!groupRemap[node.group]) groupRemap[node.group] = 'grp-' + (now + 99000 + i);
-                newGroup = groupRemap[node.group];
-              }
-
-              const copyNumber = maxNum + 1 + i;
-              const newNode = {
-                ...structuredClone(node),
-                id: newId,
-                position,
-                title: `${baseTitle} ${copyNumber}`,
-                tag: newTag,
-                ...(newGroup ? { group: newGroup } : {}),
-              };
-              // Remove old group if no new group
-              if (!newGroup) delete newNode.group;
-              updated[newId] = newNode;
-              existingForCollision.push(newNode);
-            });
-            return updated;
-          });
-          setSelectedNodes(newSelection);
-        }
-        return;
-      }
-
-      // Ignore other shortcuts when typing in inputs/textareas/selects
-      if (isInInput) return;
-
-      // Delete / Backspace — delete selected nodes and wires
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodes.size > 0) {
-          selectedNodes.forEach(nodeId => deleteNode(nodeId));
-          setSelectedNodes(new Set());
-        }
-        if (selectedWires.size > 0) {
-          setConnections(prev => prev.filter(c => !selectedWires.has(c.id)));
-          setSelectedWires(new Set());
-        }
-        return;
-      }
-
-      // Arrow keys — move selected nodes
-      if (selectedNodes.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault();
-        const step = (e.ctrlKey || e.metaKey) ? 1 : e.shiftKey ? 10 : (snapToGrid && gridSize > 0 ? gridSize : 1);
-        const delta = {
-          ArrowUp: { x: 0, y: -step },
-          ArrowDown: { x: 0, y: step },
-          ArrowLeft: { x: -step, y: 0 },
-          ArrowRight: { x: step, y: 0 },
-        }[e.key];
-
-        setNodes(prev => {
-          const updated = { ...prev };
-          selectedNodes.forEach(nodeId => {
-            if (updated[nodeId]) {
-              const node = updated[nodeId];
-              updated[nodeId] = {
-                ...node,
-                position: {
-                  x: node.position.x + delta.x,
-                  y: node.position.y + delta.y
-                }
-              };
-            }
-          });
-          return updated;
-        });
-        // Move waypoints on wires where both ends are selected
-        setConnections(prev => prev.map(conn => {
-          const srcNode = getNodeIdFromAnchor(conn.from);
-          const destNode = getNodeIdFromAnchor(conn.to);
-          if (selectedNodes.has(srcNode) && selectedNodes.has(destNode) && conn.waypoints?.length > 0) {
-            return { ...conn, waypoints: conn.waypoints.map(wp => ({ ...wp, x: wp.x + delta.x, y: wp.y + delta.y })) };
-          }
-          return conn;
-        }));
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, selectedWires, nodes, deleteNode, snapToGrid, gridSize, undo, redo, activeWire, handleGroupSelected, handleUngroupSelected]);
+  // Global keyboard shortcuts (see hooks/useKeyboardShortcuts.js)
+  useKeyboardShortcuts({
+    selectedNodes, selectedWires, setSelectedNodes, setSelectedWires,
+    nodes, setNodes, setConnections,
+    activeWire, setActiveWire,
+    snapToGrid, gridSize,
+    undo, redo, deleteNode, handleGroupSelected, handleUngroupSelected,
+    clipboardRef,
+  });
 
   // Toggle enhanced styling for selected wires
   const toggleWireEnhanced = () => {

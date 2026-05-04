@@ -1,59 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
-
-// ============================================
-// SIGNAL COLORS
-// ============================================
-
-// Grouped by hue — columns read top-to-bottom as shade families
-// Layout: 6 columns × 6 rows. Each column is a hue group.
-//         Reds      Oranges     Greens      Blues       Purples     Muted
-const SIGNAL_COLORS = [
-  // Row 1
-  { id: 'red',       hex: '#ef4444', label: 'Red' },
-  { id: 'orange',    hex: '#f97316', label: 'Orange' },
-  { id: 'emerald',   hex: '#10b981', label: 'Emerald' },
-  { id: 'cyan',      hex: '#06b6d4', label: 'Cyan' },
-  { id: 'violet',    hex: '#8b5cf6', label: 'Violet' },
-  { id: 'lavender',  hex: '#c084fc', label: 'Lavender' },
-  // Row 2
-  { id: 'crimson',   hex: '#dc2626', label: 'Crimson' },
-  { id: 'tangerine', hex: '#ea580c', label: 'Tangerine' },
-  { id: 'green',     hex: '#22c55e', label: 'Green' },
-  { id: 'sky',       hex: '#0ea5e9', label: 'Sky' },
-  { id: 'indigo',    hex: '#6366f1', label: 'Indigo' },
-  { id: 'wine',      hex: '#881337', label: 'Wine' },
-  // Row 3
-  { id: 'rose',      hex: '#f43f5e', label: 'Rose' },
-  { id: 'amber',     hex: '#f59e0b', label: 'Amber' },
-  { id: 'jade',      hex: '#059669', label: 'Jade' },
-  { id: 'blue',      hex: '#3b82f6', label: 'Blue' },
-  { id: 'purple',    hex: '#a855f7', label: 'Purple' },
-  { id: 'bronze',    hex: '#b45309', label: 'Bronze' },
-  // Row 4
-  { id: 'coral',     hex: '#fb7185', label: 'Coral' },
-  { id: 'gold',      hex: '#fbbf24', label: 'Gold' },
-  { id: 'mint',      hex: '#34d399', label: 'Mint' },
-  { id: 'sapphire',  hex: '#2563eb', label: 'Sapphire' },
-  { id: 'plum',      hex: '#9333ea', label: 'Plum' },
-  { id: 'navy',      hex: '#1e40af', label: 'Navy' },
-  // Row 5
-  { id: 'salmon',    hex: '#f87171', label: 'Salmon' },
-  { id: 'yellow',    hex: '#eab308', label: 'Yellow' },
-  { id: 'lime',      hex: '#84cc16', label: 'Lime' },
-  { id: 'teal',      hex: '#14b8a6', label: 'Teal' },
-  { id: 'fuchsia',   hex: '#d946ef', label: 'Fuchsia' },
-  { id: 'steel',     hex: '#475569', label: 'Steel' },
-  // Row 6
-  { id: 'pink',      hex: '#ec4899', label: 'Pink' },
-  { id: 'peach',     hex: '#fdba74', label: 'Peach' },
-  { id: 'chartreuse',hex: '#a3e635', label: 'Chartreuse' },
-  { id: 'turquoise', hex: '#2dd4bf', label: 'Turquoise' },
-  { id: 'magenta',   hex: '#e879f9', label: 'Magenta' },
-  { id: 'slate',     hex: '#64748b', label: 'Slate' },
-];
-
-const SIGNAL_COLORS_BY_ID = new Map(SIGNAL_COLORS.map(c => [c.id, c]));
+import { SIGNAL_COLORS, SIGNAL_COLORS_BY_ID } from '../config/signalColors';
+import { T } from '../config/theme';
 
 // ============================================
 // CARD / SLOT TYPES (for modular switchers like Barco E2/E3/S3)
@@ -135,23 +83,7 @@ function applyDrop(currentKey, droppedId, position) {
   return LAYOUTS[key] ? key : currentKey;
 }
 
-// ============================================
-// STYLES (inline to match prototype exactly)
-// ============================================
-
-// Noir theme palette
-const T = {
-  bg: '#0a0a0a', card: '#111111', rowHover: '#1a1a1a',
-  border: 'rgba(255,255,255,0.10)', borderStrong: 'rgba(255,255,255,0.15)',
-  borderSubtle: 'rgba(255,255,255,0.04)', divider: 'rgba(255,255,255,0.08)',
-  colDivider: 'rgba(255,255,255,0.50)',
-  accent: '#bbbbbb', accentLight: '#dddddd', accentDim: '#999999',
-  green: '#66bb6a', red: '#ef5350',
-  accentGlow: 'rgba(255,255,255,0.04)',
-  text: '#cccccc', textSec: '#aaaaaa', textMuted: '#666666',
-  white: '#e0e0e0',
-  hFont: "'Space Grotesk', sans-serif", mono: "'Space Grotesk', sans-serif",
-};
+// T (theme palette) — see config/theme.js
 
 // Custom X cursor (16x16 SVG)
 const X_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cline x1='4' y1='4' x2='12' y2='12' stroke='white' stroke-width='2'/%3E%3Cline x1='12' y1='4' x2='4' y2='12' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 8 8, crosshair`;
