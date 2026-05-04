@@ -866,12 +866,15 @@ const ResizeHandle = ({ position, onResizeStart }) => {
 };
 
 // Main Node component
-function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, selectedNodes, onMoveSelectedNodes, getWireAxisSnap }) {
+function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, activeWire, onSelect, selectedNodes, onMoveSelectedNodes, getWireAxisSnap, onDragUpdate }) {
   const isDraggingRef = useRef(false);
   const hasDraggedRef = useRef(false);
   const wasSelectedOnDownRef = useRef(false);
   const lastPositionRef = useRef(null);
   const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
+  const rafIdRef = useRef(null);
+  const pendingPositionRef = useRef(null);
+  const pendingDeltaRef = useRef(null);
   const [isDraggingVisual, setIsDraggingVisual] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState(null);
@@ -1041,14 +1044,45 @@ function Node({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete
       const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
       const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
 
-      onUpdate({ position: { x: newX, y: newY } });
-      if (selectedNodes && selectedNodes.size > 1 && onMoveSelectedNodes) {
-        onMoveSelectedNodes(deltaX, deltaY, node.id);
+      // Immediate visual: move node DOM + update wires without waiting for React
+      if (nodeRef.current) {
+        nodeRef.current.style.left = `${newX}px`;
+        nodeRef.current.style.top = `${newY}px`;
       }
+      onDragUpdate?.(node.id, newX, newY, node.scale || 1);
       lastPositionRef.current = { x: newX, y: newY };
+
+      // RAF-throttled React state update — at most once per animation frame
+      pendingPositionRef.current = { x: newX, y: newY };
+      pendingDeltaRef.current = { x: deltaX, y: deltaY };
+      if (!rafIdRef.current) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          if (pendingPositionRef.current) {
+            onUpdate({ position: pendingPositionRef.current });
+            if (selectedNodes?.size > 1 && onMoveSelectedNodes && pendingDeltaRef.current) {
+              onMoveSelectedNodes(pendingDeltaRef.current.x, pendingDeltaRef.current.y, node.id);
+            }
+          }
+          rafIdRef.current = null;
+        });
+      }
     };
 
     const handleMouseUp = () => {
+      // Flush any pending RAF position to React state
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (pendingPositionRef.current) {
+        onUpdate({ position: pendingPositionRef.current });
+        if (selectedNodes?.size > 1 && onMoveSelectedNodes && pendingDeltaRef.current) {
+          onMoveSelectedNodes(pendingDeltaRef.current.x, pendingDeltaRef.current.y, node.id);
+        }
+        pendingPositionRef.current = null;
+        pendingDeltaRef.current = null;
+      }
+      onDragEnd?.();
       // Deferred deselect: clicked already-selected node without dragging → narrow selection
       if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
         onSelect(node.id, false);

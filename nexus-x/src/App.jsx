@@ -16,6 +16,7 @@ import { useCanvasSettings, PAPER_SIZES } from './hooks/useCanvasSettings';
 import { usePageGrid } from './hooks/usePageGrid';
 import { getSubcategories } from './config/nodePresets';
 import { findOpenPosition, getViewportCenter } from './utils/nodePosition';
+import { computeWirePath } from './utils/wirePath';
 import ChangelogPopup from './components/ChangelogPopup';
 import ToolbarSignalFlow from './components/toolbar/ToolbarSignalFlow';
 import { APP_VERSION } from './config/version';
@@ -2797,6 +2798,18 @@ export default function App() {
   const anchorPositionsRef = useRef(computedAnchorPositions);
   anchorPositionsRef.current = computedAnchorPositions;
 
+  // Always-current refs for imperative wire updates (no stale closures)
+  const anchorLocalOffsetsRef = useRef(anchorLocalOffsets);
+  anchorLocalOffsetsRef.current = anchorLocalOffsets;
+  const connectionsRef = useRef(connections);
+  connectionsRef.current = connections;
+
+  // Imperative drag infrastructure — bypasses React reconciliation for wires during drag
+  const isDraggingRef = useRef(false);
+  const wirePathMapRef = useRef(new Map());
+  const wireGroupRefsMap = useRef(new Map());  // wireId → [SVG path DOM elements]
+  const nodeToWiresIndex = useRef(new Map());  // nodeId → Set<wireId>
+
   // Register anchor with local offset data (called by Node/SuperNode useLayoutEffect)
   const registerAnchor = useCallback((anchorId, offset) => {
     setAnchorLocalOffsets(prev => {
@@ -2825,6 +2838,53 @@ export default function App() {
         }
       }
       return changed ? next : prev;
+    });
+  }, []);
+
+  // Rebuild nodeId → wireId index whenever connections or anchor offsets change
+  useEffect(() => {
+    const index = new Map();
+    connectionsRef.current.forEach(conn => {
+      [conn.from, conn.to].forEach(anchorId => {
+        const nodeId = anchorLocalOffsetsRef.current[anchorId]?.nodeId;
+        if (!nodeId) return;
+        if (!index.has(nodeId)) index.set(nodeId, new Set());
+        index.get(nodeId).add(conn.id);
+      });
+    });
+    nodeToWiresIndex.current = index;
+  }, [connections, anchorLocalOffsets]);
+
+  // Imperatively update wire paths for a dragged node — no React re-render
+  const refreshWirePathsForNode = useCallback((nodeId, newX, newY, scale = 1) => {
+    isDraggingRef.current = true;
+
+    // Update anchorPositionsRef for this node's anchors directly
+    const offsets = anchorLocalOffsetsRef.current;
+    const s = scale || 1;
+    const updated = { ...anchorPositionsRef.current };
+    Object.entries(offsets).forEach(([anchorId, offset]) => {
+      if (offset.nodeId !== nodeId) return;
+      updated[anchorId] = {
+        ...updated[anchorId],
+        x: newX + offset.localX * s,
+        y: newY + offset.localY * s,
+      };
+    });
+    anchorPositionsRef.current = updated;
+
+    // Write new path strings directly to wire SVG DOM elements
+    const wireIds = nodeToWiresIndex.current.get(nodeId);
+    if (!wireIds) return;
+    wireIds.forEach(wireId => {
+      const conn = connectionsRef.current.find(c => c.id === wireId);
+      if (!conn) return;
+      const fromPos = anchorPositionsRef.current[conn.from];
+      const toPos = anchorPositionsRef.current[conn.to];
+      if (!fromPos || !toPos) return;
+      const pathStr = computeWirePath(fromPos, toPos, conn.waypoints);
+      const gEl = wireGroupRefsMap.current.get(wireId);
+      if (gEl) gEl.querySelectorAll('[data-wire-path]').forEach(el => el.setAttribute('d', pathStr));
     });
   }, []);
 
@@ -2966,17 +3026,22 @@ export default function App() {
     return path;
   }, [getAnchorPosition]);
 
-  // Pre-compute wire paths to avoid recalculation on every render
+  // Pre-compute wire paths to avoid recalculation on every render.
+  // During drag, wires are updated imperatively via refreshWirePathsForNode — skip the full recompute.
   const wirePathMap = useMemo(() => {
+    if (isDraggingRef.current) return wirePathMapRef.current;
     const map = new Map();
     connections.forEach(conn => {
       map.set(conn.id, getWirePath(conn.from, conn.to, conn.waypoints));
     });
+    wirePathMapRef.current = map;
     return map;
   }, [connections, getWirePath, computedAnchorPositions]);
 
   // Pre-compute text paths — always left-to-right so labels never render upside down
+  const wireTextPathMapRef = useRef(new Map());
   const wireTextPathMap = useMemo(() => {
+    if (isDraggingRef.current) return wireTextPathMapRef.current;
     const map = new Map();
     connections.forEach(conn => {
       const fromPos = computedAnchorPositions[conn.from];
@@ -2989,6 +3054,7 @@ export default function App() {
       }
       // If left-to-right, no entry needed — use the original wirePath
     });
+    wireTextPathMapRef.current = map;
     return map;
   }, [connections, getWirePath, computedAnchorPositions]);
 
@@ -3002,14 +3068,15 @@ export default function App() {
     [nodes, selectedNodes]
   );
 
+  const backWireEndpointStubsRef = useRef(null);
   // Memoized endpoint stubs for back-layer wires — only recomputes when wires/positions/nodes change,
   // not on every render (avoids recompute during pan/zoom)
   const backWireEndpointStubs = useMemo(() => {
+    if (isDraggingRef.current) return backWireEndpointStubsRef.current;
     const backConns = backWires;
-    if (!backConns.length) return null;
-    // Build sorted node order + O(1) index map (same sort as the render)
-    const nodeOrder = Object.values(nodes)
-      .sort((a, b) => (selectedNodes.has(a.id) ? 1 : 0) - (selectedNodes.has(b.id) ? 1 : 0));
+    if (!backConns.length) { backWireEndpointStubsRef.current = null; return null; }
+    // Reuse already-computed sortedNodes (avoids duplicate O(n log n) sort)
+    const nodeOrder = sortedNodes;
     const nodeIdxMap = new Map(nodeOrder.map((n, i) => [n.id, i]));
     const anchorCovered = (anchorId, pos) => {
       const nodeId = anchorLocalOffsets[anchorId]?.nodeId;
@@ -3027,7 +3094,7 @@ export default function App() {
       return false;
     };
     const AO = 30;
-    return backConns.map(conn => {
+    const result = backConns.map(conn => {
       const from = computedAnchorPositions[conn.from];
       const to   = computedAnchorPositions[conn.to];
       if (!from || !to) return null;
@@ -3045,7 +3112,9 @@ export default function App() {
         </svg>
       );
     });
-  }, [backWires, computedAnchorPositions, anchorLocalOffsets, nodes, selectedNodes, connectionColorMap]); // eslint-disable-line react-hooks/exhaustive-deps
+    backWireEndpointStubsRef.current = result;
+    return result;
+  }, [backWires, computedAnchorPositions, anchorLocalOffsets, sortedNodes, connectionColorMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render wire visual (no pointer events)
   const renderWireVisual = useCallback((conn) => {
@@ -3055,18 +3124,21 @@ export default function App() {
     const isEnhanced = conn.enhanced || false;
     return (
       <svg key={conn.id} className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: 1 }}>
-      <g>
+      <g ref={(el) => {
+        if (el) wireGroupRefsMap.current.set(conn.id, el);
+        else wireGroupRefsMap.current.delete(conn.id);
+      }}>
         {isWireSelected && (
-          <path d={wirePath} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.3} strokeLinecap="round" />
+          <path data-wire-path="1" d={wirePath} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.3} strokeLinecap="round" />
         )}
         {isEnhanced && (
-          <path d={wirePath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={5} strokeDasharray={conn.dashPattern || undefined} strokeLinecap="round" />
+          <path data-wire-path="1" d={wirePath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={5} strokeDasharray={conn.dashPattern || undefined} strokeLinecap="round" />
         )}
-        <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={2}
+        <path data-wire-path="1" d={wirePath} fill="none" stroke={wireColor} strokeWidth={2}
           strokeDasharray={isEnhanced && conn.dashPattern ? conn.dashPattern : undefined}
           strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${wireColor}50)` }} />
         {isEnhanced && (
-          <path d={wirePath} fill="none" stroke={wireColor} strokeWidth={1} strokeDasharray="4 12" strokeOpacity={0.6} strokeLinecap="round" className="wire-animated" />
+          <path data-wire-path="1" d={wirePath} fill="none" stroke={wireColor} strokeWidth={1} strokeDasharray="4 12" strokeOpacity={0.6} strokeLinecap="round" className="wire-animated" />
         )}
         {(() => {
           let displayText = conn.label;
@@ -4068,6 +4140,8 @@ export default function App() {
                 getWireAxisSnap={getWireAxisSnap}
                 getSpacingAxisSnap={getSpacingAxisSnap}
                 onSelect={handleNodeSelect}
+                onDragUpdate={refreshWirePathsForNode}
+                onDragEnd={() => { isDraggingRef.current = false; }}
               />
             );
           })}

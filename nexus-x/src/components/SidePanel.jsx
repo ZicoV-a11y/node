@@ -522,7 +522,7 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
     };
 
     if (isResizing) {
-      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mousemove', handleResizeMove, { passive: true });
       window.addEventListener('mouseup', handleResizeEnd);
       document.body.style.cursor = 'ew-resize';
       document.body.style.userSelect = 'none';

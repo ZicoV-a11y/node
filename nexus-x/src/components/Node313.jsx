@@ -1683,7 +1683,7 @@ function Node313({
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
   onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap,
-  getWireAxisSnap, getSpacingAxisSnap,
+  getWireAxisSnap, getSpacingAxisSnap, onDragUpdate, onDragEnd,
 }) {
   const nodeRef = useRef(null);
   const abRowRef = useRef(null);
@@ -1955,6 +1955,7 @@ function Node313({
         nodeRef.current.style.left = `${newX}px`;
         nodeRef.current.style.top = `${newY}px`;
       }
+      onDragUpdate?.(node.id, newX, newY, node.scale || 1);
 
       pendingPosition = { x: newX, y: newY };
       pendingDelta = { x: deltaX, y: deltaY };
@@ -1974,6 +1975,7 @@ function Node313({
 
     const handleMouseUp = () => {
       if (rafId) cancelAnimationFrame(rafId);
+      onDragEnd?.();
       // Deferred deselect: clicked an already-selected node without dragging → narrow selection
       if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
         onSelect(node.id, false);
@@ -1989,7 +1991,7 @@ function Node313({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y, getWireAxisSnap]);
+  }, [isDragging, dragStart, zoom, onUpdate, snapToGrid, gridSize, selectedNodes, onMoveSelectedNodes, node.id, node.position.x, node.position.y, getWireAxisSnap, onDragUpdate, onDragEnd]);
 
   // ---- Scale by dragging bottom-right handle ----
   // Scale via Pointer Events — uses setPointerCapture for reliable Ctrl+drag

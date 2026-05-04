@@ -2309,6 +2309,7 @@ const IOSection = memo(({
   onColumnResize, // Handler for column resize
   anchorSourceColors, // Map of anchorId -> hex color for source field highlighting
   sourceNamesWithColors, // Map of sourceName -> hex color for dropdown options
+  zoom,
 }) => {
   const sectionType = type === 'input' ? 'input' : 'output';
   const sectionId = type === 'input' ? 'input' : 'output';
@@ -2397,43 +2398,38 @@ const IOSection = memo(({
       dragStartY.current = e.clientY;
       dragStartSpacing.current = currentSpacing || 0;
 
-      let rafId = null;
-      let pendingSpacing = null;
+      let finalSpacing = currentSpacing || 0;
 
       const handleMouseMove = (moveEvent) => {
-        const deltaY = moveEvent.clientY - dragStartY.current;
+        const deltaY = (moveEvent.clientY - dragStartY.current) / (zoom || 1);
         const rawSpacing = Math.max(0, dragStartSpacing.current + deltaY);
 
-        // Ctrl/Cmd = 1px moves, otherwise snap to half-row increments (15px)
+        // Ctrl/Cmd = 1px moves, otherwise snap to half-row increments
         const pixelMode = moveEvent.ctrlKey || moveEvent.metaKey;
         const snapIncrement = pixelMode ? 1 : SIZES.SPACING_SNAP;
         const newSpacing = Math.round(rawSpacing / snapIncrement) * snapIncrement;
 
-        // Throttle updates using requestAnimationFrame
-        pendingSpacing = newSpacing;
-        if (!rafId) {
-          rafId = requestAnimationFrame(() => {
-            if (pendingSpacing !== null) {
-              const newPorts = data.ports.map((port) =>
-                port.id === portId ? { ...port, spacing: pendingSpacing } : port
-              );
-              onUpdate({ ports: newPorts });
-            }
-            rafId = null;
-          });
-        }
+        finalSpacing = newSpacing;
+
+        // Update DOM directly — no React re-render during drag
+        const el = document.querySelector(`[data-port-id="${portId}"]`);
+        if (el) el.style.marginTop = `${newSpacing}px`;
       };
 
       const handleMouseUp = () => {
-        if (rafId) cancelAnimationFrame(rafId);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        // Commit to React state once on release
+        const newPorts = data.ports.map((port) =>
+          port.id === portId ? { ...port, spacing: finalSpacing } : port
+        );
+        onUpdate({ ports: newPorts });
       };
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [data.ports, onUpdate]
+    [data.ports, onUpdate, zoom]
   );
 
   const addPort = useCallback(() => {
@@ -2638,7 +2634,7 @@ const IOSection = memo(({
       const sourceColor = anchorSourceColors?.get(anchorId);
 
       return (
-        <div key={port.id} style={style}>
+        <div key={port.id} style={style} data-port-id={port.id}>
           <PortRow
             port={port}
             type={portType}
@@ -3772,7 +3768,7 @@ ResizeHandle.displayName = 'ResizeHandle';
 // SUPERNODE COMPONENT
 // ============================================
 
-function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, globalSourceNamesWithColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes, getWireAxisSnap }) {
+function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onDelete, onAnchorClick, registerAnchor, unregisterAnchors, activeWire, onSelect, connectedAnchorIds, usedSignalColors, connections, connectionColorMap, globalSourceNamesWithColors, onSavePreset, userSubcategories, selectedNodes, onMoveSelectedNodes, getWireAxisSnap, onDragUpdate, onDragEnd }) {
   // ============================================
   // PERFORMANCE PROFILING (Development Only)
   // ============================================
@@ -4278,7 +4274,10 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
       const deltaX = newX - (lastPositionRef.current?.x || node.position.x);
       const deltaY = newY - (lastPositionRef.current?.y || node.position.y);
 
-      // Throttle updates using requestAnimationFrame
+      // Immediate imperative wire update — no React reconciliation
+      onDragUpdate?.(node.id, newX, newY, node.scale || 1);
+
+      // Throttle React state update using requestAnimationFrame
       pendingPosition = { x: newX, y: newY };
       pendingDelta = { x: deltaX, y: deltaY };
       if (!rafId) {
@@ -4299,6 +4298,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
 
     const handleMouseUp = () => {
       if (rafId) cancelAnimationFrame(rafId);
+      onDragEnd?.();
       // Deferred deselect: clicked already-selected node without dragging → narrow selection
       if (!hasDraggedRef.current && wasSelectedOnDownRef.current && onSelect) {
         onSelect(node.id, false);
@@ -4755,6 +4755,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onColumnResize={handleColumnResize}
             anchorSourceColors={anchorSourceColors}
             sourceNamesWithColors={sourceNamesWithColors}
+            zoom={zoom}
           />
         );
       case 'output':
@@ -4780,6 +4781,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
             onColumnResize={handleColumnResize}
             anchorSourceColors={anchorSourceColors}
             sourceNamesWithColors={sourceNamesWithColors}
+            zoom={zoom}
           />
         );
       default:
@@ -4794,7 +4796,7 @@ function SuperNode({ node, zoom, isSelected, snapToGrid, gridSize, onUpdate, onD
     handleSectionDragStart, handleSectionDragEnd,
     themeColors, activeWire, onAnchorClick, connectedAnchorIds,
     sharedColumnWidths, sharedCollapsedColumnWidths, computedInputSectionWidth, computedOutputSectionWidth, areIOSideBySide,
-    leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors, sourceNamesWithColors
+    leftSectionWidth, rightSectionWidth, handleColumnResize, anchorSourceColors, sourceNamesWithColors, zoom
   ]);
 
   // Click handler — selection is now handled in mouseDown/mouseUp for proper group drag
