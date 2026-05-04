@@ -2,6 +2,7 @@ import { openDB } from 'idb';
 import { domToBlob } from 'modern-screenshot';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
+import { isLegacyReactFlowFormat, convertLegacyReactFlow } from './legacyReactFlow';
 
 const DB_NAME = 'nexus-x';
 const DB_VERSION = 2;
@@ -118,7 +119,13 @@ export async function exportProject(project) {
 }
 
 export async function importProject(jsonString, fileName) {
-  const data = JSON.parse(jsonString);
+  let data = JSON.parse(jsonString);
+
+  // Legacy React Flow format (older app generation): nodes as array + edges array.
+  // Convert in place so the rest of the importer sees current native format.
+  if (isLegacyReactFlowFormat(data)) {
+    data = convertLegacyReactFlow(data);
+  }
 
   // NexusX native format: nodes as object + connections array
   if (data.nodes && typeof data.nodes === 'object' && !Array.isArray(data.nodes)) {
