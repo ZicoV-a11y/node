@@ -4,6 +4,7 @@ import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import Node313 from './components/Node313';
 import ScreenNode from './components/ScreenNode';
+import SubmitPresetDialog from './components/SubmitPresetDialog';
 import SidePanel from './components/SidePanel';
 import CanvasRulers from './components/canvas/CanvasRulers';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
@@ -624,6 +625,8 @@ export default function App() {
   const [recentFiles, setRecentFiles] = useState(() => getRecentFiles());
   const [showRecents, setShowRecents] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [submitPresetNode, setSubmitPresetNode] = useState(null);
+  const handleSubmitPreset = useCallback((node) => setSubmitPresetNode(node), []);
   const [exportProgress, setExportProgress] = useState(null);
   const [exportScale, setExportScale] = useState(8);
   const [printFriendly, setPrintFriendly] = useState(false);
@@ -1160,6 +1163,7 @@ export default function App() {
         onUpdate: (updates) => updateNode(nid, updates),
         onDelete: () => deleteNode(nid),
         onSavePreset: (...args) => saveNode313PresetRef.current?.(...args),
+        onSubmitPreset: (n) => handleSubmitPreset(n || nodes[nid]),
       };
     }
   });
@@ -3832,6 +3836,7 @@ export default function App() {
                 connectedSourceMap={connectedSourceMap}
                 connectedDestinationMap={connectedDestinationMap}
                 onSavePreset={cbs.onSavePreset}
+                onSubmitPreset={cbs.onSubmitPreset}
                 userSubcategories={userSubcategories}
                 selectedNodes={selectedNodes}
                 onMoveSelectedNodes={moveSelectedNodes}
@@ -3952,6 +3957,12 @@ export default function App() {
           initialData={cablePromptData.initialData || null}
         />
       )}
+
+      <SubmitPresetDialog
+        node={submitPresetNode}
+        isOpen={!!submitPresetNode}
+        onClose={() => setSubmitPresetNode(null)}
+      />
     </div>
   );
 }

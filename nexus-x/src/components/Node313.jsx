@@ -1614,7 +1614,7 @@ function Node313({
   node, zoom, isSelected, snapToGrid, gridSize,
   onUpdate, registerAnchor, unregisterAnchors,
   onSelect, selectedNodes, onMoveSelectedNodes, onScaleSelectedNodes,
-  onAnchorClick, onSavePreset, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap,
+  onAnchorClick, onSavePreset, onSubmitPreset, sourceNodeTags, destinationNodeTags, connectedSourceMap, connectedDestinationMap,
   getWireAxisSnap, getSpacingAxisSnap, onDragUpdate, onDragEnd,
 }) {
   const nodeRef = useRef(null);
@@ -2663,6 +2663,22 @@ function Node313({
                     >
                       <span>Overwrite Preset</span>
                       <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>↻</span>
+                    </button>
+                  )}
+                  {onSubmitPreset && (
+                    <button
+                      style={{ ...STYLES.settingsItem, color: T.accentDim }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = `${signalColorHex || T.accent}18`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onSubmitPreset(node);
+                        setSettingsOpen(false);
+                      }}
+                      title="Email this preset to the maintainer for review"
+                    >
+                      <span>Submit to Library...</span>
+                      <span className="n313-icon-btn" style={{ color: signalColorHex || T.accent }}>↗</span>
                     </button>
                   )}
                 </>}
