@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Node from './components/Node';
 import SuperNode from './components/SuperNode';
 import Node313 from './components/Node313';
+import ScreenNode from './components/ScreenNode';
 import SidePanel from './components/SidePanel';
 import CanvasRulers from './components/canvas/CanvasRulers';
 import PageGridOverlay from './components/canvas/PageGridOverlay';
@@ -335,6 +336,22 @@ const createSuperNode = (id) => ({
       }
     ]
   }
+});
+
+// Create ScreenNode (v4) — image-backed display with user-addable anchors
+const createScreenNode = (id) => ({
+  id,
+  title: 'SCREEN',
+  version: 4,
+  signalColor: null,
+  position: { x: 100, y: 100 },
+  scale: 1,
+  width: 480,
+  height: 270,
+  imageBlobKey: null,
+  imageFit: 'contain',
+  inputAnchors: [],
+  outputAnchors: [],
 });
 
 // Create Node 313 (generic 3-section table node)
@@ -759,6 +776,8 @@ export default function App() {
       newNode = createNode313(nodeId);
     } else if (typeOrConfig === 'supernode') {
       newNode = createSuperNode(nodeId);
+    } else if (typeOrConfig === 'screen') {
+      newNode = createScreenNode(nodeId);
     } else {
       newNode = createNode(nodeId);
     }
@@ -3734,7 +3753,11 @@ export default function App() {
 
           {/* All nodes — selected nodes render last so they appear above others */}
           {sortedNodes.map(node => {
-            const NodeComponent = node.version === 3 ? Node313 : node.version === 2 ? SuperNode : Node;
+            const NodeComponent =
+              node.version === 4 ? ScreenNode :
+              node.version === 3 ? Node313 :
+              node.version === 2 ? SuperNode :
+              Node;
             const isSelected = selectedNodes.has(node.id);
             const cbs = nodeCallbackMapRef.current[node.id] || {};
             return (

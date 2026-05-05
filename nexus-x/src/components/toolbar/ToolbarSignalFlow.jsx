@@ -181,6 +181,7 @@ export default function ToolbarSignalFlow({
   exportScale, setExportScale, EXPORT_PRESETS,
   handleExportPNG, handleExportViewport, handleExportWithTitleBlock, exportProgress,
   pages, showChangelog, setShowChangelog,
+  addNode,
 }) {
   const handleZoomChange = useCallback((newZoom) => {
     const container = containerRef.current;
@@ -256,6 +257,7 @@ export default function ToolbarSignalFlow({
             <Btn onClick={handleOpenFile}>Open</Btn>
             <Btn onClick={handleSaveAs}>Save</Btn>
             <Btn onClick={handleImportBackgroundImage} title="Import a background image (floor plan, layout)">Background</Btn>
+            <Btn onClick={() => addNode?.('screen')} title="Add a Screen node (image-backed display with input/output anchors)">+Screen</Btn>
             <Btn onClick={() => handleLoadSample?.(`${import.meta.env.BASE_URL}samples/gear.vsf`)} title="Load GEAR sample project">GEAR</Btn>
             <div style={{ position: 'relative' }}>
               <Btn accent onClick={() => setShowRecents(p => !p)} title="Recent projects">
