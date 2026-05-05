@@ -23,7 +23,7 @@ export { PAPER_SIZES };
 export function useCanvasSettings() {
   // Paper size state with localStorage persistence
   const [paperSize, setPaperSize] = useState(() => {
-    return localStorage.getItem('nx-paperSize') || 'ANSI_B';
+    return localStorage.getItem('nx-paperSize') || 'HD';
   });
 
   const [orientation, setOrientation] = useState(() => {

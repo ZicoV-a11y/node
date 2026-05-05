@@ -678,7 +678,7 @@ export default function SidePanel({ isOpen, onClose, onAddNode, userPresets = {}
               </div>
 
               {mfgKeys.map(mfg => {
-                const isExpanded = expandedCategories[`mfg-${mfg}`] !== false;
+                const isExpanded = expandedCategories[`mfg-${mfg}`] === true;
                 const typeGroups = catalog[mfg];
                 const typeKeys = Object.keys(typeGroups).sort();
 

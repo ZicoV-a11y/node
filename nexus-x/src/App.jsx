@@ -376,6 +376,45 @@ const createNode313 = (id) => ({
   }
 });
 
+// One-time recovery: earlier deletes (made before the tombstone fix landed)
+// stripped some bundled presets from the library. Clear the entire tombstone
+// list once on next boot so every bundled preset comes back. After this runs,
+// the flag prevents it from running again, so deliberate deletions made
+// afterward will stick normally.
+(function clearTombstonesOnce() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (localStorage.getItem('nx-tombstone-reset-2026-05') === '1') return;
+  try {
+    localStorage.removeItem('nx-deletedPresets');
+  } catch (e) { /* ignore */ }
+  localStorage.setItem('nx-tombstone-reset-2026-05', '1');
+})();
+
+// Merge repo presets with another preset map (e.g., localStorage or a project file's
+// `userPresets`), filtering out any IDs that appear in the `nx-deletedPresets`
+// tombstone list. The "other" map wins on ID conflicts.
+function mergePresetsWithTombstones(repoPresets, otherPresets = {}) {
+  let tombstones;
+  try { tombstones = JSON.parse(localStorage.getItem('nx-deletedPresets') || '[]'); }
+  catch (e) { tombstones = []; }
+  const tombSet = new Set(tombstones);
+
+  const merged = {};
+  for (const key of Object.keys(repoPresets || {})) {
+    merged[key] = (repoPresets[key] || []).filter(p => !tombSet.has(p.id));
+  }
+  for (const key of Object.keys(otherPresets || {})) {
+    merged[key] = merged[key] || [];
+    for (const p of (otherPresets[key] || [])) {
+      if (tombSet.has(p.id)) continue;
+      const idx = merged[key].findIndex(e => e.id === p.id);
+      if (idx >= 0) merged[key][idx] = p;
+      else merged[key].push(p);
+    }
+  }
+  return merged;
+}
+
 // Module-level helper — builds the wire preview path during mouse move (no React state needed)
 function buildWirePreviewPath(fromPos, waypoints, mousePt) {
   const cornerRadius = 8;
@@ -443,9 +482,10 @@ export default function App() {
   const [selectedBackgroundImageId, setSelectedBackgroundImageId] = useState(null);
   const bgImageInputRef = useRef(null);
 
-  // Title block state
+  // Title block state — defaults ON for new users; localStorage overrides.
   const [showTitleBlock, setShowTitleBlock] = useState(() => {
-    return localStorage.getItem('nx-showTitleBlock') === 'true';
+    const saved = localStorage.getItem('nx-showTitleBlock');
+    return saved !== null ? saved === 'true' : true;
   });
   const [showTitleBlockGrid, setShowTitleBlockGrid] = useState(() => {
     const saved = localStorage.getItem('nx-showTitleBlockGrid');
@@ -529,20 +569,14 @@ export default function App() {
   // Undo/Redo — debounced history of {nodes, connections} pairs (see hooks/useUndoRedo.js)
   const { undo, redo, history, future } = useUndoRedo({ nodes, connections, setNodes, setConnections });
 
-  // User-created presets — persisted to localStorage, merged with repo presets
+  // User-created presets — persisted to localStorage, merged with repo presets.
+  // A tombstone list (`nx-deletedPresets`) records IDs the user has explicitly deleted
+  // so they stay deleted across reloads, project loads, and bundled-JSON updates.
   const [userPresets, setUserPresetsRaw] = useState(() => {
     try {
       const saved = localStorage.getItem('nx-userPresets');
       const local = saved ? JSON.parse(saved) : {};
-      const merged = { ...repoPresets };
-      for (const key of Object.keys(local)) {
-        merged[key] = [...(merged[key] || [])];
-        for (const p of local[key]) {
-          const idx = merged[key].findIndex(e => e.id === p.id);
-          if (idx >= 0) merged[key][idx] = p; else merged[key].push(p);
-        }
-      }
-      return merged;
+      return mergePresetsWithTombstones(repoPresets, local);
     } catch (e) { return {}; }
   });
   // Wrapper that persists to localStorage on every change — never overwrites with empty
@@ -561,13 +595,8 @@ export default function App() {
   // User-created subcategories (custom folders in sidebar)
   const [userSubcategories, setUserSubcategories] = useState({});
 
-  // Create a single Node313 on first load
-  useEffect(() => {
-    if (Object.keys(nodes).length === 0) {
-      const node = createNode313(`node-${Date.now()}`);
-      setNodes({ [node.id]: node });
-    }
-  }, []); // Empty deps - only run once on mount
+  // (New projects open empty — no auto-created node. Drag presets from the
+  // Library or use +Screen / + Blank Node to start.)
 
   // Subcategory order tracking (categoryId -> array of subcategory IDs)
   const [subcategoryOrder, setSubcategoryOrder] = useState({});
@@ -841,6 +870,16 @@ export default function App() {
   // Delete a preset from a subcategory
   const deletePreset = (categoryId, subcategoryId, presetId) => {
     const key = `${categoryId}/${subcategoryId}`;
+    // Tombstone the id so the deletion sticks across reloads even if the preset
+    // ships in the bundled userPresets.json.
+    try {
+      const raw = localStorage.getItem('nx-deletedPresets');
+      const tombstones = raw ? JSON.parse(raw) : [];
+      if (!tombstones.includes(presetId)) {
+        tombstones.push(presetId);
+        localStorage.setItem('nx-deletedPresets', JSON.stringify(tombstones));
+      }
+    } catch (e) { /* ignore */ }
     setUserPresets(prev => ({
       ...prev,
       [key]: (prev[key] || []).filter(p => p.id !== presetId)
@@ -2872,16 +2911,10 @@ export default function App() {
     }
     setNodes(project.nodes || {});
     setConnections(project.connections || []);
-    // Merge repo presets (Git-tracked) with project presets (project wins on conflict)
-    const merged = { ...repoPresets };
-    const projPresets = project.userPresets || {};
-    for (const key of Object.keys(projPresets)) {
-      merged[key] = [...(merged[key] || [])];
-      for (const p of projPresets[key]) {
-        const idx = merged[key].findIndex(e => e.id === p.id);
-        if (idx >= 0) merged[key][idx] = p; else merged[key].push(p);
-      }
-    }
+    // Merge repo presets (Git-tracked) with the project file's presets (project wins
+    // on conflict), filtering through the user's tombstone list so deleted presets
+    // don't reappear when loading any file.
+    const merged = mergePresetsWithTombstones(repoPresets, project.userPresets);
     setUserPresets(merged);
     setProjectName(project.name || 'Untitled Project');
     setProjectId(project.id);
@@ -2964,7 +2997,8 @@ export default function App() {
   const handleNewProject = useCallback(() => {
     setNodes({});
     setConnections([]);
-    setUserPresets({});
+    // Restore the standard library: bundled repo presets minus user-deleted ones.
+    setUserPresets(mergePresetsWithTombstones(repoPresets, {}));
     setProjectName('Untitled Project');
     setProjectId(crypto.randomUUID());
     setSelectedNodes(new Set());
@@ -2973,8 +3007,15 @@ export default function App() {
     setAnchorLocalOffsets({});
     setBackgroundImages([]);
     setSelectedBackgroundImageId(null);
+    // Reset canvas presentation to the standard new-project look:
+    // HD landscape paper with title block visible.
+    handlePaperSizeChange('HD');
+    handleOrientationChange('landscape');
+    setPaperEnabled(true);
+    setShowTitleBlock(true);
+    localStorage.setItem('nx-showTitleBlock', 'true');
     setTimeout(() => centerPage(), 50);
-  }, [centerPage]);
+  }, [centerPage, handlePaperSizeChange, handleOrientationChange, setPaperEnabled, setShowTitleBlock]);
 
   // Fallback download for browsers without File System Access API
   const fallbackDownload = (content, fileName, type = 'application/json') => {

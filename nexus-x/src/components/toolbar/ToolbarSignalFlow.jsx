@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import ChangelogPopup from '../ChangelogPopup';
+import ShortcutsPopup from '../ShortcutsPopup';
 
 const BG = "#0e0e0c";
 const NODE = "#1a1a18";
@@ -183,6 +184,9 @@ export default function ToolbarSignalFlow({
   pages, showChangelog, setShowChangelog,
   addNode,
 }) {
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const shortcutsAnchorRef = useRef(null);
+
   const handleZoomChange = useCallback((newZoom) => {
     const container = containerRef.current;
     if (container) {
@@ -246,6 +250,18 @@ export default function ToolbarSignalFlow({
           <Btn on={sidePanelOpen} nodeKey="file" onClick={() => setSidePanelOpen(p => !p)} title="Toggle library panel">Library</Btn>
           <Btn onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)">Undo</Btn>
           <Btn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">Redo</Btn>
+          <div ref={shortcutsAnchorRef} style={{ display: 'inline-flex' }}>
+            <Btn
+              on={showShortcuts}
+              onClick={() => setShowShortcuts(p => !p)}
+              title="Keyboard & mouse shortcuts"
+            >Shortcuts</Btn>
+          </div>
+          <ShortcutsPopup
+            isOpen={showShortcuts}
+            onClose={() => setShowShortcuts(false)}
+            anchorRef={shortcutsAnchorRef}
+          />
         </div>
 
         <Wire live />
