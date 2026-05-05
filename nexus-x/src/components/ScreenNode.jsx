@@ -4,11 +4,11 @@ import { SIGNAL_COLOR_HEX_BY_ID } from '../config/signalColors';
 import { T } from '../config/theme';
 
 const TITLE_BAR_H = 36;
-const RAIL_W = 22;
+const RAIL_W = 90;            // wide enough for "XD A/B 11" and similar
+const DOT_SIZE = 7;           // small square at the outer edge of the rail
 const RESIZE_HANDLE_PX = 14;
-const ANCHOR_DOT = 9;
-const MIN_W = 240;
-const MIN_H = 140;
+const MIN_W = 360;
+const MIN_H = 160;
 
 // Default anchors created on every new ScreenNode. Power + Data are always present.
 const DEFAULT_ANCHORS = () => [
@@ -52,6 +52,12 @@ function ScreenNode({
 
   // Even-distribution Y for an anchor at index i of n on a rail.
   const evenY = (i, n) => (n <= 1 ? 0.5 : (i + 1) / (n + 1));
+
+  // Row height per rail = available rail height divided by anchor count, capped 18..36px.
+  // (Tight when there are many anchors so labels don't overlap; comfortable when few.)
+  const railH = Math.max(0, height - TITLE_BAR_H);
+  const leftRowH = Math.max(18, Math.min(36, leftAnchors.length > 0 ? railH / leftAnchors.length : 24));
+  const rightRowH = Math.max(18, Math.min(36, rightAnchors.length > 0 ? railH / rightAnchors.length : 24));
 
   // ---- Resolve image blob to object URL ----
   useEffect(() => {
@@ -406,6 +412,8 @@ function ScreenNode({
           y={evenY(i, leftAnchors.length)}
           baseTop={TITLE_BAR_H}
           totalHeight={height - TITLE_BAR_H}
+          railW={RAIL_W}
+          rowH={leftRowH}
           isActive={activeWire?.from === `${node.id}-${a.id}`}
           isConnected={connectedAnchorIds?.has?.(`${node.id}-${a.id}`)}
           onClick={() => onAnchorClick?.(`${node.id}-${a.id}`, a.direction, node.id)}
@@ -425,6 +433,8 @@ function ScreenNode({
           y={evenY(i, rightAnchors.length)}
           baseTop={TITLE_BAR_H}
           totalHeight={height - TITLE_BAR_H}
+          railW={RAIL_W}
+          rowH={rightRowH}
           isActive={activeWire?.from === `${node.id}-${a.id}`}
           isConnected={connectedAnchorIds?.has?.(`${node.id}-${a.id}`)}
           onClick={() => onAnchorClick?.(`${node.id}-${a.id}`, a.direction, node.id)}
@@ -496,7 +506,7 @@ function TitleBtn({ children, onClick, title, danger }) {
 }
 
 const AnchorPin = memo(function AnchorPin({
-  anchor, fullAnchorId, y, baseTop, totalHeight,
+  anchor, fullAnchorId, y, baseTop, totalHeight, railW, rowH,
   isActive, isConnected,
   onClick, onLabelChange, onSwapSide, onRemove,
 }) {
@@ -510,26 +520,33 @@ const AnchorPin = memo(function AnchorPin({
   const labelText = anchor.label
     || (anchor.kind === 'power' ? 'POWER'
         : anchor.kind === 'data' ? 'DATA'
-        : anchor.direction === 'out' ? 'out' : 'in');
+        : anchor.direction === 'out' ? 'OUT' : 'IN');
 
-  // Anchor visual: dot + label + (hover) controls
+  const labelColor = anchor.kind === 'power' ? '#fbbf24'
+                  : anchor.kind === 'data'  ? '#22d3ee'
+                  : T.textMuted;
+
+  // The whole anchor row spans the rail width.
+  // Layout — left rail: [dot at outer edge][label aligned right toward image]
+  //          right rail: [label aligned left toward image][dot at outer edge]
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         position: 'absolute',
-        top: top - 11,
-        [isLeft ? 'left' : 'right']: -3,
-        height: 22,
+        top: top - rowH / 2,
+        [isLeft ? 'left' : 'right']: 0,
+        width: railW,
+        height: rowH,
         display: 'flex',
         alignItems: 'center',
         flexDirection: isLeft ? 'row' : 'row-reverse',
-        gap: 4,
         zIndex: 5,
         pointerEvents: 'auto',
       }}
     >
+      {/* Anchor dot (small square at the outer edge) */}
       <button
         type="button"
         data-anchor-id={fullAnchorId}
@@ -539,75 +556,104 @@ const AnchorPin = memo(function AnchorPin({
         onMouseDown={(e) => e.stopPropagation()}
         title={`${labelText} · ${anchor.direction === 'in' ? 'input' : 'output'} (${anchor.side})`}
         style={{
-          width: ANCHOR_DOT,
-          height: ANCHOR_DOT,
-          borderRadius: '50%',
-          background: isActive ? '#22d3ee' : isConnected ? T.accent : 'transparent',
-          border: `2px solid ${isActive ? '#22d3ee' : T.accent}`,
+          flexShrink: 0,
+          width: DOT_SIZE,
+          height: DOT_SIZE,
+          marginLeft: isLeft ? 3 : 0,
+          marginRight: isLeft ? 0 : 3,
+          background: isActive ? '#22d3ee' : isConnected ? labelColor : 'transparent',
+          border: `1.5px solid ${isActive ? '#22d3ee' : labelColor}`,
           padding: 0,
           cursor: 'crosshair',
-          boxShadow: isActive
-            ? '0 0 8px rgba(34,211,238,0.6)'
-            : '0 0 8px rgba(187,187,187,0.27)',
+          boxShadow: isActive ? `0 0 6px ${labelColor}` : 'none',
         }}
       />
-      {editing ? (
-        <input
-          autoFocus
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={() => { onLabelChange(editValue.trim()); setEditing(false); }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter') e.target.blur();
-            if (e.key === 'Escape') { setEditValue(anchor.label || ''); setEditing(false); }
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
+
+      {/* Label (or edit input) — fills remaining rail width, aligned toward the image */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: isLeft ? '0 8px 0 6px' : '0 6px 0 8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: isLeft ? 'flex-end' : 'flex-start',
+        }}
+      >
+        {editing ? (
+          <input
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => { onLabelChange(editValue.trim()); setEditing(false); }}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') e.target.blur();
+              if (e.key === 'Escape') { setEditValue(anchor.label || ''); setEditing(false); }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              height: 18,
+              fontSize: 11, padding: '0 4px',
+              background: T.card,
+              border: `1px solid ${T.borderStrong}`,
+              color: T.white,
+              fontFamily: T.hFont,
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+              textAlign: isLeft ? 'right' : 'left',
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <span
+            onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Double-click to rename"
+            style={{
+              fontSize: 11,
+              color: labelColor,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              cursor: 'text',
+              letterSpacing: 1,
+              fontFamily: T.hFont,
+              textTransform: 'uppercase',
+              fontWeight: anchor.kind === 'power' || anchor.kind === 'data' ? 500 : 400,
+            }}
+          >
+            {labelText}
+          </span>
+        )}
+      </div>
+
+      {/* Hover-only controls — overlay the row's outer edge so the label doesn't shift */}
+      {hover && !editing && (
+        <div
           style={{
-            height: 14, width: 60,
-            fontSize: 9, padding: '0 3px',
-            background: T.card,
-            border: `1px solid ${T.borderStrong}`,
-            color: T.text,
-            fontFamily: T.hFont,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-          }}
-        />
-      ) : (
-        <span
-          onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            fontSize: 9,
-            color: anchor.kind === 'power' ? '#fbbf24'
-                  : anchor.kind === 'data' ? '#22d3ee'
-                  : T.textMuted,
-            maxWidth: 70,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            cursor: 'text',
-            letterSpacing: 1,
-            fontFamily: T.hFont,
-            textTransform: 'uppercase',
+            position: 'absolute',
+            top: 1, bottom: 1,
+            [isLeft ? 'right' : 'left']: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            background: 'linear-gradient(' + (isLeft ? '270deg' : '90deg') + ', ' + T.card + ' 0%, ' + T.card + ' 70%, transparent 100%)',
+            padding: isLeft ? '0 2px 0 8px' : '0 8px 0 2px',
+            pointerEvents: 'auto',
           }}
         >
-          {labelText}
-        </span>
-      )}
-      {hover && !editing && (
-        <>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onSwapSide?.(); }}
             onMouseDown={(e) => e.stopPropagation()}
             title="Swap side (left ⇄ right)"
             style={{
-              width: 14, height: 14,
+              width: 16, height: 16,
               background: 'transparent', border: 'none',
-              color: T.accent, fontSize: 11, lineHeight: 1, padding: 0,
+              color: T.accent, fontSize: 12, lineHeight: 1, padding: 0,
               cursor: 'pointer',
             }}
           >⇆</button>
@@ -618,14 +664,14 @@ const AnchorPin = memo(function AnchorPin({
               onMouseDown={(e) => e.stopPropagation()}
               title="Remove anchor"
               style={{
-                width: 14, height: 14,
+                width: 16, height: 16,
                 background: 'transparent', border: 'none',
-                color: '#ef5350', fontSize: 11, lineHeight: 1, padding: 0,
+                color: '#ef5350', fontSize: 13, lineHeight: 1, padding: 0,
                 cursor: 'pointer',
               }}
             >×</button>
           )}
-        </>
+        </div>
       )}
     </div>
   );

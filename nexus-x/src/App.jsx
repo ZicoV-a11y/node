@@ -2709,9 +2709,16 @@ export default function App() {
   const backWires = useMemo(() => connections.filter(c => c.zLayer === 'back'), [connections]);
   const frontWires = useMemo(() => connections.filter(c => c.zLayer !== 'back'), [connections]);
 
-  // Pre-sort node render order — avoids O(n log n) sort on every render
+  // Pre-sort node render order:
+  //   1. Persistent zOrder (F/B shortcuts) — lower renders first (behind)
+  //   2. Within same zOrder, selected nodes render last (visually on top while selected)
   const sortedNodes = useMemo(() =>
-    Object.values(nodes).sort((a, b) => (selectedNodes.has(a.id) ? 1 : 0) - (selectedNodes.has(b.id) ? 1 : 0)),
+    Object.values(nodes).sort((a, b) => {
+      const az = a.zOrder || 0;
+      const bz = b.zOrder || 0;
+      if (az !== bz) return az - bz;
+      return (selectedNodes.has(a.id) ? 1 : 0) - (selectedNodes.has(b.id) ? 1 : 0);
+    }),
     [nodes, selectedNodes]
   );
 

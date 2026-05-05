@@ -81,13 +81,30 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // F — bring selected wires to front / B — send to back
-      if (!isInInput && !mod && selectedWires.size > 0 && (key === 'f' || key === 'b')) {
+      // F — bring selected wires/nodes to front / B — send to back
+      if (!isInInput && !mod && (selectedWires.size > 0 || selectedNodes.size > 0) && (key === 'f' || key === 'b')) {
         e.preventDefault();
-        const newLayer = key === 'b' ? 'back' : undefined;
-        setConnections(prev => prev.map(conn =>
-          selectedWires.has(conn.id) ? { ...conn, zLayer: newLayer } : conn
-        ));
+        const toBack = key === 'b';
+
+        if (selectedWires.size > 0) {
+          const newLayer = toBack ? 'back' : undefined;
+          setConnections(prev => prev.map(conn =>
+            selectedWires.has(conn.id) ? { ...conn, zLayer: newLayer } : conn
+          ));
+        }
+
+        if (selectedNodes.size > 0) {
+          // Compute new zOrder for the selection: max+1 (front) or min-1 (back) of all current nodes
+          const allZ = Object.values(nodes).map(n => n.zOrder || 0);
+          const newZ = toBack ? Math.min(0, ...allZ) - 1 : Math.max(0, ...allZ) + 1;
+          setNodes(prev => {
+            const updated = { ...prev };
+            selectedNodes.forEach(id => {
+              if (updated[id]) updated[id] = { ...updated[id], zOrder: newZ };
+            });
+            return updated;
+          });
+        }
         return;
       }
 
